@@ -1,0 +1,167 @@
+.content-card {
+    width: 100%;
+    margin: 2em;
+    background-color: #ffffff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+}
+
+/* Header */
+.content-card .header-container {
+    background-color: var(--p-primary-800); /* Variable de PrimeNG para primary-800 */
+    height: 4em;
+    color: #ffffff;
+    padding: 1rem;
+    text-transform: uppercase;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 8px;
+}
+
+.content-card .new-btn {
+    background-color: #ffffff !important;
+    color: black !important;
+    border: none !important;
+    height: 2.5rem;
+    text-transform: capitalize;
+    font-weight: 400;
+}
+.content-card .new-btn:hover {
+    background-color: var(--p-primary-50) !important; /* Color muy claro de la paleta */
+    color: var(--p-primary-800) !important; /* Variable de PrimeNG para primary-800 */
+    transform: translateY(-1px) !important; /* Efecto de elevación sutil */
+    box-shadow: 0 2px 4px rgba(4, 52, 118, 0.1) !important; /* Sombra con el color del header */
+}
+.status-badge {
+    border-radius: 0 !important;
+    border: 1px solid gainsboro !important;
+    padding: 0.125rem 0.5rem !important;
+}
+
+.compact-table {
+    td {
+        padding: 0.125rem 0.25rem !important;
+    }
+}
+
+/* Estilos para la tarjeta de filtros */
+.filters-card {
+    margin-bottom: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.filters-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e5e7eb;
+    font-weight: 600;
+    color: #374151;
+}
+
+.filters-content {
+    padding: 1rem;
+    background-color: #ffffff;
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
+    grid-template-rows: repeat(2, auto);
+    gap: 0.75rem;
+    flex: 0 1 auto;
+}
+
+.filter-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    
+    input, p-select {
+        height: 2rem !important;
+        font-size: 0.875rem !important;
+        padding: 0.25rem 0.5rem !important;
+    }
+}
+
+.filter-item label {
+    font-weight: 500;
+    color: #374151;
+    font-size: 0.75rem;
+}
+
+.filters-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: center;
+    
+    button {
+        width: 4rem;
+        height: 4rem;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 0.25rem !important;
+        
+        .p-button-icon {
+            order: 1 !important;
+            margin: 0 !important;
+            font-size: 1rem !important;
+        }
+        
+        .p-button-label {
+            order: 2 !important;
+            font-size: 0.75rem !important;
+            line-height: 1 !important;
+            margin: 0 !important;
+        }
+        
+        &.p-button-primary {
+            background-color: var(--p-primary-800) !important; // primary-800
+            border-color: var(--p-primary-800) !important;
+            
+            &:hover {
+                background-color: var(--p-primary-700)!important; // primary-700
+                border-color: var(--p-primary-700) !important;
+            }
+        }
+    }
+}
+
+/* Responsive para filtros */
+@media (max-width: 768px) {
+    .filters-content {
+        flex-direction: column;
+        padding: 1rem;
+        gap: 1rem;
+    }
+    
+    .filters-grid {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+        margin-bottom: 0;
+    }
+    
+    .filters-actions {
+        flex-direction: row;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        
+        button {
+            width: 4rem;
+            height: 4rem;
+        }
+    }
+}

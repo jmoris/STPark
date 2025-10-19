@@ -1,0 +1,60 @@
+<p-dialog 
+    header="DETALLES DEL USUARIO" 
+    [(visible)]="visible" 
+    [modal]="true" 
+    [style]="{width: '50rem'}"
+    [breakpoints]="{'1199px': '75vw', '575px': '90vw'}"
+    [draggable]="false" 
+    [resizable]="false"
+    [closable]="false"
+    [closeOnEscape]="false"
+    (visibleChange)="visibleChange.emit($event)">
+    
+    <div class="user-details" *ngIf="user">
+        <div class="detail-section">
+            <h3>Información Personal</h3>
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <label>Nombre:</label>
+                    <span>{{ user.name }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Apellido:</label>
+                    <span>{{ user.lastname }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Email:</label>
+                    <span>{{ user.email }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="detail-section">
+            <h3>Información del Sistema</h3>
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <label>Rol:</label>
+                    <span class="role" [ngClass]="'role-' + user.role.toLowerCase()">{{ user.role }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Estado:</label>
+                    <span class="status" [ngClass]="user.status ? 'ACTIVE' : 'INACTIVE'">{{ user.status ? 'Activo' : 'Inactivo' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Última Conexión:</label>
+                    <span>{{ user.last_connection | date:'dd/MM/yyyy HH:mm' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <button pButton 
+                type="button" 
+                label="Cerrar" 
+                icon="pi pi-times" 
+                class="p-button-text"
+                (click)="closeModal()">
+        </button>
+    </ng-template>
+</p-dialog>

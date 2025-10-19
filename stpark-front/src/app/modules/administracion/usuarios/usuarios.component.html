@@ -1,0 +1,198 @@
+<!-- card-demo.component.html -->
+<p-card class="content-card">
+    <ng-template pTemplate="header">
+        <div class="header-container">
+            <span>Gestión de Usuarios</span>
+            <button pButton type="button" label="Nuevo usuario" icon="pi pi-user-plus"
+                class="p-button-outlined p-button-sm new-btn" (click)="crearUsuario()"></button>
+        </div>
+  </ng-template>
+
+  <!-- Tarjeta de filtros -->
+  <p-card class="filters-card mb-4">
+    <ng-template pTemplate="header">
+      <div class="filters-header">
+        <span>Filtros de Búsqueda</span>
+        <button
+          pButton
+          type="button"
+          [icon]="showFilters ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"
+          class="p-button-text p-button-sm"
+          (click)="toggleFilters()"
+          pTooltip="Mostrar/Ocultar filtros">
+        </button>
+      </div>
+    </ng-template>
+
+    <div class="filters-content" *ngIf="showFilters">
+      <div class="filters-grid">
+        <!-- Filtro por Nombre -->
+        <div class="filter-item">
+          <label for="filter-name">Nombre:</label>
+          <input
+            id="filter-name"
+            pInputText
+            [(ngModel)]="filters.name"
+            placeholder="Buscar por nombre..."
+            class="w-full">
+        </div>
+
+        <!-- Filtro por Apellido -->
+        <div class="filter-item">
+          <label for="filter-lastname">Apellido:</label>
+          <input
+            id="filter-lastname"
+            pInputText
+            [(ngModel)]="filters.lastname"
+            placeholder="Buscar por apellido..."
+            class="w-full">
+        </div>
+
+        <!-- Filtro por Email -->
+        <div class="filter-item">
+          <label for="filter-email">Email:</label>
+          <input
+            id="filter-email"
+            pInputText
+            [(ngModel)]="filters.email"
+            placeholder="Buscar por email..."
+            class="w-full">
+        </div>
+
+        <!-- Filtro por Rol -->
+        <div class="filter-item">
+          <label for="filter-role">Rol:</label>
+          <p-select
+            id="filter-role"
+            [(ngModel)]="filters.role"
+            [options]="roleOptions"
+            placeholder="Seleccionar rol..."
+            class="w-full compact-select"
+            style="font-size: 0.875rem !important;">
+          </p-select>
+        </div>
+
+        <!-- Filtro por Estado -->
+        <div class="filter-item">
+          <label for="filter-status">Estado:</label>
+          <p-select
+            id="filter-status"
+            [(ngModel)]="filters.status"
+            [options]="statusOptions"
+            placeholder="Seleccionar estado..."
+            class="w-full compact-select"
+            style="font-size: 0.875rem !important;">
+          </p-select>
+        </div>
+      </div>
+
+      <!-- Botones de acción -->
+      <div class="filters-actions">
+        <button
+          pButton
+          type="button"
+          label="Buscar"
+          icon="pi pi-search"
+          class="p-button-primary p-button-sm"
+          (click)="applyFilters()">
+        </button>
+        <button
+          pButton
+          type="button"
+          label="Limpiar Filtros"
+          icon="pi pi-times"
+          class="p-button-secondary p-button-sm"
+          (click)="clearFilters()">
+        </button>
+      </div>
+    </div>
+  </p-card>
+
+  <!-- Tabla de usuarios -->
+    <p-table [value]="users" [lazy]="true" [loading]="loading" [totalRecords]="totalRecords" [rows]="rows"
+        [rowsPerPageOptions]="rowsPerPageOptions" [paginator]="true" [showCurrentPageReport]="true"
+        currentPageReportTemplate="Mostrando {first} a {last} de {totalRecords} usuarios"
+        (onLazyLoad)="onLazyLoad($event)" [sortMode]="'single'" sortField="name" sortOrder="desc" [sortOrder]="-1"
+        styleClass="p-datatable-sm compact-table" [scrollable]="true" scrollHeight="60vh">
+
+        <!-- Columnas de la tabla -->
+        <ng-template pTemplate="header">
+            <tr>
+                <th style="width: 15%;" pSortableColumn="name">
+                    Nombre &nbsp;
+                    <p-sortIcon field="name"></p-sortIcon>
+                </th>
+                <th style="width: 15%;" pSortableColumn="lastname">
+                    Apellido &nbsp;
+                    <p-sortIcon field="lastname"></p-sortIcon>
+                </th>
+                <th style="width: 15%;" pSortableColumn="email">
+                    Email &nbsp;
+                    <p-sortIcon field="email"></p-sortIcon>
+                </th>
+                <th style="width: 15%;">
+                    Rol &nbsp;
+                </th>
+                <th style="width: 10%;" pSortableColumn="status">
+                    Estado &nbsp;
+                    <p-sortIcon field="status"></p-sortIcon>
+                </th>
+                <th style="width: 10%;" pSortableColumn="last_connection">
+                    Última Conexión &nbsp;      
+                    <p-sortIcon field="last_connection"></p-sortIcon>
+                </th>
+                <th style="max-width: 5%; min-width: 5%; width: 5%;">
+                </th>
+            </tr>
+        </ng-template>
+
+        <ng-template pTemplate="body" let-user>
+            <tr>
+                <td>{{ user.name }}</td>
+                <td>{{ user.lastname }}</td>
+                <td>{{ user.email }}</td>
+                <td>Administrador</td>
+                <td>
+                    <span [class]="'status-badge ' + (user.status ? 'status-active' : 'status-inactive')">
+                        {{ user.status ? 'Activo' : 'Inactivo' }}
+                    </span>
+                </td>
+                <td>{{ user.last_connection | date:'dd/MM/yyyy HH:mm' }}</td>
+                <td>
+                    <button pButton type="button" icon="pi pi-ellipsis-h"
+                        class="p-button-text p-button-sm p-button-secondary" pTooltip="Más opciones"
+                        (click)="toggleMenu($event, user)" #menuTrigger></button>
+
+                    <p-menu #menu [model]="getMenuItems(user)" [popup]="true" [appendTo]="'body'">
+                    </p-menu>
+                </td>
+            </tr>
+        </ng-template>
+
+        <!-- Template para cuando no hay datos -->
+        <ng-template pTemplate="emptymessage">
+            <tr>
+                <td colspan="6" class="text-center">
+                    <div class="empty-state">
+                        <i class="pi pi-users" style="font-size: 3rem; color: #ccc;"></i>
+                        <p>No se encontraron usuarios</p>
+                    </div>
+                </td>
+            </tr>
+        </ng-template>
+    </p-table>
+</p-card>
+
+<app-user-create-modal 
+    [visible]="showCreateModal" 
+    [userToEdit]="userToEdit"
+    (visibleChange)="onCreateModalVisibleChange($event)"
+    (userCreated)="onUserCreated($event)" 
+    (userUpdated)="onUserUpdated($event)">
+</app-user-create-modal>
+
+<app-user-details-modal 
+    [visible]="showDetailsModal" 
+    [user]="selectedUser"
+    (visibleChange)="onDetailsModalVisibleChange($event)">
+</app-user-details-modal>

@@ -1,0 +1,112 @@
+<p-dialog 
+    [header]="isEditMode ? 'EDITAR USUARIO' : 'CREAR NUEVO USUARIO'" 
+    [visible]="visible" 
+    [modal]="true" 
+    [style]="{width: '50rem'}"
+    [breakpoints]="{'1199px': '75vw', '575px': '90vw'}"
+    [draggable]="false" 
+    [resizable]="false"
+    [closable]="false"
+    [closeOnEscape]="false"
+    (visibleChange)="onVisibleChange($event)">
+    
+    <form [formGroup]="userForm" (ngSubmit)="onSubmit()" class="user-form">
+        <div class="form-section">
+            <h3>Información Personal</h3>
+            <div class="form-grid">
+                <!-- Campo Nombre -->
+                <div class="form-field">
+                    <label for="name">Nombre *</label>
+                    <input 
+                        pInputText 
+                        id="name"
+                        formControlName="name"
+                        placeholder="Ingrese el nombre"
+                        [class.ng-invalid]="userForm.get('name')?.invalid && userForm.get('name')?.touched"
+                        [class.ng-valid]="userForm.get('name')?.valid" />
+                    <small 
+                        class="error-message" 
+                        *ngIf="getFieldError('name')">
+                        {{ getFieldError('name') }}
+                    </small>
+                </div>
+
+                <!-- Campo Apellido -->
+                <div class="form-field">
+                    <label for="lastname">Apellido *</label>
+                    <input 
+                        pInputText 
+                        id="lastname"
+                        formControlName="lastname"
+                        placeholder="Ingrese el apellido"
+                        [class.ng-invalid]="userForm.get('lastname')?.invalid && userForm.get('lastname')?.touched"
+                        [class.ng-valid]="userForm.get('lastname')?.valid" />
+                    <small 
+                        class="error-message" 
+                        *ngIf="getFieldError('lastname')">
+                        {{ getFieldError('lastname') }}
+                    </small>
+                </div>
+
+                <!-- Campo Email -->
+                <div class="form-field">
+                    <label for="email">Email *</label>
+                    <input 
+                        pInputText 
+                        id="email"
+                        formControlName="email"
+                        placeholder="usuario@ejemplo.com"
+                        [class.ng-invalid]="userForm.get('email')?.invalid && userForm.get('email')?.touched"
+                        [class.ng-valid]="userForm.get('email')?.valid" />
+                    <small 
+                        class="error-message" 
+                        *ngIf="getFieldError('email')">
+                        {{ getFieldError('email') }}
+                    </small>
+                </div>
+
+                <!-- Campo Rol -->
+                <div class="form-field">
+                    <label for="role">Rol *</label>
+                    <select 
+                        id="role"
+                        formControlName="role"
+                        [class.ng-invalid]="userForm.get('role')?.invalid && userForm.get('role')?.touched"
+                        [class.ng-valid]="userForm.get('role')?.valid">
+                        <option value="">Seleccione un rol</option>
+                        <option *ngFor="let role of roleOptions" [value]="role.value">
+                            {{ role.label }}
+                        </option>
+                    </select>
+                    <small 
+                        class="error-message" 
+                        *ngIf="getFieldError('role')">
+                        {{ getFieldError('role') }}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <ng-template pTemplate="footer">
+        <div class="footer-actions">
+            <button 
+                pButton 
+                type="button" 
+                label="Cancelar" 
+                icon="pi pi-times"
+                class="p-button-text p-button-sm"
+                (click)="closeModal()">
+            </button>
+            <button 
+                pButton 
+                type="button" 
+                [label]="isEditMode ? 'Actualizar Usuario' : 'Crear Usuario'" 
+                icon="pi pi-check"
+                class="p-button-sm"
+                [disabled]="userForm.invalid"
+                (click)="onSubmit()">
+            </button>
+        </div>
+    </ng-template>
+</p-dialog>

@@ -1,0 +1,13 @@
+/* ----------------------------------------------------------------------------------------------------- */
+/*  @ Import/write your custom styles here.
+/*  @ Styles from this file will override 'vendors.scss' and Fuse's base styles.
+/* ----------------------------------------------------------------------------------------------------- */
+
+/* PrimeIcons */
+@import 'primeicons/primeicons.css';
+
+::ng-deep .p-datatable-sm .p-datatable-thead > tr > th,
+::ng-deep .p-datatable-sm .p-datatable-tbody > tr > td {
+  padding: 0.25rem 0.5rem !important;
+  font-size: 2rem !important;
+}

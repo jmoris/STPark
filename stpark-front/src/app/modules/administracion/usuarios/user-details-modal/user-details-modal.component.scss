@@ -1,0 +1,107 @@
+/* --- Estilos del Modal --- */
+.user-details {
+  padding: 1rem 0;
+}
+
+.detail-section {
+  margin-bottom: 2rem;
+
+  h3 {
+    color: #1f2937;
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e5e7eb;
+  }
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+
+  label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  span {
+    color: #1f2937;
+    font-size: 1rem;
+    padding: 0.5rem 0;
+
+    &.role,
+    &.status {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 0.25rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      width: fit-content;
+    }
+  }
+}
+
+/* Responsive para el modal */
+@media (min-width: 768px) {
+  .detail-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Estilos para el diálogo */
+::ng-deep .p-dialog {
+  background: #ffffff !important;
+  
+  .p-dialog-header {
+    background: #1e3a8a !important; /* blue-900 */
+    border-bottom: 1px solid #1e40af !important;
+    border-radius: 0.5rem 0.5rem 0 0 !important;
+    padding: 1rem 1.5rem !important;
+  }
+
+  .p-dialog-content {
+    background: #ffffff !important;
+    color: #1f2937 !important;
+    padding: 1.5rem !important;
+  }
+
+  .p-dialog-footer {
+    background: #f8fafc !important;
+    border-top: 1px solid #e5e7eb !important;
+    padding: 1rem 1.5rem !important;
+    border-radius: 0 0 0.5rem 0.5rem !important;
+  }
+}
+
+/* Estilos para el título del modal más grande y en mayúsculas */
+::ng-deep .p-dialog .p-dialog-title {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  margin: 0 !important;
+}
+
+/* Estilos para el botón del footer */
+::ng-deep .p-dialog .p-button {
+  color: #374151 !important;
+  border-color: #d1d5db !important;
+  background: #ffffff !important;
+
+  &:hover {
+    background: #f3f4f6 !important;
+    border-color: #9ca3af !important;
+  }
+}
