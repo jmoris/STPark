@@ -18,6 +18,7 @@ import { router } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 import { ticketPrinterService, SessionTicketData } from '../services/ticketPrinter';
+import { checkSunmiModule } from '../services/sunmiTest';
 import { PaymentModal } from '@/components/PaymentModal';
 
 export default function NuevaSesionScreen() {
@@ -137,35 +138,40 @@ export default function NuevaSesionScreen() {
 
       if (response.success) {
         // Intentar imprimir ticket de ingreso
-        const hasPrinter = await ticketPrinterService.hasPrinterConfigured();
-        if (hasPrinter) {
-          try {
-            const selectedStreet = streets.find(street => street.id === selectedStreetId);
-            const ticketData: SessionTicketData = {
-              type: 'INGRESO',
-              plate: patente.toUpperCase(),
-              sector: activeSector?.name,
-              street: selectedStreet?.name,
-              sectorIsPrivate: activeSector?.is_private || false,
-              streetAddress: selectedStreet?.full_address || selectedStreet?.name,
-              startTime: new Date().toISOString(),
-              operatorName: operator?.name
-            };
-            
-            const printed = await ticketPrinterService.printIngressTicket(ticketData);
-            if (printed) {
-              console.log('Ticket de ingreso impreso exitosamente');
-            } else {
-              console.log('No se pudo imprimir el ticket');
-            }
-          } catch (printError) {
-            console.error('Error imprimiendo ticket:', printError);
+        console.log('Iniciando proceso de impresión de ticket...');
+        
+        // Verificar estado del módulo Sunmi
+        console.log('🔍 Verificando módulo Sunmi...');
+        checkSunmiModule();
+        
+        try {
+          const selectedStreet = streets.find(street => street.id === selectedStreetId);
+          const ticketData: SessionTicketData = {
+            type: 'INGRESO',
+            plate: patente.toUpperCase(),
+            sector: activeSector?.name,
+            street: selectedStreet?.name,
+            sectorIsPrivate: activeSector?.is_private || false,
+            streetAddress: selectedStreet?.full_address || selectedStreet?.name,
+            startTime: new Date().toISOString(),
+            operatorName: operator?.name
+          };
+          
+          console.log('Datos del ticket:', ticketData);
+          
+          const printed = await ticketPrinterService.printIngressTicket(ticketData);
+          if (printed) {
+            console.log('✅ Ticket de ingreso impreso exitosamente');
+          } else {
+            console.log('❌ No se pudo imprimir el ticket');
           }
+        } catch (printError) {
+          console.error('❌ Error imprimiendo ticket:', printError);
         }
 
         Alert.alert(
           'Sesión Creada',
-          `Sesión iniciada para patente ${patente.toUpperCase()}${hasPrinter ? '\n\nTicket impreso automáticamente' : ''}`,
+          `Sesión iniciada para patente ${patente.toUpperCase()}\n\nTicket impreso automáticamente`,
           [
             {
               text: 'OK',

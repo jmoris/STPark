@@ -1,15 +1,15 @@
 // Configuración de la aplicación
-const DEFAULT_API_BASE_URL = 'http://192.168.1.34:8000/api';
+const DEFAULT_API_BASE_URL = 'http://192.168.1.34:8000/parking';
 
 export const CONFIG = {
   // URL del backend - cambiar según el entorno
-  // API_BASE_URL: 'http://restapp.test:8000/api',
+  // API_BASE_URL: 'http://restapp.test:8000/parking',
   
   // Para desarrollo local con dispositivo físico, usar la IP de tu computadora:
   API_BASE_URL: DEFAULT_API_BASE_URL,
   
   // Para producción, usar la URL real del servidor:
-  // API_BASE_URL: 'https://api.stpark.cl/api',
+  // API_BASE_URL: 'https://api.stpark.cl/parking',
   
   // Configuración de la app
   APP_NAME: 'STPark',

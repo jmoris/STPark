@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiService, Operator } from '../services/api';
+import { tenantConfigService } from '../services/tenantConfig';
 
 interface AuthContextType {
   operator: Operator | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, pin: string) => Promise<boolean>;
+  login: (operatorId: number, pin: string) => Promise<boolean>;
   logout: () => Promise<void>;
 }
 
@@ -39,6 +40,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('AuthContext: Verificando estado de autenticación');
       console.log('AuthContext: Iniciando verificación...');
       
+      // Verificar que el tenant esté configurado antes de hacer la verificación
+      const hasTenant = await tenantConfigService.hasTenant();
+      if (!hasTenant) {
+        console.log('AuthContext: No hay tenant configurado, saltando verificación de auth');
+        setOperator(null);
+        setIsLoading(false);
+        return;
+      }
+      
       const response = await apiService.verifyToken();
       console.log('AuthContext: Respuesta recibida:', response);
       
@@ -59,10 +69,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const login = async (email: string, pin: string): Promise<boolean> => {
+  const login = async (operatorId: number, pin: string): Promise<boolean> => {
     try {
-      console.log('AuthContext: Iniciando login para:', email);
-      const response = await apiService.login(email, pin);
+      console.log('AuthContext: Iniciando login para operador ID:', operatorId);
+      
+      // Verificar que el tenant esté configurado antes de hacer login
+      const hasTenant = await tenantConfigService.hasTenant();
+      if (!hasTenant) {
+        console.log('AuthContext: No hay tenant configurado, no se puede hacer login');
+        return false;
+      }
+      
+      const response = await apiService.login(operatorId, pin);
       if (response.success && response.data) {
         console.log('AuthContext: Login exitoso, operador:', response.data.operator.name);
         

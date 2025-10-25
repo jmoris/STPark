@@ -62,6 +62,14 @@
 
       <div class="form-row">
         <mat-form-field appearance="outline" class="half-width">
+          <mat-label>PIN (6 dígitos)</mat-label>
+          <input matInput formControlName="pin" placeholder="123456" maxlength="6">
+          <mat-error *ngIf="operatorForm.get('pin')?.hasError('pattern')">
+            {{ getErrorMessage('pin') }}
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="half-width">
           <mat-label>Estado</mat-label>
           <mat-select formControlName="status">
             <mat-option value="ACTIVE">Activo</mat-option>

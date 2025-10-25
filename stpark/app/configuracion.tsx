@@ -17,6 +17,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { router } from 'expo-router';
 import { CONFIG, updateServerUrl } from '@/config/app';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTenant } from '../contexts/TenantContext';
 import { ReactNativePosPrinter, ThermalPrinterDevice } from 'react-native-thermal-pos-printer';
 import { Platform } from 'react-native';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
@@ -25,6 +26,7 @@ import { bluetoothPrinterService } from '@/services/bluetoothPrinter';
 import { PrinterStatus } from 'react-native-thermal-pos-printer/src/types/printer';
 
 export default function ConfiguracionScreen() {
+  const { tenantConfig, setTenant } = useTenant();
   const [showScanModal, setShowScanModal] = useState(false);
   const [scanningDevices, setScanningDevices] = useState(false);
   const [availableDevices, setAvailableDevices] = useState<any[]>([]);
@@ -42,6 +44,8 @@ export default function ConfiguracionScreen() {
   const [loadingDevices, setLoadingDevices] = useState(false);
   const [showServerModal, setShowServerModal] = useState(false);
   const [newServerUrl, setNewServerUrl] = useState('');
+  const [showTenantModal, setShowTenantModal] = useState(false);
+  const [newTenant, setNewTenant] = useState('');
   const [pairedDevices, setPairedDevices] = useState<any[]>([]);
   const [loadingPairedDevices, setLoadingPairedDevices] = useState(false);
   useEffect(() => {
@@ -763,9 +767,38 @@ correctamente.
     }
   };
 
+  const handleOpenServerModal = async () => {
+    // Cargar la URL actual del servidor
+    const currentUrl = await AsyncStorage.getItem('custom_server_url') || CONFIG.API_BASE_URL;
+    setNewServerUrl(currentUrl);
+    setShowServerModal(true);
+  };
+
   const handleSaveServer = async () => {
+    if (!newServerUrl.trim()) {
+      Alert.alert('Error', 'La URL del servidor no puede estar vacía');
+      return;
+    }
+
+    // Validar formato de URL
+    const urlPattern = /^https?:\/\/.+/;
+    if (!urlPattern.test(newServerUrl.trim())) {
+      Alert.alert('Error', 'La URL debe comenzar con http:// o https://');
+      return;
+    }
+
     try {
-      Alert.alert('Servidor Actualizado', 'El servidor se ha cambiado a: http://192.168.1.34:8000/api');
+      // Guardar la nueva URL del servidor
+      await AsyncStorage.setItem('custom_server_url', newServerUrl.trim());
+      
+      // Actualizar la configuración
+      updateServerUrl(newServerUrl.trim());
+      
+      Alert.alert(
+        'Servidor Actualizado', 
+        `El servidor se ha cambiado a: ${newServerUrl.trim()}`,
+        [{ text: 'OK', onPress: () => setShowServerModal(false) }]
+      );
     } catch (error) {
       Alert.alert('Error', 'No se pudo guardar la configuración del servidor');
     }
@@ -786,6 +819,41 @@ correctamente.
       );
     } catch (error) {
       Alert.alert('Error', 'No se pudo restaurar la configuración del servidor');
+    }
+  };
+
+  const handleSaveTenant = async () => {
+    if (!newTenant.trim()) {
+      Alert.alert('Error', 'El tenant es requerido');
+      return;
+    }
+
+    if (newTenant.trim().length < 2) {
+      Alert.alert('Error', 'El tenant debe tener al menos 2 caracteres');
+      return;
+    }
+
+    // Validar que solo contenga letras, números y guiones
+    const tenantRegex = /^[a-zA-Z0-9-_]+$/;
+    if (!tenantRegex.test(newTenant.trim())) {
+      Alert.alert('Error', 'Solo se permiten letras, números y guiones');
+      return;
+    }
+
+    try {
+      const success = await setTenant(newTenant.trim());
+      if (success) {
+        Alert.alert(
+          'Tenant Actualizado',
+          `El tenant se ha cambiado a: ${newTenant.trim()}\n\nSe ha cerrado la sesión del operador para reconectarse con el nuevo tenant.`,
+          [{ text: 'OK', onPress: () => setShowTenantModal(false) }]
+        );
+        setNewTenant('');
+      } else {
+        Alert.alert('Error', 'No se pudo guardar la configuración del tenant');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo guardar la configuración del tenant');
     }
   };
 
@@ -1405,11 +1473,24 @@ correctamente.
             />
           </View>
 
+          <View style={styles.configItem}>
+            <Text style={styles.configLabel}>Tenant</Text>
+            <TouchableOpacity
+              style={styles.configButton}
+              onPress={() => {
+                setNewTenant(tenantConfig.tenant);
+                setShowTenantModal(true);
+              }}
+            >
+              <Text style={styles.configButtonText}>Cambiar</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={[styles.configItem, styles.configItemLast]}>
             <Text style={styles.configLabel}>Servidor</Text>
             <TouchableOpacity
               style={styles.configButton}
-              onPress={handleSaveServer}
+              onPress={handleOpenServerModal}
             >
               <Text style={styles.configButtonText}>Cambiar</Text>
             </TouchableOpacity>
@@ -1448,6 +1529,11 @@ correctamente.
           <View style={styles.configItem}>
             <Text style={styles.configLabel}>Versión</Text>
             <Text style={styles.configValue}>{CONFIG.VERSION}</Text>
+          </View>
+
+          <View style={styles.configItem}>
+            <Text style={styles.configLabel}>Tenant</Text>
+            <Text style={styles.configValue}>{tenantConfig.tenant || 'No configurado'}</Text>
           </View>
 
           <View style={styles.configItem}>
@@ -1727,6 +1813,65 @@ correctamente.
               <TouchableOpacity
                 style={[styles.modalButton, styles.saveButton]}
                 onPress={handleSaveServer}
+              >
+                <Text style={styles.saveButtonText}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para cambiar tenant */}
+      <Modal
+        visible={showTenantModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowTenantModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Cambiar Tenant</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowTenantModal(false)}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.modalDescription}>
+                Ingresa el nuevo nombre del tenant. Solo se permiten letras, números y guiones.
+              </Text>
+              
+              <Text style={styles.inputLabel}>Nombre del Tenant:</Text>
+              <TextInput
+                style={styles.textInput}
+                value={newTenant}
+                onChangeText={setNewTenant}
+                placeholder="Ej: acme, empresa1, etc."
+                placeholderTextColor="#999"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              <Text style={styles.currentServerText}>
+                Tenant actual: {tenantConfig.tenant || 'No configurado'}
+              </Text>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowTenantModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleSaveTenant}
               >
                 <Text style={styles.saveButtonText}>Guardar</Text>
               </TouchableOpacity>

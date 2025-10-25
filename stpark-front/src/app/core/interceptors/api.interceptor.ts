@@ -4,23 +4,53 @@ import { catchError } from 'rxjs/operators';
 import { throwError, Observable } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router } from '@angular/router';
+import { environment } from 'environments/environment';
+import { AuthService } from 'app/core/auth/auth.service';
+import { AuthUtils } from 'app/core/auth/auth.utils';
 
 export const ApiInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, next) => {
   const snackBar = inject(MatSnackBar);
   const router = inject(Router);
+  const authService = inject(AuthService);
 
-  // Agregar headers comunes
-  const authReq = req.clone({
-    setHeaders: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      // Agregar token de autenticación si existe
-      // 'Authorization': `Bearer ${getAuthToken()}`
-    }
+  // Clone the request object
+  let newReq = req.clone();
+
+  // Add X-Tenant header
+  newReq = newReq.clone({
+    headers: newReq.headers.set('X-Tenant', environment.tenant),
   });
 
-  return next(authReq).pipe(
+  // Add Content-Type and Accept headers
+  newReq = newReq.clone({
+    headers: newReq.headers
+      .set('Content-Type', 'application/json')
+      .set('Accept', 'application/json')
+  });
+
+  // Add Authorization header if token exists and is not expired
+  if (
+    authService.accessToken &&
+    !AuthUtils.isTokenExpired(authService.accessToken)
+  ) {
+    newReq = newReq.clone({
+      headers: newReq.headers.set(
+        'Authorization',
+        'Bearer ' + authService.accessToken
+      ),
+    });
+  }
+
+  return next(newReq).pipe(
     catchError((error: HttpErrorResponse) => {
+      // Catch "401 Unauthorized" responses
+      if (error.status === 401) {
+        // Sign out
+        authService.signOut();
+        // Reload the app
+        location.reload();
+      }
+      
       return handleError(error, snackBar, router);
     })
   );
@@ -80,8 +110,4 @@ function handleError(error: HttpErrorResponse, snackBar: MatSnackBar, router: Ro
   return throwError(() => error);
 }
 
-function getAuthToken(): string | null {
-  // Obtener token del localStorage o del servicio de autenticación
-  return localStorage.getItem('auth_token');
-}
 

@@ -66,6 +66,7 @@ export class OperatorFormComponent implements OnInit {
       rut: ['', [Validators.required, Validators.pattern(/^[0-9]+-[0-9kK]{1}$/)]],
       email: ['', [Validators.email]],
       phone: ['', [Validators.pattern(/^[+]?[\d\s-()]+$/)]],
+      pin: ['', [Validators.pattern(/^[0-9]{6}$/)]],
       status: ['ACTIVE']
     });
   }
@@ -89,6 +90,7 @@ export class OperatorFormComponent implements OnInit {
         rut: this.data.operator.rut,
         email: this.data.operator.email || '',
         phone: this.data.operator.phone || '',
+        pin: this.data.operator.pin || '',
         status: this.data.operator.status || 'ACTIVE'
       });
     }
@@ -152,6 +154,9 @@ export class OperatorFormComponent implements OnInit {
     if (control?.hasError('pattern')) {
       if (field === 'rut') {
         return 'Formato de RUT inválido (ej: 12.345.678-9)';
+      }
+      if (field === 'pin') {
+        return 'El PIN debe tener exactamente 6 dígitos';
       }
       return 'Formato de teléfono inválido';
     }

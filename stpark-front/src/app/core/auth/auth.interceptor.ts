@@ -7,6 +7,7 @@ import {
 import { inject } from '@angular/core';
 import { AuthService } from 'app/core/auth/auth.service';
 import { AuthUtils } from 'app/core/auth/auth.utils';
+import { environment } from 'environments/environment';
 import { Observable, catchError, throwError } from 'rxjs';
 
 /**
@@ -24,6 +25,11 @@ export const authInterceptor = (
     // Clone the request object
     let newReq = req.clone();
 
+    // Add X-Tenant header
+    newReq = newReq.clone({
+        headers: newReq.headers.set('X-Tenant', environment.tenant),
+    });
+
     // Request
     //
     // If the access token didn't expire, add the Authorization header.
@@ -36,8 +42,8 @@ export const authInterceptor = (
         authService.accessToken &&
         !AuthUtils.isTokenExpired(authService.accessToken)
     ) {
-        newReq = req.clone({
-            headers: req.headers.set(
+        newReq = newReq.clone({
+            headers: newReq.headers.set(
                 'Authorization',
                 'Bearer ' + authService.accessToken
             ),

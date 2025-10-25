@@ -7,17 +7,20 @@ import {
   TouchableOpacity,
   Modal,
   FlatList,
-  Alert,
   TextInput,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { STParkLogo } from '@/components/STParkLogo';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { router, Link } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
+import { useTenant } from '../contexts/TenantContext';
 import { apiService } from '@/services/api';
 import { PaymentModal } from '@/components/PaymentModal';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import ReactNativePosPrinter, { ThermalPrinterDevice } from 'react-native-thermal-pos-printer';
 
 export default function HomeScreen() {
   const [resumenExpandido, setResumenExpandido] = useState(false);
@@ -28,8 +31,171 @@ export default function HomeScreen() {
   const [loadingActiveSessions, setLoadingActiveSessions] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState<any>(null);
-  const { operator, logout, isAuthenticated, isLoading } = useAuth();
+  const [printerConnected, setPrinterConnected] = useState(false);
+  const [printerConnecting, setPrinterConnecting] = useState(false);
+  const [printerInfo, setPrinterInfo] = useState<string>('');
+  const [connectionAttempts, setConnectionAttempts] = useState(0);
+  const [showTenantConfigModal, setShowTenantConfigModal] = useState(false);
+  const [tenantInput, setTenantInput] = useState('');
+  const [tenantConfigLoading, setTenantConfigLoading] = useState(false);
+  const { operator, logout } = useAuth();
+  const { tenantConfig, isLoading: tenantLoading, setTenant, refreshTenantConfig } = useTenant();
 
+  // Verificar si hay tenant configurado al cargar la pantalla
+  useEffect(() => {
+    if (!tenantLoading && !tenantConfig.isValid) {
+      console.log('No hay tenant configurado, mostrando modal de configuración');
+      setShowTenantConfigModal(true);
+    } else if (!tenantLoading && tenantConfig.isValid) {
+      console.log('Tenant configurado correctamente:', tenantConfig.tenant);
+      setShowTenantConfigModal(false);
+    }
+  }, [tenantLoading, tenantConfig.isValid]);
+
+
+  // Función para manejar la configuración del tenant desde el modal
+  const handleTenantSave = async () => {
+    if (!tenantInput.trim()) {
+      alert('El tenant es requerido');
+      return;
+    }
+
+    if (tenantInput.trim().length < 2) {
+      alert('El tenant debe tener al menos 2 caracteres');
+      return;
+    }
+
+    // Validar que solo contenga letras, números y guiones
+    const tenantRegex = /^[a-zA-Z0-9-_]+$/;
+    if (!tenantRegex.test(tenantInput.trim())) {
+      alert('Solo se permiten letras, números y guiones');
+      return;
+    }
+
+    setTenantConfigLoading(true);
+
+    try {
+      const success = await setTenant(tenantInput.trim());
+      if (success) {
+        console.log('Tenant configurado exitosamente:', tenantInput.trim());
+        setShowTenantConfigModal(false);
+        setTenantInput('');
+        
+        // Esperar un momento para que el contexto se actualice
+        setTimeout(async () => {
+          // Recargar todos los datos con el nuevo tenant
+          console.log('Recargando datos con el nuevo tenant...');
+          await loadDailyStats();
+          await loadActiveSessions();
+          await loadSelectedPrinter();
+        }, 500);
+      } else {
+        alert('No se pudo configurar el tenant');
+      }
+    } catch (error) {
+      console.error('Error configurando tenant:', error);
+      alert('Error al configurar el tenant');
+    } finally {
+      setTenantConfigLoading(false);
+    }
+  };
+
+  // Función para cargar la impresora seleccionada guardada
+  const loadSelectedPrinter = async () => {
+    try {
+      const savedPrinter = await AsyncStorage.getItem('selectedPrinter');
+      if (savedPrinter) {
+        try {
+          const savedPrinterObject = JSON.parse(savedPrinter);
+          console.log("Impresora guardada:", savedPrinterObject);
+          
+          // Verificar si la impresora realmente está conectada
+          try {
+            const devices = await ReactNativePosPrinter.getDeviceList();
+            console.log("Dispositivos disponibles:", devices);
+            
+            // Buscar el dispositivo por dirección MAC
+            const connectedDevice = devices.find((d: any) => {
+              const deviceAddress = d.device?.address || d.address || d.macAddress;
+              return deviceAddress === savedPrinterObject.address;
+            });
+            
+            console.log("Dispositivo encontrado:", connectedDevice);
+            
+            if (connectedDevice) {
+              // Crear instancia de ThermalPrinterDevice para poder usar sus métodos
+              try {
+                const nativeDevice = (connectedDevice as any).device || connectedDevice;
+                console.log('Dispositivo nativo:', nativeDevice);
+                
+                // Validar que tenga las propiedades necesarias
+                if (!nativeDevice.address || !nativeDevice.name) {
+                  console.error('Dispositivo nativo no tiene las propiedades necesarias');
+                  setPrinterConnected(false);
+                  setPrinterInfo('Error de configuración');
+                  return;
+                }
+                
+                // Crear instancia de ThermalPrinterDevice
+                const printerDevice = new ThermalPrinterDevice(nativeDevice);
+                console.log('Instancia de ThermalPrinterDevice creada');
+                
+                // Verificar si está conectada
+                const isConnected = await printerDevice.checkConnectionStatus();
+                console.log("Estado de conexión:", isConnected);
+                
+                if (isConnected) {
+                  console.log("Impresora ya está conectada, no es necesario reconectar");
+                  setPrinterConnected(true);
+                  setPrinterInfo(savedPrinterObject.name || 'Impresora conectada');
+                } else {
+                  // Solo intentar reconectar si NO está conectada
+                  console.log("Impresora no conectada, intentando conectar...");
+                  try {
+                    await printerDevice.connect({ 
+                      timeout: 5000, 
+                      encoding: 'UTF-8' 
+                    });
+                    console.log("Reconectado exitosamente");
+                    setPrinterConnected(true);
+                    setPrinterInfo(savedPrinterObject.name || 'Impresora conectada');
+                  } catch (reconnectError) {
+                    console.log("No se pudo reconectar automáticamente:", reconnectError);
+                    setPrinterConnected(false);
+                    setPrinterInfo('Impresora desconectada');
+                  }
+                }
+              } catch (createError) {
+                console.error('Error creando instancia de ThermalPrinterDevice:', createError);
+                setPrinterConnected(false);
+                setPrinterInfo('Error de conexión');
+              }
+            } else {
+              console.log("Dispositivo no encontrado en la lista");
+              setPrinterConnected(false);
+              setPrinterInfo('Impresora no encontrada');
+            }
+          } catch (deviceError) {
+            console.error('Error verificando dispositivos:', deviceError);
+            setPrinterConnected(false);
+            setPrinterInfo('Error de conexión');
+          }
+        } catch (parseError) {
+          console.error('Error parseando impresora guardada:', parseError);
+          setPrinterConnected(false);
+          setPrinterInfo('Error de configuración');
+        }
+      } else {
+        console.log("No hay impresora guardada");
+        setPrinterConnected(false);
+        setPrinterInfo('Sin impresora configurada');
+      }
+    } catch (error) {
+      console.error('Error cargando impresora guardada:', error);
+      setPrinterConnected(false);
+      setPrinterInfo('Error de conexión');
+    }
+  };
   // Función para cargar estadísticas del día
   const loadDailyStats = async () => {
     setLoadingStats(true);
@@ -99,8 +265,6 @@ export default function HomeScreen() {
     console.log('Operador actual:', operator);
     console.log('ID del operador:', operator?.id);
     console.log('Estado actual de sesiones activas:', activeSessions);
-    console.log('isAuthenticated:', isAuthenticated);
-    console.log('isLoading:', isLoading);
     
     // Si no hay operador, intentar verificar el estado de auth
     if (!operator) {
@@ -122,6 +286,9 @@ export default function HomeScreen() {
   useFocusEffect(
     React.useCallback(() => {
       loadDailyStats();
+      setTimeout(() => {
+        loadSelectedPrinter();
+      }, 1000);
     }, [])
   );
 
@@ -152,6 +319,7 @@ export default function HomeScreen() {
   const handleMenuPress = (route: string) => {
     router.push(route as any);
   };
+
 
   const handleLogout = async () => {
     await logout();
@@ -188,13 +356,13 @@ export default function HomeScreen() {
       marginBottom: 20,
     },
     menuContainer: {
-      marginBottom: 30,
+      marginBottom: 15, // Reducido de 30 a 15 para menos espacio entre menú y resumen
     },
     menuItem: {
       backgroundColor: 'rgba(255, 255, 255, 0.1)',
       borderRadius: 16,
       padding: 24,
-      marginBottom: 18,
+      marginBottom: 12, // Reducido de 18 a 12 para menos espacio entre botones del menú
       flexDirection: 'row',
       alignItems: 'center',
       borderWidth: 1,
@@ -317,6 +485,37 @@ export default function HomeScreen() {
       fontSize: 20,
       color: '#ffffff',
       fontWeight: 'bold',
+    },
+    printerStatusContainer: {
+      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+      borderRadius: 12,
+      padding: 16,
+      marginTop: 20,
+      alignItems: 'center',
+    },
+    printerStatusRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    printerStatusIndicator: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      marginRight: 8,
+    },
+    printerStatusConnected: {
+      backgroundColor: '#28a745',
+    },
+    printerStatusDisconnected: {
+      backgroundColor: '#dc3545',
+    },
+    printerStatusText: {
+      fontSize: 14,
+      color: '#ffffff',
+      fontWeight: '500',
+      flex: 1,
+      textAlign: 'center',
     },
     // Estilos del modal
     modalOverlay: {
@@ -493,10 +692,107 @@ export default function HomeScreen() {
       textAlign: 'center',
       lineHeight: 22,
     },
+    // Estilos del modal de configuración de tenant
+    tenantModalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    tenantModalContainer: {
+      backgroundColor: '#ffffff',
+      borderRadius: 20,
+      width: '95%',
+      maxWidth: 500,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 12,
+    },
+    tenantModalContent: {
+      padding: 24,
+    },
+    tenantModalTitle: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      marginBottom: 16,
+      color: '#333',
+    },
+    tenantModalDescription: {
+      fontSize: 16,
+      textAlign: 'center',
+      marginBottom: 24,
+      color: '#666',
+      lineHeight: 22,
+    },
+    tenantInputContainer: {
+      marginBottom: 24,
+    },
+    tenantInputLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: 8,
+      color: '#333',
+    },
+    tenantInput: {
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 8,
+      padding: 12,
+      fontSize: 16,
+      backgroundColor: '#f9f9f9',
+    },
+    tenantInputHelp: {
+      fontSize: 12,
+      color: '#666',
+      marginTop: 4,
+    },
+    tenantSaveButton: {
+      backgroundColor: '#007AFF',
+      borderRadius: 8,
+      padding: 16,
+      alignItems: 'center',
+    },
+    tenantSaveButtonDisabled: {
+      backgroundColor: '#ccc',
+    },
+    tenantSaveButtonText: {
+      color: 'white',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    // Estilos para el estado de carga del tenant
+    tenantLoadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: '#043476',
+    },
+    tenantLoadingText: {
+      fontSize: 18,
+      color: '#ffffff',
+      marginTop: 16,
+      fontWeight: '500',
+    },
   });
 
+  // Si está cargando la configuración del tenant, mostrar estado de carga
+  if (tenantLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.tenantLoadingContainer}>
+          <Text style={styles.tenantLoadingText}>Cargando configuración...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
       <Link href="/configuracion" asChild>
         <TouchableOpacity style={styles.configButton}>
           <IconSymbol size={24} name="gear" color="#ffffff" />
@@ -686,6 +982,61 @@ export default function HomeScreen() {
         type="checkout"
         operator={operator}
       />
-    </SafeAreaView>
+
+      {/* Modal de Configuración de Tenant */}
+      <Modal
+        visible={showTenantConfigModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          // No permitir cerrar el modal sin configurar el tenant
+          console.log('No se puede cerrar el modal sin configurar el tenant');
+        }}
+      >
+        <View style={styles.tenantModalOverlay}>
+          <View style={styles.tenantModalContainer}>
+            <View style={styles.tenantModalContent}>
+              <Text style={styles.tenantModalTitle}>Configuración de Tenant</Text>
+              
+              <Text style={styles.tenantModalDescription}>
+                Para continuar, necesitas configurar el tenant (identificador de la empresa) 
+                que utilizarás para acceder al sistema.
+              </Text>
+
+              <View style={styles.tenantInputContainer}>
+                <Text style={styles.tenantInputLabel}>Nombre del Tenant</Text>
+                <TextInput
+                  style={styles.tenantInput}
+                  value={tenantInput}
+                  onChangeText={setTenantInput}
+                  placeholder="Ej: acme, empresa1, etc."
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!tenantConfigLoading}
+                />
+                <Text style={styles.tenantInputHelp}>
+                  Solo se permiten letras, números y guiones
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.tenantSaveButton,
+                  (!tenantInput.trim() || tenantConfigLoading) && styles.tenantSaveButtonDisabled
+                ]}
+                onPress={handleTenantSave}
+                disabled={!tenantInput.trim() || tenantConfigLoading}
+              >
+                <Text style={styles.tenantSaveButtonText}>
+                  {tenantConfigLoading ? 'Configurando...' : 'Configurar Tenant'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      </SafeAreaView>
+    </View>
   );
 }

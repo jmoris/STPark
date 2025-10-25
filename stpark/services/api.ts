@@ -1,7 +1,33 @@
 // Servicio de autenticación y API
 import { CONFIG } from '../config/app';
+import { tenantConfigService } from './tenantConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = CONFIG.API_BASE_URL;
+// Función para obtener la URL base del servidor dinámicamente
+const getApiBaseUrl = async (): Promise<string> => {
+  try {
+    const customUrl = await AsyncStorage.getItem('custom_server_url');
+    return customUrl || CONFIG.API_BASE_URL;
+  } catch (error) {
+    console.error('Error obteniendo URL del servidor:', error);
+    return CONFIG.API_BASE_URL;
+  }
+};
+
+// Función helper para hacer requests con URL dinámica
+const makeRequest = async (endpoint: string, options: RequestInit = {}) => {
+  const apiBaseUrl = await getApiBaseUrl();
+  const fullUrl = `${apiBaseUrl}${endpoint}`;
+  console.log('API: URL base del servidor:', apiBaseUrl);
+  console.log('API: URL completa:', fullUrl);
+  
+  return fetch(fullUrl, {
+    ...options,
+    headers: {
+      ...options.headers,
+    },
+  });
+};
 
 export interface Operator {
   id: number;
@@ -40,28 +66,39 @@ class ApiService {
   }
 
   // Obtener headers con autenticación
-  private getHeaders(): HeadersInit {
+  private async getHeaders(): Promise<HeadersInit> {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
 
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+    // Agregar header X-Tenant
+    const tenant = await tenantConfigService.getCurrentTenant();
+    if (tenant) {
+      headers['X-Tenant'] = tenant;
+      console.log('API: Header X-Tenant agregado:', tenant);
+    } else {
+      console.warn('API: No hay tenant configurado, header X-Tenant no se incluirá');
     }
 
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+      console.log('API: Header Authorization agregado');
+    }
+
+    console.log('API: Headers completos:', headers);
     return headers;
   }
 
   // Login del operador
-  async login(email: string, pin: string): Promise<LoginResponse> {
+  async login(operatorId: number, pin: string): Promise<LoginResponse> {
     try {
-      console.log('API: Enviando login request a:', `${API_BASE_URL}/auth/login`);
-      console.log('API: Datos:', { email, pin });
+      console.log('API: Enviando login request');
+      console.log('API: Datos:', { operator_id: operatorId, pin });
       
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      const response = await makeRequest('/operators/login', {
         method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({ email, pin }),
+        headers: await this.getHeaders(),
+        body: JSON.stringify({ operator_id: operatorId, pin }),
       });
 
       console.log('API: Response status:', response.status);
@@ -87,17 +124,15 @@ class ApiService {
   async verifyToken(): Promise<ApiResponse<Operator>> {
     try {
       console.log('API: Verificando token:', this.token);
-      console.log('API: URL base:', API_BASE_URL);
-      console.log('API: URL completa:', `${API_BASE_URL}/auth/verify`);
-      console.log('API: Headers:', this.getHeaders());
+      console.log('API: Headers:', await this.getHeaders());
       
       // Agregar timeout para evitar que se cuelgue
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos timeout
       
-      const response = await fetch(`${API_BASE_URL}/auth/verify`, {
+      const response = await makeRequest('/auth/verify', {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         signal: controller.signal,
       });
 
@@ -126,9 +161,9 @@ class ApiService {
   // Logout
   async logout(): Promise<ApiResponse<null>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+      const response = await makeRequest('/auth/logout', {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
 
       this.token = null;
@@ -150,9 +185,9 @@ class ApiService {
     operator_id: number;
   }): Promise<ApiResponse<any>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions`, {
+      const response = await makeRequest('/sessions', {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         body: JSON.stringify(data),
       });
 
@@ -168,9 +203,9 @@ class ApiService {
   // Buscar sesión activa por placa
   async getActiveSessionByPlate(plate: string): Promise<ApiResponse<any>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions/active-by-plate?plate=${plate}`, {
+      const response = await makeRequest(`/sessions/active-by-plate?plate=${plate}`, {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
 
       return await response.json();
@@ -189,9 +224,9 @@ class ApiService {
     approval_code?: string;
   }): Promise<ApiResponse<any>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/checkout`, {
+      const response = await makeRequest(`/sessions/${sessionId}/checkout`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         body: paymentData ? JSON.stringify(paymentData) : undefined,
       });
 
@@ -207,9 +242,9 @@ class ApiService {
   // Obtener cotización de sesión
   async getSessionQuote(sessionId: number): Promise<ApiResponse<any>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/quote`, {
+      const response = await makeRequest(`/sessions/${sessionId}/quote`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
 
       return await response.json();
@@ -224,9 +259,9 @@ class ApiService {
   // Buscar deudas por placa
   async getDebtsByPlate(plate: string): Promise<ApiResponse<any[]>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/debts/by-plate?plate=${plate}`, {
+      const response = await makeRequest(`/debts/by-plate?plate=${plate}`, {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
 
       return await response.json();
@@ -247,9 +282,9 @@ class ApiService {
   }): Promise<ApiResponse<any>> {
     try {
       console.log('API: Pagando deuda:', debtId, data);
-      const response = await fetch(`${API_BASE_URL}/debts/${debtId}/settle`, {
+      const response = await makeRequest(`/debts/${debtId}/settle`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         body: JSON.stringify(data),
       });
       
@@ -290,9 +325,9 @@ class ApiService {
   // Obtener sesiones por placa
   async getSessionsByPlate(plate: string): Promise<ApiResponse<any[]>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions?plate=${plate}`, {
+      const response = await makeRequest(`/sessions?plate=${plate}`, {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
 
       return await response.json();
@@ -307,9 +342,9 @@ class ApiService {
   // Obtener sectores
   async getSectors(): Promise<ApiResponse<any[]>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/sectors`, {
+      const response = await makeRequest('/sectors', {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
 
       return await response.json();
@@ -324,9 +359,9 @@ class ApiService {
   // Obtener calles por sector
   async getStreetsBySector(sectorId: number): Promise<ApiResponse<any[]>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/sectors/${sectorId}/streets`, {
+      const response = await makeRequest(`/sectors/${sectorId}/streets`, {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
 
       return await response.json();
@@ -341,9 +376,9 @@ class ApiService {
   // Obtener estadísticas del día
   async getDailyStats(): Promise<ApiResponse<any>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/stats/daily`, {
+      const response = await makeRequest('/stats/daily', {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
 
       return await response.json();
@@ -358,9 +393,9 @@ class ApiService {
   // Obtener cotización para una sesión
   async getQuote(sessionId: number, data: any): Promise<ApiResponse<any>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/quote`, {
+      const response = await makeRequest(`/sessions/${sessionId}/quote`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         body: JSON.stringify(data),
       });
 
@@ -376,9 +411,9 @@ class ApiService {
   // Procesar checkout de una sesión
   async checkout(sessionId: number, data: any): Promise<ApiResponse<any>> {
     try {
-      const response = await fetch(`${API_BASE_URL}/sessions/${sessionId}/checkout`, {
+      const response = await makeRequest(`/sessions/${sessionId}/checkout`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         body: JSON.stringify(data),
       });
 
@@ -396,9 +431,9 @@ class ApiService {
     try {
       console.log('API: Obteniendo sesiones activas para operador:', operatorId);
       
-      const response = await fetch(`${API_BASE_URL}/sessions/active-by-operator?operator_id=${operatorId}`, {
+      const response = await makeRequest(`/sessions/active-by-operator?operator_id=${operatorId}`, {
         method: 'GET',
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
       });
 
       const result = await response.json();
@@ -409,6 +444,40 @@ class ApiService {
       return result;
     } catch (error) {
       console.error('API: Error obteniendo sesiones activas:', error);
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+      };
+    }
+  }
+
+  // Obtener todos los operadores activos
+  async getAllOperators(): Promise<ApiResponse<Operator[]>> {
+    try {
+      const apiBaseUrl = await getApiBaseUrl();
+      const fullUrl = `${apiBaseUrl}/operators/all`;
+      console.log('API: Obteniendo lista de operadores activos');
+      console.log('API: URL base del servidor:', apiBaseUrl);
+      console.log('API: URL completa:', fullUrl);
+      console.log('API: Headers:', await this.getHeaders());
+      
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers: await this.getHeaders(),
+      });
+
+      console.log('API: Status de respuesta:', response.status);
+      console.log('API: Status OK:', response.ok);
+      
+      const result = await response.json();
+      console.log('API: Respuesta de operadores:', result);
+      console.log('API: Cantidad de operadores recibidos:', result.data?.length || 0);
+      
+      return result;
+    } catch (error) {
+      console.error('API: Error obteniendo operadores:', error);
+      console.error('API: Tipo de error:', typeof error);
+      console.error('API: Mensaje de error:', (error as Error).message);
       return {
         success: false,
         message: 'Error de conexión con el servidor',

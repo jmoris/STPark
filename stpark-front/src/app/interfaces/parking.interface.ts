@@ -64,6 +64,7 @@ export interface Operator {
   rut?: string;
   email?: string;
   phone?: string;
+  pin?: string;
   status: 'ACTIVE' | 'INACTIVE';
   is_active?: boolean;
   created_at?: string;

@@ -1,6 +1,6 @@
 export const environment = {
   production: false,
-  apiUrl: 'http://localhost:8000/api',
+  apiUrl: 'http://localhost:8000/parking',
   appName: 'STPark',
   appVersion: '1.0.0',
   defaultLanguage: 'es',
@@ -9,6 +9,7 @@ export const environment = {
   timeFormat: 'HH:mm',
   currency: 'CLP',
   currencySymbol: '$',
+  tenant: 'acme', // Hardcoded tenant for testing
   pagination: {
     defaultPageSize: 15,
     pageSizeOptions: [10, 15, 25, 50, 100]

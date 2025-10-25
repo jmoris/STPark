@@ -3,20 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Models\Operator;
+use App\Models\User;
+use App\Models\Tenant;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
     /**
-     * Login del operador con email y PIN
+     * Login del operador con ID y PIN
      */
-    public function login(Request $request): JsonResponse
+    public function operatorsLogin(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'email' => 'required|email',
+            'operator_id' => 'required|integer',
             'pin' => 'required|string|size:6',
         ]);
 
@@ -29,8 +33,8 @@ class AuthController extends Controller
         }
 
         try {
-            // Buscar operador por email
-            $operator = Operator::where('email', $request->email)
+            // Buscar operador por ID
+            $operator = Operator::where('id', $request->operator_id)
                 ->where('status', 'ACTIVE')
                 ->first();
 
@@ -62,6 +66,7 @@ class AuthController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Error en login: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Error interno del servidor',
@@ -71,7 +76,63 @@ class AuthController extends Controller
     }
 
     /**
-     * Verificar token del operador
+     * Login de usuarios del tenant central con email y password
+     */
+    public function login(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email',
+            'password' => 'required|string|min:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Datos de entrada inválidos',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Intentar autenticar con email y password
+            if (Auth::attempt($request->only('email', 'password'))) {
+                $user = Auth::user();
+                
+                // Crear token de Sanctum
+                $token = $user->createToken('auth-token')->plainTextToken;
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Login exitoso',
+                    'data' => [
+                        'user' => [
+                            'id' => $user->id,
+                            'name' => $user->name,
+                            'email' => $user->email,
+                            'email_verified_at' => $user->email_verified_at,
+                        ],
+                        'token' => $token
+                    ]
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Credenciales inválidas'
+            ], 401);
+
+        } catch (\Exception $e) {
+            Log::error('Error en login de usuario: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno del servidor',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Verificar token (operador o usuario)
      */
     public function verify(Request $request): JsonResponse
     {
@@ -85,31 +146,57 @@ class AuthController extends Controller
         }
 
         try {
-            // Decodificar token simple
+            // Decodificar token
             $decoded = base64_decode(str_replace('Bearer ', '', $token));
             $parts = explode(':', $decoded);
             
-            if (count($parts) !== 2) {
-                throw new \Exception('Token inválido');
-            }
+            // Token de operador (2 partes: id:timestamp)
+            if (count($parts) === 2) {
+                $operatorId = $parts[0];
+                $operator = Operator::where('id', $operatorId)
+                    ->where('status', 'ACTIVE')
+                    ->with(['sectors', 'streets'])
+                    ->first();
 
-            $operatorId = $parts[0];
-            $operator = Operator::where('id', $operatorId)
-                ->where('status', 'ACTIVE')
-                ->with(['sectors', 'streets'])
-                ->first();
+                if (!$operator) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Operador no encontrado'
+                    ], 401);
+                }
 
-            if (!$operator) {
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Operador no encontrado'
-                ], 401);
+                    'success' => true,
+                    'data' => $operator,
+                    'type' => 'operator'
+                ]);
+            }
+            
+            // Token de usuario (3 partes: id:timestamp:email)
+            if (count($parts) === 3) {
+                $userId = $parts[0];
+                $user = User::where('id', $userId)->first();
+
+                if (!$user) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Usuario no encontrado'
+                    ], 401);
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'email_verified_at' => $user->email_verified_at,
+                    ],
+                    'type' => 'user'
+                ]);
             }
 
-            return response()->json([
-                'success' => true,
-                'data' => $operator
-            ]);
+            throw new \Exception('Token inválido');
 
         } catch (\Exception $e) {
             return response()->json([
@@ -120,14 +207,63 @@ class AuthController extends Controller
     }
 
     /**
-     * Logout del operador
+     * Logout (operador o usuario)
      */
     public function logout(Request $request): JsonResponse
     {
-        // Para este sistema simple, el logout solo confirma que se cerró la sesión
-        return response()->json([
-            'success' => true,
-            'message' => 'Sesión cerrada exitosamente'
-        ]);
+        try {
+            // Si el usuario está autenticado con Sanctum, revocar el token
+            if ($request->user()) {
+                $request->user()->currentAccessToken()->delete();
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Sesión cerrada exitosamente'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error en logout: ' . $e->getMessage());
+            return response()->json([
+                'success' => true,
+                'message' => 'Sesión cerrada exitosamente'
+            ]);
+        }
+    }
+
+    /**
+     * Obtener listado de tenants (solo para usuarios autenticados)
+     */
+    public function getTenants(Request $request): JsonResponse
+    {
+        try {
+            // Obtener todos los tenants
+            $tenants = Tenant::all()->map(function ($tenant) {
+                return [
+                    'id' => $tenant->id,
+                    'name' => $tenant->name ?? $tenant->id,
+                    'domains' => $tenant->domains->pluck('domain'),
+                    'database' => $tenant->databaseName(),
+                    'created_at' => $tenant->created_at,
+                    'updated_at' => $tenant->updated_at,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Lista de tenants obtenida exitosamente',
+                'data' => [
+                    'tenants' => $tenants,
+                    'total' => $tenants->count()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error al obtener lista de tenants: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno del servidor',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }
