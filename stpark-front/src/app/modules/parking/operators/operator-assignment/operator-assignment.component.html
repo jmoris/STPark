@@ -1,0 +1,85 @@
+<div class="operator-assignment-dialog">
+  <h2 mat-dialog-title>
+    {{ data.isEdit ? 'Editar Asignación' : 'Asignar Sector' }}
+  </h2>
+
+  <mat-dialog-content>
+    <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+      <div class="flex items-center gap-2">
+        <mat-icon class="text-gray-500">person</mat-icon>
+        <span class="font-semibold">{{ data.operator.name }}</span>
+        <span class="text-gray-500">({{ data.operator.rut }})</span>
+      </div>
+    </div>
+
+    <!-- Información sobre la nueva funcionalidad -->
+    <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+      <div class="flex items-start gap-2">
+        <mat-icon class="text-blue-600 mt-0.5">info</mat-icon>
+        <div class="text-sm text-blue-800">
+          <p class="font-medium mb-1">Información importante:</p>
+          <p>Al asignar un nuevo sector, se eliminarán automáticamente todas las asignaciones anteriores del operador. Cada operador solo puede tener un sector asignado a la vez.</p>
+        </div>
+      </div>
+    </div>
+
+    <form [formGroup]="assignmentForm" class="assignment-form">
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Sector *</mat-label>
+          <mat-select formControlName="sector_id" (selectionChange)="onSectorChange($event.value)">
+            <mat-option *ngFor="let sector of sectors" [value]="sector.id">
+              {{ sector.name }} ({{ sector.is_private ? 'Privado' : 'Público' }})
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="assignmentForm.get('sector_id')?.hasError('required')">
+            {{ getErrorMessage('sector_id') }}
+          </mat-error>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Calle (Opcional)</mat-label>
+          <mat-select formControlName="street_id" [disabled]="loadingStreets">
+            <mat-option value="">Sin calle específica</mat-option>
+            <mat-option *ngFor="let street of streets" [value]="street.id">
+              {{ street.name }}
+            </mat-option>
+          </mat-select>
+          <mat-spinner *ngIf="loadingStreets" diameter="20" class="inline-spinner"></mat-spinner>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row grid grid-cols-1 md:grid-cols-2 gap-4">
+        <mat-form-field appearance="outline">
+          <mat-label>Válido desde *</mat-label>
+          <input matInput [matDatepicker]="picker1" formControlName="valid_from">
+          <mat-datepicker-toggle matSuffix [for]="picker1"></mat-datepicker-toggle>
+          <mat-datepicker #picker1></mat-datepicker>
+          <mat-error *ngIf="assignmentForm.get('valid_from')?.hasError('required')">
+            {{ getErrorMessage('valid_from') }}
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Válido hasta (Opcional)</mat-label>
+          <input matInput [matDatepicker]="picker2" formControlName="valid_to">
+          <mat-datepicker-toggle matSuffix [for]="picker2"></mat-datepicker-toggle>
+          <mat-datepicker #picker2></mat-datepicker>
+        </mat-form-field>
+      </div>
+    </form>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button (click)="onCancel()" [disabled]="loading">
+      Cancelar
+    </button>
+    <button mat-raised-button color="primary" class="rounded-sm" (click)="onSubmit()" [disabled]="loading || assignmentForm.invalid">
+      <mat-spinner *ngIf="loading" diameter="20" class="inline-spinner"></mat-spinner>
+      <mat-icon *ngIf="!loading">{{ data.isEdit ? 'save' : 'add' }}</mat-icon>
+      {{ data.isEdit ? 'Actualizar' : 'Asignar' }}
+    </button>
+  </mat-dialog-actions>
+</div>

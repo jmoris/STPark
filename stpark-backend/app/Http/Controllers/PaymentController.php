@@ -114,7 +114,12 @@ class PaymentController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Payment::with(['sale', 'parkingSession']);
+        $query = Payment::with([
+            'sale', 
+            'parkingSession.sector', 
+            'parkingSession.street', 
+            'parkingSession.operator'
+        ]);
 
         // Filtros
         if ($request->filled('sale_id')) {
@@ -141,12 +146,20 @@ class PaymentController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
-        $payments = $query->orderBy('created_at', 'desc')
-                         ->paginate($request->get('per_page', 15));
+        $perPage = $request->get('per_page', 15);
+        $payments = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
         return response()->json([
             'success' => true,
-            'data' => $payments
+            'data' => [
+                'data' => $payments->items(),
+                'current_page' => $payments->currentPage(),
+                'last_page' => $payments->lastPage(),
+                'per_page' => $payments->perPage(),
+                'total' => $payments->total(),
+                'from' => $payments->firstItem(),
+                'to' => $payments->lastItem(),
+            ]
         ]);
     }
 
@@ -156,8 +169,12 @@ class PaymentController extends Controller
     public function show(int $id): JsonResponse
     {
         try {
-            $payment = Payment::with(['sale', 'parkingSession'])
-                             ->findOrFail($id);
+            $payment = Payment::with([
+                'sale', 
+                'parkingSession.sector', 
+                'parkingSession.street', 
+                'parkingSession.operator'
+            ])->findOrFail($id);
 
             return response()->json([
                 'success' => true,

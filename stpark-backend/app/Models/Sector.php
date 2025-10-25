@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Sector extends Model
 {
@@ -12,15 +13,18 @@ class Sector extends Model
 
     protected $fillable = [
         'name',
+        'description',
         'is_private',
+        'is_active'
     ];
 
     protected $casts = [
         'is_private' => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     /**
-     * Relación con calles
+     * Relación con las calles
      */
     public function streets(): HasMany
     {
@@ -28,15 +32,7 @@ class Sector extends Model
     }
 
     /**
-     * Relación con perfiles de precios
-     */
-    public function pricingProfiles(): HasMany
-    {
-        return $this->hasMany(PricingProfile::class);
-    }
-
-    /**
-     * Relación con sesiones de estacionamiento
+     * Relación con las sesiones de estacionamiento
      */
     public function parkingSessions(): HasMany
     {
@@ -44,20 +40,60 @@ class Sector extends Model
     }
 
     /**
-     * Relación con asignaciones de operadores
+     * Relación con los operadores asignados
      */
-    public function operatorAssignments(): HasMany
+    public function operators(): BelongsToMany
     {
-        return $this->hasMany(OperatorAssignment::class);
+        return $this->belongsToMany(Operator::class, 'operator_assignments')
+            ->withPivot(['street_id', 'valid_from', 'valid_to'])
+            ->withTimestamps();
     }
 
     /**
-     * Obtener operadores asignados a este sector
+     * Relación con los perfiles de precios
      */
-    public function operators()
+    public function pricingProfiles(): HasMany
     {
-        return $this->belongsToMany(Operator::class, 'operator_assignments')
-                    ->withPivot(['street_id', 'valid_from', 'valid_to'])
-                    ->withTimestamps();
+        return $this->hasMany(PricingProfile::class);
+    }
+
+    /**
+     * Verificar si el sector está activo
+     */
+    public function isActive(): bool
+    {
+        return $this->is_active;
+    }
+
+    /**
+     * Verificar si es un sector público
+     */
+    public function isPublic(): bool
+    {
+        return !$this->is_private;
+    }
+
+    /**
+     * Verificar si es un sector privado
+     */
+    public function isPrivate(): bool
+    {
+        return $this->is_private;
+    }
+
+    /**
+     * Obtener el tipo formateado
+     */
+    public function getTypeText(): string
+    {
+        return $this->is_private ? 'Privado' : 'Público';
+    }
+
+    /**
+     * Obtener el estado formateado
+     */
+    public function getStatusText(): string
+    {
+        return $this->is_active ? 'Activo' : 'Inactivo';
     }
 }

@@ -1,0 +1,212 @@
+<div class="p-6 w-full">
+  <!-- Header -->
+  <div class="mb-8">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
+        <p class="mt-2 text-gray-600">Resumen general del sistema de estacionamientos</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <mat-form-field appearance="outline" class="w-48">
+          <mat-label>Fecha</mat-label>
+          <input matInput 
+                 [matDatepicker]="picker" 
+                 [(ngModel)]="selectedDate" 
+                 (dateChange)="onDateChange()" 
+                 placeholder="dd/mm/yyyy">
+          <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+          <mat-datepicker #picker></mat-datepicker>
+        </mat-form-field>
+        <button mat-icon-button class="rounded-sm" (click)="refreshData()" [disabled]="loading">
+          <mat-icon>refresh</mat-icon>
+        </button>
+        <button mat-raised-button color="primary" class="rounded-sm" (click)="exportReport()" [disabled]="!dashboardData">
+          <mat-icon>download</mat-icon>
+          Exportar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="flex justify-center items-center h-64">
+    <mat-spinner diameter="50"></mat-spinner>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="error" class="mb-6">
+    <fuse-alert type="error" [dismissible]="true">
+      {{ error }}
+    </fuse-alert>
+  </div>
+
+  <!-- Dashboard Content -->
+  <div *ngIf="dashboardData && !loading">
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
+      <!-- Total Revenue -->
+      <fuse-card class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-green-100 rounded-lg">
+            <mat-icon class="text-green-600">attach_money</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Ingresos Hoy</p>
+            <p class="text-2xl font-bold text-gray-900">{{ formatAmount(stats.totalRevenue) }}</p>
+          </div>
+        </div>
+      </fuse-card>
+
+      <!-- Total Sessions -->
+      <fuse-card class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-blue-100 rounded-lg">
+            <mat-icon class="text-blue-600">directions_car</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Sesiones Hoy</p>
+            <p class="text-2xl font-bold text-gray-900">{{ stats.totalSessions }}</p>
+          </div>
+        </div>
+      </fuse-card>
+
+      <!-- Average Ticket -->
+      <fuse-card class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-purple-100 rounded-lg">
+            <mat-icon class="text-purple-600">receipt</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Ticket Promedio</p>
+            <p class="text-2xl font-bold text-gray-900">{{ formatAmount(stats.averageTicket) }}</p>
+          </div>
+        </div>
+      </fuse-card>
+
+      <!-- Active Sessions -->
+      <fuse-card class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-orange-100 rounded-lg">
+            <mat-icon class="text-orange-600">schedule</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Sesiones Activas</p>
+            <p class="text-2xl font-bold text-gray-900">{{ stats.activeSessions }}</p>
+          </div>
+        </div>
+      </fuse-card>
+
+      <!-- Today Payments -->
+      <fuse-card class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-indigo-100 rounded-lg">
+            <mat-icon class="text-indigo-600">payment</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Pagos Hoy</p>
+            <p class="text-2xl font-bold text-gray-900">{{ formatAmount(stats.todayPayments) }}</p>
+          </div>
+        </div>
+      </fuse-card>
+
+      <!-- Pending Debts -->
+      <fuse-card class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-red-100 rounded-lg">
+            <mat-icon class="text-red-600">warning</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Deudas Pendientes</p>
+            <p class="text-2xl font-bold text-gray-900">{{ formatAmount(stats.pendingDebts) }}</p>
+          </div>
+        </div>
+      </fuse-card>
+    </div>
+
+    <!-- Charts -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <!-- Sales by Sector -->
+      <fuse-card class="p-6">
+        <div class="mb-4">
+          <h3 class="text-lg font-semibold text-gray-900">Ventas por Sector</h3>
+          <p class="text-sm text-gray-600">Distribución de ingresos por sector</p>
+        </div>
+        <apx-chart
+          [series]="salesChart.series"
+          [chart]="salesChart.chart"
+          [plotOptions]="salesChart.plotOptions"
+          [dataLabels]="salesChart.dataLabels"
+          [xaxis]="salesChart.xaxis"
+          [yaxis]="salesChart.yaxis"
+          [colors]="salesChart.colors"
+          [tooltip]="salesChart.tooltip">
+        </apx-chart>
+      </fuse-card>
+
+      <!-- Payments by Method -->
+      <fuse-card class="p-6">
+        <div class="mb-4">
+          <h3 class="text-lg font-semibold text-gray-900">Pagos por Método</h3>
+          <p class="text-sm text-gray-600">Distribución de pagos por método</p>
+        </div>
+        <apx-chart
+          [series]="paymentsChart.series"
+          [chart]="paymentsChart.chart"
+          [labels]="paymentsChart.labels"
+          [colors]="paymentsChart.colors"
+          [legend]="paymentsChart.legend"
+          [tooltip]="paymentsChart.tooltip">
+        </apx-chart>
+      </fuse-card>
+    </div>
+
+    <!-- Active Sessions -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <!-- Sessions Chart -->
+      <fuse-card class="p-6">
+        <div class="mb-4">
+          <h3 class="text-lg font-semibold text-gray-900">Sesiones Iniciadas por Hora</h3>
+          <p class="text-sm text-gray-600">Distribución temporal de sesiones iniciadas</p>
+        </div>
+        <apx-chart
+          [series]="sessionsChart.series"
+          [chart]="sessionsChart.chart"
+          [xaxis]="sessionsChart.xaxis"
+          [yaxis]="sessionsChart.yaxis"
+          [colors]="sessionsChart.colors"
+          [fill]="sessionsChart.fill">
+        </apx-chart>
+      </fuse-card>
+
+      <!-- Active Sessions List -->
+      <fuse-card class="p-6">
+        <div class="mb-4">
+          <h3 class="text-lg font-semibold text-gray-900">Sesiones Activas</h3>
+          <p class="text-sm text-gray-600">{{ dashboardData.active_sessions.count }} sesiones activas</p>
+        </div>
+        <div class="space-y-3 max-h-80 overflow-y-auto">
+          <div *ngFor="let session of dashboardData.active_sessions.sessions" 
+               class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div class="flex items-center space-x-3">
+              <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+              <div>
+                <p class="font-medium text-gray-900">{{ session.plate }}</p>
+                <p class="text-sm text-gray-600">{{ session.sector?.name }}</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="text-sm text-gray-600">{{ getElapsedTime(session.started_at) }}</p>
+              <p class="text-xs text-gray-500">{{ formatDate(session.started_at) }}</p>
+            </div>
+          </div>
+          <div *ngIf="dashboardData.active_sessions.sessions.length === 0" 
+               class="text-center py-8 text-gray-500">
+            No hay sesiones activas
+          </div>
+        </div>
+      </fuse-card>
+    </div>
+
+  </div>
+</div>
+

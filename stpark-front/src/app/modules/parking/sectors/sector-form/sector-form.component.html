@@ -1,0 +1,60 @@
+<div class="sector-form-dialog">
+  <!-- Header -->
+  <div class="dialog-header">
+    <h2 class="dialog-title">
+      {{ data.isEdit ? 'Editar Sector' : 'Nuevo Sector' }}
+    </h2>
+    <button mat-icon-button class="close-button" (click)="onCancel()">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <!-- Content -->
+  <div class="dialog-content">
+    <form [formGroup]="sectorForm" class="sector-form">
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Nombre del sector</mat-label>
+          <input matInput formControlName="name" placeholder="Ingrese el nombre del sector">
+          <mat-error *ngIf="sectorForm.get('name')?.hasError('required')">
+            {{ getErrorMessage('name') }}
+          </mat-error>
+          <mat-error *ngIf="sectorForm.get('name')?.hasError('minlength')">
+            {{ getErrorMessage('name') }}
+          </mat-error>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Descripción</mat-label>
+          <textarea matInput formControlName="description" placeholder="Descripción del sector (opcional)" rows="3"></textarea>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-checkbox formControlName="is_private">
+          Sector privado
+        </mat-checkbox>
+      </div>
+
+      <div class="form-row">
+        <mat-checkbox formControlName="is_active">
+          Sector activo
+        </mat-checkbox>
+      </div>
+    </form>
+  </div>
+
+  <!-- Actions -->
+  <div class="dialog-actions">
+    <button mat-button class="rounded-sm" (click)="onCancel()" [disabled]="loading">
+      Cancelar
+    </button>
+    <button mat-raised-button color="primary" class="rounded-sm" (click)="onSubmit()" [disabled]="loading || sectorForm.invalid">
+      <mat-spinner *ngIf="loading" diameter="20" class="inline-spinner"></mat-spinner>
+      <mat-icon *ngIf="!loading">{{ data.isEdit ? 'save' : 'add' }}</mat-icon>
+      {{ data.isEdit ? 'Actualizar' : 'Crear' }}
+    </button>
+  </div>
+</div>

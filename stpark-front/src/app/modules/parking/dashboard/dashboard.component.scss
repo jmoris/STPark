@@ -1,0 +1,48 @@
+// Dashboard component styles
+
+.apx-chart {
+  width: 100%;
+}
+
+.stats-card {
+  transition: transform 0.2s ease-in-out;
+  
+  &:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.active-session-item {
+  transition: background-color 0.2s ease-in-out;
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+}
+
+.quick-action-button {
+  height: 48px;
+  min-width: 120px;
+  
+  mat-icon {
+    margin-right: 8px;
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+  .grid-cols-6 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .grid-cols-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .grid-cols-6 {
+    grid-template-columns: 1fr;
+  }
+}
+

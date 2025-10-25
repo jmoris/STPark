@@ -2,203 +2,201 @@
 
 namespace App\Services;
 
-use App\Models\ParkingSession;
 use App\Models\PricingProfile;
 use App\Models\PricingRule;
-use App\Models\DiscountRule;
+use App\Models\Sector;
 use Carbon\Carbon;
 
 class PricingService
 {
     /**
-     * Calcular cotización para una sesión
+     * Calcular el precio para una sesión de estacionamiento
      */
-    public function calculateQuote(ParkingSession $session, string $endedAt): array
+    public function calculatePrice(int $sectorId, ?int $streetId, float $durationMinutes): array
     {
-        $startTime = Carbon::parse($session->started_at);
-        $endTime = Carbon::parse($endedAt);
+        $sector = Sector::findOrFail($sectorId);
         
-        $durationMinutes = $endTime->diffInMinutes($startTime);
-        $dayOfWeek = $startTime->dayOfWeek;
+        // Obtener el perfil de precios activo para el sector
+        $pricingProfile = PricingProfile::where('sector_id', $sectorId)
+            ->where('is_active', true)
+            ->first();
 
-        // Obtener perfil de precios activo para el sector
-        $pricingProfile = $this->getActivePricingProfile($session->sector_id, $startTime);
-        
         if (!$pricingProfile) {
             throw new \Exception('No hay perfil de precios activo para este sector');
         }
 
-        // Calcular monto bruto
-        $grossAmount = $this->calculateGrossAmount(
-            $pricingProfile,
-            $durationMinutes,
-            $dayOfWeek,
-            $startTime->format('H:i:s')
-        );
+        // Obtener las reglas de precios activas
+        $pricingRules = PricingRule::where('profile_id', $pricingProfile->id)
+            ->where('is_active', true)
+            ->orderBy('priority', 'asc')
+            ->orderBy('start_time')
+            ->get();
 
-        // Aplicar descuentos
-        $discountAmount = $this->calculateDiscounts(
-            $pricingProfile,
-            $grossAmount,
-            $durationMinutes,
-            $dayOfWeek
-        );
+        if ($pricingRules->isEmpty()) {
+            throw new \Exception('No hay reglas de precios configuradas');
+        }
 
-        $netAmount = max(0, $grossAmount - $discountAmount);
+        // Encontrar la regla aplicable basada en la duración
+        $applicableRule = $this->findApplicableRule($pricingRules, $durationMinutes);
+        
+        if (!$applicableRule) {
+            throw new \Exception('No se encontró una regla aplicable para la duración especificada');
+        }
+
+        // Redondear los minutos hacia arriba para evitar decimales
+        $roundedMinutes = ceil($durationMinutes);
+        
+        // Calcular el monto base (sin aplicar mínimos/máximos)
+        $baseAmountCalculated = $this->calculateRuleAmount($applicableRule, $roundedMinutes);
+        
+        // Aplicar monto mínimo si existe
+        $minAmount = $applicableRule->min_amount;
+        $baseAmount = $baseAmountCalculated;
+        if ($minAmount && $baseAmount < $minAmount) {
+            $baseAmount = $minAmount;
+        }
+        
+        // Aplicar monto máximo diario si existe
+        $dailyMaxAmount = $applicableRule->daily_max_amount;
+        if ($dailyMaxAmount && $baseAmount > $dailyMaxAmount) {
+            $baseAmount = $dailyMaxAmount;
+        }
+        
+        $breakdown = [
+            [
+                'rule_name' => $applicableRule->name,
+                'minutes' => $roundedMinutes, // Usar minutos redondeados
+                'rate_per_minute' => $applicableRule->price_per_min,
+                'amount' => $baseAmount, // Campo que espera el frontend
+                'base_amount' => $baseAmountCalculated,
+                'min_amount' => $minAmount,
+                'daily_max_amount' => $dailyMaxAmount,
+                'final_amount' => $baseAmount,
+                'min_amount_applied' => $minAmount && $baseAmount == $minAmount,
+                'daily_max_applied' => $dailyMaxAmount && $baseAmount == $dailyMaxAmount
+            ]
+        ];
 
         return [
-            'session_id' => $session->id,
-            'started_at' => $session->started_at,
-            'ended_at' => $endedAt,
+            'total' => $baseAmount,
+            'breakdown' => $breakdown,
             'duration_minutes' => $durationMinutes,
-            'gross_amount' => $grossAmount,
-            'discount_amount' => $discountAmount,
-            'net_amount' => $netAmount,
             'pricing_profile' => $pricingProfile->name,
+            'min_amount_applied' => $minAmount && $baseAmount == $minAmount,
+            'daily_max_applied' => $dailyMaxAmount && $baseAmount == $dailyMaxAmount
         ];
     }
 
     /**
-     * Obtener perfil de precios activo
+     * Encontrar la regla aplicable basada en la duración
      */
-    private function getActivePricingProfile(int $sectorId, Carbon $date): ?PricingProfile
+    private function findApplicableRule($pricingRules, float $durationMinutes): ?PricingRule
     {
-        return PricingProfile::where('sector_id', $sectorId)
-            ->where('active_from', '<=', $date)
-            ->where(function($query) use ($date) {
-                $query->whereNull('active_to')
-                      ->orWhere('active_to', '>=', $date);
-            })
-            ->orderBy('active_from', 'desc')
-            ->first();
+        foreach ($pricingRules as $rule) {
+            // Verificar si la duración está dentro del rango de la regla
+            $minDuration = $rule->min_duration_minutes ?? 0;
+            $maxDuration = $rule->max_duration_minutes ?? PHP_INT_MAX;
+            
+            if ($durationMinutes >= $minDuration && $durationMinutes <= $maxDuration) {
+                return $rule;
+            }
+        }
+        
+        // Si no se encuentra una regla específica, usar la regla con mayor prioridad
+        return $pricingRules->first();
     }
 
     /**
-     * Calcular monto bruto
+     * Calcular el monto para una regla específica
      */
-    private function calculateGrossAmount(
-        PricingProfile $profile,
-        int $durationMinutes,
-        int $dayOfWeek,
-        string $time
-    ): float {
-        $rules = $profile->pricingRules()
-                        ->where(function($query) use ($dayOfWeek, $time) {
-                            $query->whereJsonContains('days_of_week', $dayOfWeek)
-                                  ->where(function($timeQuery) use ($time) {
-                                      $timeQuery->whereNull('start_time')
-                                                ->whereNull('end_time')
-                                                ->orWhere(function($timeRange) use ($time) {
-                                                    $timeRange->where('start_time', '<=', $time)
-                                                             ->where('end_time', '>=', $time);
-                                                });
-                                  });
-                        })
-                        ->orderBy('priority')
-                        ->get();
+    private function calculateRuleAmount(PricingRule $rule, float $minutes): float
+    {
+        // Convertir price_per_min a float para asegurar el cálculo correcto
+        $pricePerMin = (float) $rule->price_per_min;
+        $amount = $minutes * $pricePerMin;
+        
+        // Aplicar precio fijo si existe y es mayor que 0
+        if ($rule->fixed_price && $rule->fixed_price > 0) {
+            $amount = (float) $rule->fixed_price;
+        }
+        
+        return $amount;
+    }
 
-        $totalAmount = 0;
+    /**
+     * Obtener cotización estimada para una duración específica
+     */
+    public function getEstimatedQuote(int $sectorId, ?int $streetId, int $estimatedMinutes): array
+    {
+        return $this->calculatePrice($sectorId, $streetId, $estimatedMinutes);
+    }
 
-        foreach ($rules as $rule) {
-            if ($this->ruleAppliesToDuration($rule, $durationMinutes)) {
-                if ($rule->fixed_price) {
-                    $totalAmount += $rule->fixed_price;
-                } else {
-                    $applicableMinutes = $this->getApplicableMinutes($rule, $durationMinutes);
-                    $totalAmount += $applicableMinutes * $rule->price_per_min;
+    /**
+     * Verificar si hay reglas de precios configuradas para un sector
+     */
+    public function hasPricingRules(int $sectorId): bool
+    {
+        $pricingProfile = PricingProfile::where('sector_id', $sectorId)
+            ->where('is_active', true)
+            ->first();
+
+        if (!$pricingProfile) {
+            return false;
+        }
+
+        return PricingRule::where('profile_id', $pricingProfile->id)
+            ->where('is_active', true)
+            ->exists();
+    }
+
+    /**
+     * Obtener el máximo diario de las reglas de precios
+     */
+    private function getDailyMaxAmount($pricingRules): ?float
+    {
+        $maxAmount = null;
+        
+        foreach ($pricingRules as $rule) {
+            if ($rule->daily_max_amount && $rule->daily_max_amount > 0) {
+                if ($maxAmount === null || $rule->daily_max_amount < $maxAmount) {
+                    $maxAmount = $rule->daily_max_amount;
                 }
             }
         }
-
-        return $totalAmount;
+        
+        return $maxAmount;
     }
 
     /**
-     * Verificar si la regla aplica a la duración
+     * Aplicar el máximo diario al breakdown
      */
-    private function ruleAppliesToDuration(PricingRule $rule, int $durationMinutes): bool
+    private function applyDailyMaxToBreakdown(array &$breakdown, float $dailyMaxAmount): void
     {
-        if ($rule->start_min === null && $rule->end_min === null) {
-            return true;
+        $originalTotal = 0;
+        foreach ($breakdown as $item) {
+            $originalTotal += $item['amount'];
         }
-
-        if ($rule->start_min !== null && $durationMinutes < $rule->start_min) {
-            return false;
-        }
-
-        if ($rule->end_min !== null && $durationMinutes > $rule->end_min) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Obtener minutos aplicables según la regla
-     */
-    private function getApplicableMinutes(PricingRule $rule, int $durationMinutes): int
-    {
-        if ($rule->start_min === null && $rule->end_min === null) {
-            return $durationMinutes;
-        }
-
-        $start = $rule->start_min ?? 0;
-        $end = $rule->end_min ?? $durationMinutes;
-
-        return min($durationMinutes, $end) - $start;
-    }
-
-    /**
-     * Calcular descuentos
-     */
-    private function calculateDiscounts(
-        PricingProfile $profile,
-        float $grossAmount,
-        int $durationMinutes,
-        int $dayOfWeek
-    ): float {
-        $rules = $profile->discountRules()
-                        ->orderBy('priority')
-                        ->get();
-
-        $totalDiscount = 0;
-
-        foreach ($rules as $rule) {
-            $context = [
-                'gross_amount' => $grossAmount,
-                'minutes' => $durationMinutes,
-                'day_of_week' => $dayOfWeek,
+        
+        if ($originalTotal > $dailyMaxAmount) {
+            // Agregar una entrada al breakdown indicando que se aplicó el límite
+            $breakdown[] = [
+                'rule_name' => 'Límite máximo diario aplicado',
+                'minutes' => 0,
+                'rate_per_minute' => 0,
+                'amount' => $dailyMaxAmount - $originalTotal,
+                'daily_max_amount' => $dailyMaxAmount,
+                'is_daily_max_adjustment' => true
             ];
-
-            if ($rule->applies($context)) {
-                $discount = $this->calculateDiscountAmount($rule, $grossAmount);
-                $totalDiscount += $discount;
-            }
         }
-
-        return min($totalDiscount, $grossAmount);
     }
 
     /**
-     * Calcular monto de descuento
+     * Redondear un monto a múltiplos de un valor específico
      */
-    private function calculateDiscountAmount(DiscountRule $rule, float $grossAmount): float
+    private function roundToMultipleOf(float $amount, float $multiple): int
     {
-        switch ($rule->kind) {
-            case 'PERCENTAGE':
-                $discount = $grossAmount * ($rule->value / 100);
-                break;
-            case 'FIXED':
-                $discount = $rule->value;
-                break;
-            default:
-                $discount = 0;
-        }
-
-        if ($rule->max_amount && $discount > $rule->max_amount) {
-            $discount = $rule->max_amount;
-        }
-
-        return $discount;
+        // Redondear hacia arriba al múltiplo más cercano
+        return (int) ceil($amount / $multiple) * $multiple;
     }
+
 }

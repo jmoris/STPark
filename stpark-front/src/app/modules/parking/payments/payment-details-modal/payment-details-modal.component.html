@@ -1,0 +1,169 @@
+<p-dialog 
+    header="DETALLES DEL PAGO" 
+    [(visible)]="visible" 
+    [modal]="true" 
+    [style]="{width: '45rem'}"
+    [breakpoints]="{'1199px': '70vw', '575px': '90vw'}"
+    [draggable]="false" 
+    [resizable]="false"
+    [closable]="false"
+    [closeOnEscape]="false"
+    (visibleChange)="visibleChange.emit($event)">
+    
+    <!-- Loading indicator -->
+    <div *ngIf="!payment" class="flex justify-center items-center py-8">
+      <div class="text-center">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p class="text-gray-600">Cargando detalles del pago...</p>
+      </div>
+    </div>
+
+    <div class="payment-details" *ngIf="payment">
+        <!-- Información Principal del Pago -->
+        <div class="detail-section">
+            <h3>Información del Pago</h3>
+            <div class="detail-grid compact">
+                <div class="detail-item">
+                    <label>ID:</label>
+                    <span class="font-mono">{{ payment.id }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Monto:</label>
+                    <span class="amount">{{ formatAmount(payment.amount) }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Método:</label>
+                    <div class="method-info">
+                        <i [class]="getMethodIcon(payment.method)" class="method-icon"></i>
+                        <span>{{ getMethodText(payment.method) }}</span>
+                    </div>
+                </div>
+                <div class="detail-item">
+                    <label>Estado:</label>
+                    <span class="status" [ngClass]="'status-' + getStatusColor(payment.status)">
+                        {{ getStatusText(payment.status) }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información de Transacción -->
+        <div class="detail-section" *ngIf="payment.transaction_id">
+            <h3>Transacción</h3>
+            <div class="detail-grid compact">
+                <div class="detail-item">
+                    <label>ID:</label>
+                    <span class="font-mono">{{ payment.transaction_id }}</span>
+                </div>
+                <div class="detail-item" *ngIf="payment.processed_at">
+                    <label>Procesado:</label>
+                    <span>{{ payment.processed_at | date:'dd/MM/yyyy HH:mm' }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información de la Sesión -->
+        <div class="detail-section" *ngIf="payment.parking_session">
+            <h3>Sesión de Estacionamiento</h3>
+            <div class="detail-grid compact">
+                <div class="detail-item">
+                    <label>ID:</label>
+                    <span class="font-mono">{{ payment.parking_session.id }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Patente:</label>
+                    <span class="plate">{{ payment.parking_session.plate }}</span>
+                </div>
+                <div class="detail-item" *ngIf="payment.parking_session.sector">
+                    <label>Sector:</label>
+                    <span>{{ payment.parking_session.sector.name }}</span>
+                </div>
+                <div class="detail-item" *ngIf="payment.parking_session.street">
+                    <label>Calle:</label>
+                    <span>{{ payment.parking_session.street.name }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Inicio:</label>
+                    <span>{{ payment.parking_session.started_at | date:'dd/MM HH:mm' }}</span>
+                </div>
+                <div class="detail-item" *ngIf="payment.parking_session.ended_at">
+                    <label>Fin:</label>
+                    <span>{{ payment.parking_session.ended_at | date:'dd/MM HH:mm' }}</span>
+                </div>
+                <div class="detail-item" *ngIf="getSessionDuration(payment.parking_session)">
+                    <label>Duración:</label>
+                    <span class="duration">{{ getSessionDuration(payment.parking_session) }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Estado:</label>
+                    <span class="status" [ngClass]="'status-' + payment.parking_session.status.toLowerCase()">
+                        {{ getSessionStatusText(payment.parking_session.status) }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información de la Venta -->
+        <div class="detail-section" *ngIf="payment.sale">
+            <h3>Venta</h3>
+            <div class="detail-grid compact">
+                <div class="detail-item">
+                    <label>ID:</label>
+                    <span class="font-mono">{{ payment.sale.id }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Bruto:</label>
+                    <span>{{ formatAmount(payment.sale.gross_amount) }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Descuento:</label>
+                    <span class="discount">{{ formatAmount(payment.sale.discount_amount) }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Neto:</label>
+                    <span class="net-amount">{{ formatAmount(payment.sale.net_amount) }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Estado:</label>
+                    <span class="status" [ngClass]="'status-' + payment.sale.status.toLowerCase()">
+                        {{ payment.sale.status }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información de Auditoría -->
+        <div class="detail-section">
+            <h3>Auditoría</h3>
+            <div class="detail-grid compact">
+                <div class="detail-item">
+                    <label>Creado:</label>
+                    <span>{{ payment.created_at | date:'dd/MM/yyyy HH:mm' }}</span>
+                </div>
+                <div class="detail-item" *ngIf="payment.updated_at && payment.updated_at !== payment.created_at">
+                    <label>Actualizado:</label>
+                    <span>{{ payment.updated_at | date:'dd/MM/yyyy HH:mm' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <div class="flex justify-end gap-2">
+            <button pButton 
+                    type="button" 
+                    label="Cerrar" 
+                    icon="pi pi-times" 
+                    class="p-button-text"
+                    (click)="closeModal()">
+            </button>
+            <button pButton 
+                    type="button" 
+                    label="Imprimir Recibo" 
+                    icon="pi pi-print" 
+                    class="p-button-outlined"
+                    (click)="printReceipt()">
+            </button>
+        </div>
+    </ng-template>
+</p-dialog>

@@ -1,0 +1,220 @@
+<div class="p-6 w-full">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Calles</h1>
+      <p class="text-gray-600">Gestiona las calles del sistema</p>
+    </div>
+    <button mat-raised-button color="primary" class="rounded-sm" (click)="createStreet()">
+      <mat-icon>add</mat-icon>
+      Nueva Calle
+    </button>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-blue-100 rounded-full">
+            <mat-icon class="text-blue-600">road</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Total Calles</p>
+            <p class="text-2xl font-bold text-blue-600">{{ getTotalStreetsCount() }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-green-100 rounded-full">
+            <mat-icon class="text-green-600">directions_car</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Con Sesiones</p>
+            <p class="text-2xl font-bold text-green-600">{{ getStreetsWithSessions() }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-purple-100 rounded-full">
+            <mat-icon class="text-purple-600">people</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Con Operadores</p>
+            <p class="text-2xl font-bold text-purple-600">{{ getStreetsWithOperators() }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-orange-100 rounded-full">
+            <mat-icon class="text-orange-600">location_city</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Sectores</p>
+            <p class="text-2xl font-bold text-orange-600">{{ sectors.length }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Filters -->
+  <mat-card class="mb-6">
+    <mat-card-content class="p-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <mat-form-field appearance="outline">
+          <mat-label>Buscar calle</mat-label>
+          <input matInput placeholder="Nombre de la calle" [(ngModel)]="filters.name">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Sector</mat-label>
+          <mat-select [(ngModel)]="filters.sector_id">
+            <mat-option value="">Todos los sectores</mat-option>
+            <mat-option *ngFor="let sector of sectors" [value]="sector.id">
+              {{ sector.name }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-4">
+        <button mat-stroked-button class="rounded-sm" (click)="clearFilters()">
+          <mat-icon>clear</mat-icon>
+          Limpiar
+        </button>
+        <button mat-raised-button color="primary" class="rounded-sm" (click)="applyFilters()">
+          <mat-icon>search</mat-icon>
+          Filtrar
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Streets Table -->
+  <mat-card>
+    <mat-card-content class="p-6">
+      <div class="overflow-x-auto">
+        <table mat-table [dataSource]="streets" class="w-full">
+          <!-- Name Column -->
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef>Dirección</th>
+            <td mat-cell *matCellDef="let street">
+              <div class="flex items-center gap-2">
+                <mat-icon class="text-gray-500">road</mat-icon>
+                <span class="font-semibold">{{ getFullAddress(street) }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Sector Column -->
+          <ng-container matColumnDef="sector">
+            <th mat-header-cell *matHeaderCellDef>Sector</th>
+            <td mat-cell *matCellDef="let street">
+              <div class="flex items-center gap-2">
+                <mat-icon class="text-gray-500">location_city</mat-icon>
+                <span>{{ getSectorName(street) }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Type Column -->
+          <ng-container matColumnDef="type">
+            <th mat-header-cell *matHeaderCellDef>Tipo</th>
+            <td mat-cell *matCellDef="let street">
+              <span class="px-2 py-1 rounded-full text-xs font-medium"
+                    [class]="'bg-' + getAddressTypeColor(street) + '-100 text-' + getAddressTypeColor(street) + '-800'">
+                {{ getAddressType(street) }}
+              </span>
+            </td>
+          </ng-container>
+
+          <!-- Sessions Count Column -->
+          <ng-container matColumnDef="sessions_count">
+            <th mat-header-cell *matHeaderCellDef>Sesiones</th>
+            <td mat-cell *matCellDef="let street">
+              <div class="flex items-center gap-1">
+                <mat-icon class="text-sm text-gray-500">directions_car</mat-icon>
+                <span>{{ getSessionsCount(street) }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Operators Count Column -->
+          <ng-container matColumnDef="operators_count">
+            <th mat-header-cell *matHeaderCellDef>Operadores</th>
+            <td mat-cell *matCellDef="let street">
+              <div class="flex items-center gap-1">
+                <mat-icon class="text-sm text-gray-500">people</mat-icon>
+                <span>{{ getOperatorsCount(street) }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Actions Column -->
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Acciones</th>
+            <td mat-cell *matCellDef="let street">
+              <button mat-icon-button class="rounded-sm" [matMenuTriggerFor]="menu">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+              <mat-menu #menu="matMenu">
+                <button mat-menu-item (click)="viewStreet(street)">
+                  <mat-icon>visibility</mat-icon>
+                  Ver detalles
+                </button>
+                <button mat-menu-item (click)="editStreet(street)">
+                  <mat-icon>edit</mat-icon>
+                  Editar
+                </button>
+                <button mat-menu-item class="text-red-600" (click)="deleteStreet(street)">
+                  <mat-icon>delete</mat-icon>
+                  Eliminar
+                </button>
+              </mat-menu>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+
+        <!-- Loading Spinner -->
+        <div *ngIf="loading" class="flex justify-center items-center py-8">
+          <mat-spinner diameter="40"></mat-spinner>
+        </div>
+
+        <!-- Empty State -->
+        <div *ngIf="!loading && streets.length === 0" class="text-center py-8">
+          <mat-icon class="text-gray-400 text-6xl">road</mat-icon>
+          <h3 class="text-lg font-medium text-gray-900 mt-4">No hay calles registradas</h3>
+          <p class="text-gray-500">Las calles aparecerán aquí cuando se registren.</p>
+        </div>
+      </div>
+
+      <!-- Paginator -->
+      <mat-paginator 
+        *ngIf="totalItems > 0"
+        [length]="totalItems"
+        [pageSize]="pageSize"
+        [pageIndex]="currentPage"
+        [pageSizeOptions]="pageSizeOptions"
+        [showFirstLastButtons]="true"
+        (page)="onPageChange($event)"
+        class="mt-4">
+      </mat-paginator>
+    </mat-card-content>
+  </mat-card>
+</div>

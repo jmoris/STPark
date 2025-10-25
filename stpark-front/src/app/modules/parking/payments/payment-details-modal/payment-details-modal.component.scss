@@ -1,0 +1,187 @@
+.payment-details {
+  .detail-section {
+    margin-bottom: 1.5rem;
+    
+    h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.25rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 0.75rem;
+    
+    &.compact {
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.5rem;
+    }
+  }
+
+  .detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+
+    label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    span {
+      font-size: 0.9rem;
+      color: #111827;
+      font-weight: 500;
+    }
+
+    .font-mono {
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      background-color: #f3f4f6;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      font-size: 0.875rem;
+    }
+
+    .plate {
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      background-color: #dbeafe;
+      color: #1e40af;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .amount {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #059669;
+    }
+
+    .discount {
+      color: #dc2626;
+      font-weight: 600;
+    }
+
+    .net-amount {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #059669;
+    }
+
+    .duration {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #1e40af;
+      background-color: #dbeafe;
+      padding: 0.2rem 0.4rem;
+      border-radius: 0.25rem;
+    }
+  }
+
+  .method-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+
+    .method-icon {
+      font-size: 1.25rem;
+      color: #6b7280;
+    }
+  }
+
+  .status {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+
+    &.status-green {
+      background-color: #d1fae5;
+      color: #065f46;
+    }
+
+    &.status-orange {
+      background-color: #fed7aa;
+      color: #9a3412;
+    }
+
+    &.status-red {
+      background-color: #fee2e2;
+      color: #991b1b;
+    }
+
+    &.status-blue {
+      background-color: #dbeafe;
+      color: #1e40af;
+    }
+
+    &.status-gray {
+      background-color: #f3f4f6;
+      color: #6b7280;
+    }
+
+    &.status-pending {
+      background-color: #fed7aa;
+      color: #9a3412;
+    }
+
+    &.status-paid {
+      background-color: #d1fae5;
+      color: #065f46;
+    }
+
+    &.status-partial {
+      background-color: #fef3c7;
+      color: #92400e;
+    }
+
+    &.status-canceled {
+      background-color: #fee2e2;
+      color: #991b1b;
+    }
+  }
+}
+
+// Responsive
+@media (max-width: 768px) {
+  .payment-details {
+    .detail-grid {
+      grid-template-columns: 1fr;
+      
+      &.compact {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .detail-item {
+      .amount {
+        font-size: 1rem;
+      }
+      
+      .net-amount {
+        font-size: 0.9rem;
+      }
+    }
+  }
+}
+
+// Estilos para el footer del modal
+:host ::ng-deep {
+  .p-dialog-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e5e7eb;
+    background-color: #f9fafb;
+  }
+}

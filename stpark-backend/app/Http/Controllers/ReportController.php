@@ -8,6 +8,7 @@ use App\Models\Payment;
 use App\Models\Debt;
 use App\Models\Operator;
 use App\Models\Sector;
+use App\Helpers\DatabaseHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -262,9 +263,9 @@ class ReportController extends Controller
             ],
             'sessions' => [
                 'total' => $sessions->count(),
-                'active' => $sessions->where('status', ParkingSession::STATUS_ACTIVE)->count(),
-                'completed' => $sessions->where('status', ParkingSession::STATUS_CLOSED)->count(),
-                'canceled' => $sessions->where('status', ParkingSession::STATUS_CANCELED)->count(),
+                'active' => $sessions->where('status', 'ACTIVE')->count(),
+                'completed' => $sessions->where('status', 'COMPLETED')->count(),
+                'canceled' => $sessions->where('status', 'CANCELLED')->count(),
                 'by_sector' => $sessions->groupBy('sector.name')->map(function($group) {
                     return $group->count();
                 }),
@@ -304,9 +305,8 @@ class ReportController extends Controller
     {
         $date = $request->get('date', now()->format('Y-m-d'));
         
-        // Sesiones activas
+        // Sesiones activas (independiente de la fecha de inicio)
         $activeSessions = ParkingSession::active()
-                                      ->whereDate('started_at', $date)
                                       ->with(['sector', 'street'])
                                       ->get();
 
@@ -319,12 +319,34 @@ class ReportController extends Controller
         // Deudas pendientes
         $pendingDebts = Debt::pending()->get();
 
+        // Sesiones por hora del día seleccionado usando DatabaseHelper
+        $hourFunction = DatabaseHelper::getHourFunction('started_at');
+        $dateCondition = DatabaseHelper::getDateComparisonFunction('started_at', $date);
+        
+        $sessionsByHour = DB::table('parking_sessions')
+                           ->selectRaw("{$hourFunction} as hour, COUNT(*) as count")
+                           ->whereRaw($dateCondition)
+                           ->groupBy('hour')
+                           ->orderBy('hour')
+                           ->get()
+                           ->keyBy('hour');
+
+        // Crear array completo de 24 horas con datos
+        $hourlyData = [];
+        for ($hour = 0; $hour < 24; $hour++) {
+            $hourlyData[] = [
+                'hour' => $hour,
+                'count' => $sessionsByHour->get($hour)->count ?? 0
+            ];
+        }
+
         $dashboard = [
             'date' => $date,
             'active_sessions' => [
                 'count' => $activeSessions->count(),
                 'sessions' => $activeSessions,
             ],
+            'sessions_by_hour' => $hourlyData,
             'today_sales' => [
                 'count' => $todaySales->count(),
                 'total_amount' => $todaySales->sum('total'),

@@ -1,0 +1,221 @@
+<div class="p-6 w-full">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Sectores</h1>
+      <p class="text-gray-600">Gestiona los sectores del sistema</p>
+    </div>
+    <button mat-raised-button color="primary" class="rounded-sm" (click)="createSector()">
+      <mat-icon>add</mat-icon>
+      Nuevo Sector
+    </button>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-blue-100 rounded-full">
+            <mat-icon class="text-blue-600">location_city</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Total Sectores</p>
+            <p class="text-2xl font-bold text-blue-600">{{ sectors.length }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-green-100 rounded-full">
+            <mat-icon class="text-green-600">public</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Públicos</p>
+            <p class="text-2xl font-bold text-green-600">{{ getPublicSectorsCount() }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-purple-100 rounded-full">
+            <mat-icon class="text-purple-600">lock</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Privados</p>
+            <p class="text-2xl font-bold text-purple-600">{{ getPrivateSectorsCount() }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-orange-100 rounded-full">
+            <mat-icon class="text-orange-600">warning</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Sin Operadores</p>
+            <p class="text-2xl font-bold text-orange-600">{{ getSectorsWithoutOperators() }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Filters -->
+  <mat-card class="mb-6">
+    <mat-card-content class="p-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <mat-form-field appearance="outline">
+          <mat-label>Buscar sector</mat-label>
+          <input matInput placeholder="Nombre del sector" [(ngModel)]="filters.name">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Tipo</mat-label>
+          <mat-select [(ngModel)]="filters.is_private">
+            <mat-option value="">Todos</mat-option>
+            <mat-option [value]="false">Público</mat-option>
+            <mat-option [value]="true">Privado</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-4">
+        <button mat-stroked-button class="rounded-sm" (click)="clearFilters()">
+          <mat-icon>clear</mat-icon>
+          Limpiar
+        </button>
+        <button mat-raised-button color="primary" class="rounded-sm" (click)="applyFilters()">
+          <mat-icon>search</mat-icon>
+          Filtrar
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Sectors Table -->
+  <mat-card>
+    <mat-card-content class="p-6">
+      <div class="overflow-x-auto">
+        <table mat-table [dataSource]="sectors" class="w-full">
+          <!-- Name Column -->
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef>Nombre</th>
+            <td mat-cell *matCellDef="let sector">
+              <div class="flex items-center gap-2">
+                <mat-icon class="text-gray-500">location_city</mat-icon>
+                <span class="font-semibold">{{ sector.name }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Type Column -->
+          <ng-container matColumnDef="type">
+            <th mat-header-cell *matHeaderCellDef>Tipo</th>
+            <td mat-cell *matCellDef="let sector">
+              <span class="sector-type-badge"
+                    [class]="'bg-' + getSectorTypeColor(sector) + '-100 text-' + getSectorTypeColor(sector) + '-800'">
+                {{ getSectorType(sector) }}
+              </span>
+            </td>
+          </ng-container>
+
+          <!-- Streets Count Column -->
+          <ng-container matColumnDef="streets_count">
+            <th mat-header-cell *matHeaderCellDef>Calles</th>
+            <td mat-cell *matCellDef="let sector">
+              <div class="flex items-center gap-1">
+                <mat-icon class="text-sm text-gray-500">road</mat-icon>
+                <span>{{ getStreetsCount(sector) }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Operators Count Column -->
+          <ng-container matColumnDef="operators_count">
+            <th mat-header-cell *matHeaderCellDef>Operadores</th>
+            <td mat-cell *matCellDef="let sector">
+              <div class="flex flex-col gap-1">
+                <div class="flex items-center gap-1">
+                  <mat-icon class="text-sm text-gray-500">people</mat-icon>
+                  <span class="font-medium">{{ getOperatorsCount(sector) }}</span>
+                </div>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Status Column -->
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let sector">
+              <span class="sector-status-badge"
+                    [class]="'bg-' + getStatusColor(sector) + '-100 text-' + getStatusColor(sector) + '-800'">
+                {{ getStatusText(sector) }}
+              </span>
+            </td>
+          </ng-container>
+
+          <!-- Actions Column -->
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Acciones</th>
+            <td mat-cell *matCellDef="let sector">
+              <button mat-icon-button class="rounded-sm" [matMenuTriggerFor]="menu">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+              <mat-menu #menu="matMenu">
+                <button mat-menu-item (click)="viewSector(sector)">
+                  <mat-icon>visibility</mat-icon>
+                  Ver detalles
+                </button>
+                <button mat-menu-item (click)="editSector(sector)">
+                  <mat-icon>edit</mat-icon>
+                  Editar
+                </button>
+                <button mat-menu-item class="text-red-600" (click)="deleteSector(sector)">
+                  <mat-icon>delete</mat-icon>
+                  Eliminar
+                </button>
+              </mat-menu>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+
+        <!-- Loading Spinner -->
+        <div *ngIf="loading" class="flex justify-center items-center py-8">
+          <mat-spinner diameter="40"></mat-spinner>
+        </div>
+
+        <!-- Empty State -->
+        <div *ngIf="!loading && sectors.length === 0" class="text-center py-8">
+          <mat-icon class="text-gray-400 text-6xl">location_city</mat-icon>
+          <h3 class="text-lg font-medium text-gray-900 mt-4">No hay sectores registrados</h3>
+          <p class="text-gray-500">Los sectores aparecerán aquí cuando se registren.</p>
+        </div>
+      </div>
+
+      <!-- Paginator -->
+      <mat-paginator 
+        *ngIf="totalItems > 0"
+        [length]="totalItems"
+        [pageSize]="pageSize"
+        [pageIndex]="currentPage"
+        [pageSizeOptions]="pageSizeOptions"
+        [showFirstLastButtons]="true"
+        (page)="onPageChange($event)"
+        class="mt-4">
+      </mat-paginator>
+    </mat-card-content>
+  </mat-card>
+</div>

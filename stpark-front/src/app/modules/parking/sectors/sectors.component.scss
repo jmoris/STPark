@@ -1,0 +1,41 @@
+/* Estilos para el componente de sectores */
+.sectors-table {
+  width: 100%;
+}
+
+.sector-type-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.sector-status-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.operators-list {
+  max-height: 4rem;
+  overflow-y: auto;
+}
+
+.operators-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.operators-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 2px;
+}
+
+.operators-list::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 2px;
+}
+
+.operators-list::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}

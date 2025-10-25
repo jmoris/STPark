@@ -1,0 +1,51 @@
+// Estilos específicos para el componente de pagos
+.mat-mdc-card {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.mat-mdc-table {
+  background: transparent;
+}
+
+.mat-mdc-header-cell {
+  font-weight: 600;
+  color: #374151;
+}
+
+.mat-mdc-cell {
+  border-bottom: 1px solid #f3f4f6;
+}
+
+// Estados de pago
+.status-completed {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.status-pending {
+  background-color: #fed7aa;
+  color: #9a3412;
+}
+
+.status-failed {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+// Iconos de métodos de pago
+.payment-method-icon {
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+}
+
+// Responsive
+@media (max-width: 768px) {
+  .grid-cols-4 {
+    grid-template-columns: 1fr;
+  }
+  
+  .mat-mdc-table {
+    font-size: 0.875rem;
+  }
+}

@@ -16,7 +16,8 @@ class DebtService
         int $debtId,
         float $amount,
         string $method,
-        int $cashierOperatorId
+        int $cashierOperatorId,
+        ?string $approvalCode = null
     ): Debt {
         $debt = Debt::findOrFail($debtId);
 
@@ -24,37 +25,37 @@ class DebtService
             throw new \Exception('La deuda no está pendiente');
         }
 
-        if ($amount > $debt->getPendingAmount()) {
-            throw new \Exception('El monto excede la deuda pendiente');
+        if ($amount < $debt->getPendingAmount()) {
+            throw new \Exception('El monto debe ser mayor o igual al monto de la deuda');
         }
 
         // Crear venta si no existe
         if (!$debt->parkingSession || !$debt->parkingSession->sale) {
             $sale = Sale::create([
-                'session_id' => $debt->session_id,
-                'doc_type' => Sale::DOC_TYPE_BOILET,
-                'net' => $amount,
-                'tax' => 0,
-                'total' => $amount,
-                'issued_at' => null,
+                'parking_session_id' => $debt->session_id, // Puede ser null para deudas manuales
                 'cashier_operator_id' => $cashierOperatorId,
+                'subtotal' => $amount,
+                'discount_amount' => 0,
+                'total' => $amount,
+                'status' => 'PENDING',
             ]);
         }
 
         // Crear pago
         $payment = Payment::create([
             'sale_id' => $sale->id ?? $debt->parkingSession->sale->id,
-            'session_id' => $debt->session_id,
+            'session_id' => $debt->session_id, // Puede ser null para deudas manuales
             'method' => $method,
             'amount' => $amount,
             'paid_at' => now(),
-            'status' => Payment::STATUS_COMPLETED,
+            'status' => 'COMPLETED',
+            'approval_code' => $approvalCode,
         ]);
 
         // Actualizar deuda
         $debt->update([
             'settled_at' => now(),
-            'status' => Debt::STATUS_SETTLED,
+            'status' => 'SETTLED',
         ]);
 
         // Registrar auditoría
@@ -84,7 +85,7 @@ class DebtService
             'origin' => $origin,
             'principal_amount' => $amount,
             'created_at' => now(),
-            'status' => Debt::STATUS_PENDING,
+            'status' => 'PENDING',
         ]);
 
         // Registrar auditoría
@@ -142,9 +143,9 @@ class DebtService
         $summary = [
             'plate' => $plate,
             'total_debts' => $debts->count(),
-            'pending_debts' => $debts->where('status', Debt::STATUS_PENDING)->count(),
-            'settled_debts' => $debts->where('status', Debt::STATUS_SETTLED)->count(),
-            'total_pending_amount' => $debts->where('status', Debt::STATUS_PENDING)->sum('principal_amount'),
+            'pending_debts' => $debts->where('status', 'PENDING')->count(),
+            'settled_debts' => $debts->where('status', 'SETTLED')->count(),
+            'total_pending_amount' => $debts->where('status', 'PENDING')->sum('principal_amount'),
             'debts' => $debts,
         ];
 

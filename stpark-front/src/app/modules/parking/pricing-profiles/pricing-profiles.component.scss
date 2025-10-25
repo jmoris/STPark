@@ -1,0 +1,76 @@
+// Pricing Profiles Component Styles
+
+// Modal positioning fixes
+.modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 280px !important; // Sidebar width
+  z-index: 250 !important;
+  
+  @media (max-width: 768px) {
+    left: 0 !important; // Full width on mobile
+  }
+}
+
+// Modal Styles
+.rules-modal {
+  .mat-table {
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .mat-header-row {
+    background-color: #f9fafb;
+  }
+
+  .mat-row:hover {
+    background-color: #f3f4f6;
+  }
+
+  .mat-cell, .mat-header-cell {
+    padding: 16px 12px;
+  }
+}
+
+// Form Styles
+.rule-form {
+  .mat-form-field {
+    width: 100%;
+  }
+
+  .days-selector {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+
+  .day-chip {
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &.selected {
+      background-color: #3b82f6;
+      color: white;
+    }
+
+    &:hover {
+      background-color: #e5e7eb;
+    }
+  }
+}
+
+// Responsive Design
+@media (max-width: 768px) {
+  .rules-modal {
+    .mat-table {
+      font-size: 14px;
+    }
+
+    .mat-cell, .mat-header-cell {
+      padding: 12px 8px;
+    }
+  }
+}

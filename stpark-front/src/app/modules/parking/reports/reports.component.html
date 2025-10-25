@@ -1,0 +1,192 @@
+<div class="p-6">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Reportes</h1>
+      <p class="text-gray-600">Genera y exporta reportes del sistema</p>
+    </div>
+  </div>
+
+  <!-- Report Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <!-- Sales Report -->
+    <mat-card class="hover:shadow-lg transition-shadow cursor-pointer" (click)="generateReport('sales')">
+      <mat-card-content class="p-6">
+        <div class="flex items-center mb-4">
+          <div class="p-3 bg-green-100 rounded-full">
+            <mat-icon class="text-green-600">trending_up</mat-icon>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-gray-900">Reporte de Ventas</h3>
+            <p class="text-sm text-gray-600">Análisis de ventas por período</p>
+          </div>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-2xl font-bold text-green-600">{{ getTotalSales() }}</span>
+          <button mat-icon-button (click)="exportReport('sales')">
+            <mat-icon>download</mat-icon>
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Payments Report -->
+    <mat-card class="hover:shadow-lg transition-shadow cursor-pointer" (click)="generateReport('payments')">
+      <mat-card-content class="p-6">
+        <div class="flex items-center mb-4">
+          <div class="p-3 bg-blue-100 rounded-full">
+            <mat-icon class="text-blue-600">payment</mat-icon>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-gray-900">Reporte de Pagos</h3>
+            <p class="text-sm text-gray-600">Análisis de métodos de pago</p>
+          </div>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-2xl font-bold text-blue-600">{{ getTotalPayments() }}</span>
+          <button mat-icon-button (click)="exportReport('payments')">
+            <mat-icon>download</mat-icon>
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Debts Report -->
+    <mat-card class="hover:shadow-lg transition-shadow cursor-pointer" (click)="generateReport('debts')">
+      <mat-card-content class="p-6">
+        <div class="flex items-center mb-4">
+          <div class="p-3 bg-red-100 rounded-full">
+            <mat-icon class="text-red-600">account_balance_wallet</mat-icon>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-gray-900">Reporte de Deudas</h3>
+            <p class="text-sm text-gray-600">Análisis de deudas pendientes</p>
+          </div>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-2xl font-bold text-red-600">{{ getTotalDebts() }}</span>
+          <button mat-icon-button (click)="exportReport('debts')">
+            <mat-icon>download</mat-icon>
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Operator Report -->
+    <mat-card class="hover:shadow-lg transition-shadow cursor-pointer" (click)="generateReport('operator')">
+      <mat-card-content class="p-6">
+        <div class="flex items-center mb-4">
+          <div class="p-3 bg-purple-100 rounded-full">
+            <mat-icon class="text-purple-600">people</mat-icon>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-gray-900">Reporte por Operador</h3>
+            <p class="text-sm text-gray-600">Rendimiento por operador</p>
+          </div>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-2xl font-bold text-purple-600">0</span>
+          <button mat-icon-button>
+            <mat-icon>download</mat-icon>
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Sessions Report -->
+    <mat-card class="hover:shadow-lg transition-shadow cursor-pointer" (click)="generateReport('sessions')">
+      <mat-card-content class="p-6">
+        <div class="flex items-center mb-4">
+          <div class="p-3 bg-orange-100 rounded-full">
+            <mat-icon class="text-orange-600">schedule</mat-icon>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-gray-900">Reporte de Sesiones</h3>
+            <p class="text-sm text-gray-600">Análisis de uso por sector</p>
+          </div>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-2xl font-bold text-orange-600">0</span>
+          <button mat-icon-button>
+            <mat-icon>download</mat-icon>
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Dashboard Report -->
+    <mat-card class="hover:shadow-lg transition-shadow cursor-pointer" (click)="generateReport('dashboard')">
+      <mat-card-content class="p-6">
+        <div class="flex items-center mb-4">
+          <div class="p-3 bg-gray-100 rounded-full">
+            <mat-icon class="text-gray-600">dashboard</mat-icon>
+          </div>
+          <div class="ml-4">
+            <h3 class="text-lg font-semibold text-gray-900">Dashboard Completo</h3>
+            <p class="text-sm text-gray-600">Resumen general del sistema</p>
+          </div>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-2xl font-bold text-gray-600">📊</span>
+          <button mat-icon-button>
+            <mat-icon>download</mat-icon>
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Filter Section -->
+  <mat-card class="mt-6">
+    <mat-card-header>
+      <mat-card-title>Filtros de Reporte</mat-card-title>
+      <mat-card-subtitle>Configura los parámetros para generar reportes personalizados</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content class="p-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha desde</mat-label>
+          <input matInput [matDatepicker]="picker1">
+          <mat-datepicker-toggle matSuffix [for]="picker1"></mat-datepicker-toggle>
+          <mat-datepicker #picker1></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha hasta</mat-label>
+          <input matInput [matDatepicker]="picker2">
+          <mat-datepicker-toggle matSuffix [for]="picker2"></mat-datepicker-toggle>
+          <mat-datepicker #picker2></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Sector</mat-label>
+          <mat-select>
+            <mat-option value="">Todos los sectores</mat-option>
+            <mat-option value="1">Sector 1</mat-option>
+            <mat-option value="2">Sector 2</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Operador</mat-label>
+          <mat-select>
+            <mat-option value="">Todos los operadores</mat-option>
+            <mat-option value="1">Operador 1</mat-option>
+            <mat-option value="2">Operador 2</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="flex justify-end gap-4 mt-6">
+        <button mat-stroked-button>
+          <mat-icon>refresh</mat-icon>
+          Actualizar
+        </button>
+        <button mat-raised-button color="primary">
+          <mat-icon>file_download</mat-icon>
+          Exportar Todos
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

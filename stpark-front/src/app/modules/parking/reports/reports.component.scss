@@ -1,0 +1,20 @@
+// Estilos específicos para el componente de reportes
+.mat-mdc-card {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.3s ease;
+}
+
+.mat-mdc-card:hover {
+  box-shadow: 0 10px 25px 0 rgba(0, 0, 0, 0.15);
+}
+
+// Responsive
+@media (max-width: 768px) {
+  .grid-cols-3 {
+    grid-template-columns: 1fr;
+  }
+  
+  .grid-cols-4 {
+    grid-template-columns: 1fr;
+  }
+}

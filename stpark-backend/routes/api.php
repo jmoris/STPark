@@ -8,6 +8,11 @@ use App\Http\Controllers\DebtController;
 use App\Http\Controllers\SectorController;
 use App\Http\Controllers\OperatorController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\PricingProfileController;
+use App\Http\Controllers\PricingRuleController;
+use App\Http\Controllers\StreetController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\StatsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -24,14 +29,25 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
+// Rutas de autenticación
+Route::prefix('auth')->group(function () {
+    Route::post('/login', [AuthController::class, 'login']); // Login operador
+    Route::post('/verify', [AuthController::class, 'verify']); // Verificar token
+    Route::post('/logout', [AuthController::class, 'logout']); // Logout operador
+});
+
 // Rutas de sesiones de estacionamiento
 Route::prefix('sessions')->group(function () {
     Route::post('/', [ParkingSessionController::class, 'store']); // Crear sesión (check-in)
+    Route::post('/with-debt-check', [ParkingSessionController::class, 'createSessionWithDebtCheck']); // Crear sesión con verificación de deudas
     Route::get('/', [ParkingSessionController::class, 'index']); // Listar sesiones
     Route::get('/active-by-plate', [ParkingSessionController::class, 'activeByPlate']); // Buscar sesión activa por placa
+    Route::get('/active-by-operator', [ParkingSessionController::class, 'activeByOperator']); // Obtener sesiones activas por operador
+    Route::get('/check-pending-debts', [ParkingSessionController::class, 'checkPendingDebts']); // Verificar deudas pendientes por placa
     Route::get('/{id}', [ParkingSessionController::class, 'show']); // Obtener sesión por ID
     Route::post('/{id}/quote', [ParkingSessionController::class, 'quote']); // Obtener cotización
     Route::post('/{id}/checkout', [ParkingSessionController::class, 'checkout']); // Checkout
+    Route::post('/{id}/force-checkout', [ParkingSessionController::class, 'forceCheckoutWithoutPayment']); // Forzar checkout sin pago
     Route::post('/{id}/cancel', [ParkingSessionController::class, 'cancel']); // Cancelar sesión
 });
 
@@ -61,6 +77,16 @@ Route::prefix('sectors')->group(function () {
     Route::get('/{id}', [SectorController::class, 'show']); // Obtener sector por ID
     Route::put('/{id}', [SectorController::class, 'update']); // Actualizar sector
     Route::delete('/{id}', [SectorController::class, 'destroy']); // Eliminar sector
+    Route::get('/{id}/streets', [SectorController::class, 'streets']); // Obtener calles de un sector
+});
+
+// Rutas de calles
+Route::prefix('streets')->group(function () {
+    Route::get('/', [StreetController::class, 'index']); // Listar calles
+    Route::post('/', [StreetController::class, 'store']); // Crear calle
+    Route::get('/{id}', [StreetController::class, 'show']); // Obtener calle por ID
+    Route::put('/{id}', [StreetController::class, 'update']); // Actualizar calle
+    Route::delete('/{id}', [StreetController::class, 'destroy']); // Eliminar calle
 });
 
 // Rutas de operadores
@@ -69,7 +95,9 @@ Route::prefix('operators')->group(function () {
     Route::post('/', [OperatorController::class, 'store']); // Crear operador
     Route::get('/{id}', [OperatorController::class, 'show']); // Obtener operador por ID
     Route::put('/{id}', [OperatorController::class, 'update']); // Actualizar operador
+    Route::put('/{id}/pin', [OperatorController::class, 'updatePin']); // Actualizar PIN del operador
     Route::post('/{id}/assign', [OperatorController::class, 'assign']); // Asignar operador a sector/calle
+    Route::delete('/{id}/assignments', [OperatorController::class, 'removeAllAssignments']); // Eliminar todas las asignaciones del operador
     Route::get('/{id}/assignments', [OperatorController::class, 'assignments']); // Obtener asignaciones del operador
 });
 
@@ -80,4 +108,31 @@ Route::prefix('reports')->group(function () {
     Route::get('/debts', [ReportController::class, 'debtsReport']); // Reporte de deudas
     Route::get('/operator', [ReportController::class, 'operatorReport']); // Reporte por operador
     Route::get('/dashboard', [ReportController::class, 'dashboard']); // Dashboard general
+});
+
+// Rutas de perfiles de precios
+Route::prefix('pricing-profiles')->group(function () {
+    Route::get('/', [PricingProfileController::class, 'index']); // Listar perfiles
+    Route::post('/', [PricingProfileController::class, 'store']); // Crear perfil
+    Route::get('/{id}', [PricingProfileController::class, 'show']); // Obtener perfil por ID
+    Route::put('/{id}', [PricingProfileController::class, 'update']); // Actualizar perfil
+    Route::delete('/{id}', [PricingProfileController::class, 'destroy']); // Eliminar perfil
+    Route::post('/{id}/toggle-status', [PricingProfileController::class, 'toggleStatus']); // Activar/desactivar perfil
+    Route::get('/{id}/rules', [PricingRuleController::class, 'getByProfile']); // Obtener reglas de un perfil
+});
+
+// Rutas de reglas de precios
+Route::prefix('pricing-rules')->group(function () {
+    Route::get('/', [PricingRuleController::class, 'index']); // Listar reglas
+    Route::post('/', [PricingRuleController::class, 'store']); // Crear regla
+    Route::get('/{id}', [PricingRuleController::class, 'show']); // Obtener regla por ID
+    Route::put('/{id}', [PricingRuleController::class, 'update']); // Actualizar regla
+    Route::delete('/{id}', [PricingRuleController::class, 'destroy']); // Eliminar regla
+    Route::post('/{id}/toggle-status', [PricingRuleController::class, 'toggleStatus']); // Activar/desactivar regla
+});
+
+// Rutas de estadísticas
+Route::prefix('stats')->group(function () {
+    Route::get('/daily', [StatsController::class, 'getDailyStats']); // Estadísticas del día
+    Route::get('/date-range', [StatsController::class, 'getStatsByDateRange']); // Estadísticas por rango de fechas
 });

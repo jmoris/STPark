@@ -1,0 +1,115 @@
+// Sessions component styles
+
+.mat-chip {
+  font-size: 12px;
+  font-weight: 500;
+  
+  &.mat-chip-green {
+    background-color: #10B981;
+    color: white;
+  }
+  
+  &.mat-chip-blue {
+    background-color: #3B82F6;
+    color: white;
+  }
+  
+  &.mat-chip-orange {
+    background-color: #F59E0B;
+    color: white;
+  }
+  
+  &.mat-chip-red {
+    background-color: #EF4444;
+    color: white;
+  }
+  
+  &.mat-chip-gray {
+    background-color: #6B7280;
+    color: white;
+  }
+}
+
+.table-container {
+  overflow-x: auto;
+}
+
+// Responsive table adjustments
+@media (max-width: 768px) {
+  .mat-table {
+    font-size: 14px;
+  }
+  
+  .mat-column-actions {
+    width: 60px;
+  }
+  
+  .mat-column-street,
+  .mat-column-operator {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .mat-column-ended_at,
+  .mat-column-duration {
+    display: none;
+  }
+}
+
+// Filter section
+.filters-section {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+// Action buttons
+.action-button {
+  margin-right: 8px;
+  
+  &:last-child {
+    margin-right: 0;
+  }
+}
+
+// Empty state
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  
+  mat-icon {
+    font-size: 4rem;
+    height: 4rem;
+    width: 4rem;
+    color: #9CA3AF;
+    margin-bottom: 1rem;
+  }
+  
+  h3 {
+    color: #111827;
+    font-size: 1.125rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+  }
+  
+  p {
+    color: #6B7280;
+    margin-bottom: 1rem;
+  }
+}
+
+// Loading state
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 16rem;
+}
+
+// Error state
+.error-container {
+  margin-bottom: 1.5rem;
+}
+

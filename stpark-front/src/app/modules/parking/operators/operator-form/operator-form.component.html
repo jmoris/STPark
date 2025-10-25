@@ -1,0 +1,86 @@
+<div class="operator-form-dialog">
+  <!-- Header -->
+  <div class="dialog-header">
+    <h2 class="dialog-title">
+      {{ data.isEdit ? 'Editar Operador' : 'Nuevo Operador' }}
+    </h2>
+    <button mat-icon-button class="close-button" (click)="onCancel()">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <!-- Content -->
+  <div class="dialog-content">
+    <form [formGroup]="operatorForm" class="operator-form">
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>Nombre completo</mat-label>
+          <input matInput formControlName="name" placeholder="Ingrese el nombre completo">
+          <mat-error *ngIf="operatorForm.get('name')?.hasError('required')">
+            {{ getErrorMessage('name') }}
+          </mat-error>
+          <mat-error *ngIf="operatorForm.get('name')?.hasError('minlength')">
+            {{ getErrorMessage('name') }}
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>RUT</mat-label>
+          <input matInput formControlName="rut" placeholder="12.345.678-9">
+          <mat-error *ngIf="operatorForm.get('rut')?.hasError('required')">
+            {{ getErrorMessage('rut') }}
+          </mat-error>
+          <mat-error *ngIf="operatorForm.get('rut')?.hasError('pattern')">
+            {{ getErrorMessage('rut') }}
+          </mat-error>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>Email</mat-label>
+          <input matInput formControlName="email" type="email" placeholder="operador@ejemplo.com">
+          <mat-error *ngIf="operatorForm.get('email')?.hasError('required')">
+            {{ getErrorMessage('email') }}
+          </mat-error>
+          <mat-error *ngIf="operatorForm.get('email')?.hasError('email')">
+            {{ getErrorMessage('email') }}
+          </mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>Teléfono</mat-label>
+          <input matInput formControlName="phone" placeholder="+56 9 1234 5678">
+          <mat-error *ngIf="operatorForm.get('phone')?.hasError('required')">
+            {{ getErrorMessage('phone') }}
+          </mat-error>
+          <mat-error *ngIf="operatorForm.get('phone')?.hasError('pattern')">
+            {{ getErrorMessage('phone') }}
+          </mat-error>
+        </mat-form-field>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="half-width">
+          <mat-label>Estado</mat-label>
+          <mat-select formControlName="status">
+            <mat-option value="ACTIVE">Activo</mat-option>
+            <mat-option value="INACTIVE">Inactivo</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </form>
+  </div>
+
+  <!-- Actions -->
+  <div class="dialog-actions">
+    <button mat-button class="rounded-sm" (click)="onCancel()" [disabled]="loading">
+      Cancelar
+    </button>
+    <button mat-raised-button color="primary" class="rounded-sm" (click)="onSubmit()" [disabled]="loading || operatorForm.invalid">
+      <mat-spinner *ngIf="loading" diameter="20" class="inline-spinner"></mat-spinner>
+      <mat-icon *ngIf="!loading">{{ data.isEdit ? 'save' : 'add' }}</mat-icon>
+      {{ data.isEdit ? 'Actualizar' : 'Crear' }}
+    </button>
+  </div>
+</div>

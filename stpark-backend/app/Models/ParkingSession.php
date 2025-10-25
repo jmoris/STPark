@@ -5,12 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Builder;
 
 class ParkingSession extends Model
 {
     use HasFactory;
+
+    protected $table = 'parking_sessions';
 
     protected $fillable = [
         'plate',
@@ -19,31 +21,16 @@ class ParkingSession extends Model
         'operator_in_id',
         'started_at',
         'ended_at',
-        'seconds_total',
-        'gross_amount',
-        'discount_amount',
-        'net_amount',
-        'status',
+        'status'
     ];
 
     protected $casts = [
         'started_at' => 'datetime',
         'ended_at' => 'datetime',
-        'seconds_total' => 'integer',
-        'gross_amount' => 'decimal:2',
-        'discount_amount' => 'decimal:2',
-        'net_amount' => 'decimal:2',
     ];
 
-    const STATUS_CREATED = 'CREATED';
-    const STATUS_ACTIVE = 'ACTIVE';
-    const STATUS_TO_PAY = 'TO_PAY';
-    const STATUS_PAID = 'PAID';
-    const STATUS_CLOSED = 'CLOSED';
-    const STATUS_CANCELED = 'CANCELED';
-
     /**
-     * Relación con sector
+     * Relación con el sector
      */
     public function sector(): BelongsTo
     {
@@ -51,7 +38,7 @@ class ParkingSession extends Model
     }
 
     /**
-     * Relación con calle
+     * Relación con la calle
      */
     public function street(): BelongsTo
     {
@@ -59,27 +46,19 @@ class ParkingSession extends Model
     }
 
     /**
-     * Relación con operador de entrada
+     * Relación con el operador
      */
-    public function operatorIn(): BelongsTo
+    public function operator(): BelongsTo
     {
         return $this->belongsTo(Operator::class, 'operator_in_id');
     }
 
     /**
-     * Relación con venta
+     * Relación con los pagos
      */
-    public function sale(): HasOne
+    public function payments(): HasMany
     {
-        return $this->hasOne(Sale::class);
-    }
-
-    /**
-     * Relación con deudas
-     */
-    public function debts(): HasMany
-    {
-        return $this->hasMany(Debt::class);
+        return $this->hasMany(Payment::class, 'session_id');
     }
 
     /**
@@ -87,65 +66,129 @@ class ParkingSession extends Model
      */
     public function isActive(): bool
     {
-        return $this->status === self::STATUS_ACTIVE;
+        return $this->status === 'ACTIVE' && is_null($this->ended_at);
     }
 
     /**
-     * Verificar si la sesión está pendiente de pago
+     * Verificar si la sesión está completada
      */
-    public function isPendingPayment(): bool
+    public function isCompleted(): bool
     {
-        return $this->status === self::STATUS_TO_PAY;
+        return $this->status === 'COMPLETED' && !is_null($this->ended_at);
     }
 
     /**
-     * Verificar si la sesión está pagada
+     * Verificar si la sesión está cancelada
      */
-    public function isPaid(): bool
+    public function isCancelled(): bool
     {
-        return $this->status === self::STATUS_PAID;
+        return $this->status === 'CANCELLED';
     }
 
     /**
-     * Verificar si la sesión está cerrada
+     * Obtener la duración en minutos
      */
-    public function isClosed(): bool
-    {
-        return $this->status === self::STATUS_CLOSED;
-    }
-
-    /**
-     * Calcular duración en minutos
-     */
-    public function getDurationInMinutes(): int
+    public function getDurationInMinutes(): ?int
     {
         if (!$this->ended_at) {
-            return 0;
+            return null;
         }
-        return (int) ceil($this->seconds_total / 60);
+
+        return $this->started_at->diffInMinutes($this->ended_at);
+    }
+
+    /**
+     * Obtener la duración formateada
+     */
+    public function getFormattedDuration(): ?string
+    {
+        $minutes = $this->getDurationInMinutes();
+        
+        if (!$minutes) {
+            return null;
+        }
+
+        $hours = floor($minutes / 60);
+        $remainingMinutes = $minutes % 60;
+
+        if ($hours > 0) {
+            return "{$hours}h {$remainingMinutes}m";
+        }
+
+        return "{$remainingMinutes}m";
     }
 
     /**
      * Scope para sesiones activas
      */
-    public function scopeActive($query)
+    public function scopeActive(Builder $query): Builder
     {
-        return $query->where('status', self::STATUS_ACTIVE);
+        return $query->where('status', 'ACTIVE')->whereNull('ended_at');
     }
 
     /**
-     * Scope para sesiones por placa
+     * Scope para sesiones completadas
      */
-    public function scopeByPlate($query, string $plate)
+    public function scopeCompleted(Builder $query): Builder
     {
-        return $query->where('plate', $plate);
+        return $query->where('status', 'COMPLETED')->whereNotNull('ended_at');
     }
 
     /**
-     * Scope para sesiones por sector
+     * Scope para sesiones canceladas
      */
-    public function scopeBySector($query, int $sectorId)
+    public function scopeCancelled(Builder $query): Builder
     {
-        return $query->where('sector_id', $sectorId);
+        return $query->where('status', 'CANCELLED');
+    }
+
+    /**
+     * Obtener la duración actual en minutos (para sesiones activas)
+     */
+    public function getCurrentDurationInMinutes(): ?int
+    {
+        if (!$this->started_at) {
+            return null;
+        }
+
+        $endTime = $this->ended_at ?? now();
+        return (int) $this->started_at->diffInMinutes($endTime);
+    }
+
+    /**
+     * Obtener la duración actual formateada (para sesiones activas)
+     */
+    public function getCurrentFormattedDuration(): ?string
+    {
+        $minutes = $this->getCurrentDurationInMinutes();
+        
+        if ($minutes === null) {
+            return null;
+        }
+
+        $hours = floor($minutes / 60);
+        $remainingMinutes = $minutes % 60;
+
+        if ($hours > 0) {
+            return "{$hours}h {$remainingMinutes}m";
+        }
+
+        return "{$remainingMinutes}m";
+    }
+
+    /**
+     * Obtener el monto total pagado
+     */
+    public function getTotalPaid(): float
+    {
+        return $this->payments()->sum('amount');
+    }
+
+    /**
+     * Obtener el monto total pagado formateado
+     */
+    public function getFormattedTotalPaid(): string
+    {
+        return '$' . number_format($this->getTotalPaid(), 0, ',', '.');
     }
 }

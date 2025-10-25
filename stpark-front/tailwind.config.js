@@ -22,8 +22,18 @@ const themes = {
     // Default theme is required for theming system to work correctly!
     default: {
         primary: {
-            ...colors.indigo,
-            DEFAULT: colors.indigo[600],
+            50: '#e8f0fe',
+            100: '#d1e1fd',
+            200: '#a3c3fb',
+            300: '#75a5f8',
+            400: '#4787f6',
+            500: '#043476',
+            600: '#043476',
+            700: '#043476',
+            800: '#043476',
+            900: '#043476',
+            950: '#043476',
+            DEFAULT: '#043476',
         },
         accent: {
             ...colors.slate,

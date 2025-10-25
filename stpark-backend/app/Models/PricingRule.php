@@ -11,6 +11,7 @@ class PricingRule extends Model
     use HasFactory;
 
     protected $fillable = [
+        'name',
         'profile_id',
         'rule_type',
         'start_min',
@@ -21,21 +22,26 @@ class PricingRule extends Model
         'start_time',
         'end_time',
         'priority',
+        'min_duration_minutes',
+        'max_duration_minutes',
+        'is_active',
+        'daily_max_amount',
+        'min_amount'
     ];
 
     protected $casts = [
-        'days_of_week' => 'array',
         'start_time' => 'datetime',
         'end_time' => 'datetime',
-        'start_min' => 'integer',
-        'end_min' => 'integer',
         'price_per_min' => 'decimal:2',
         'fixed_price' => 'decimal:2',
-        'priority' => 'integer',
+        'days_of_week' => 'array',
+        'daily_max_amount' => 'decimal:2',
+        'min_amount' => 'decimal:2',
+        'is_active' => 'boolean',
     ];
 
     /**
-     * Relación con perfil de precios
+     * Relación con el perfil de precios
      */
     public function pricingProfile(): BelongsTo
     {
@@ -43,22 +49,42 @@ class PricingRule extends Model
     }
 
     /**
-     * Verificar si la regla aplica para un día de la semana
+     * Obtener el precio por minuto formateado
      */
-    public function appliesToDay(int $dayOfWeek): bool
+    public function getFormattedPricePerMinute(): ?string
     {
-        return in_array($dayOfWeek, $this->days_of_week ?? []);
+        return $this->price_per_min ? '$' . number_format($this->price_per_min, 0, ',', '.') . '/min' : null;
     }
 
     /**
-     * Verificar si la regla aplica para un rango de tiempo
+     * Obtener el precio fijo formateado
      */
-    public function appliesToTime(string $time): bool
+    public function getFormattedFixedPrice(): ?string
     {
-        $currentTime = \Carbon\Carbon::createFromFormat('H:i:s', $time);
-        $startTime = \Carbon\Carbon::createFromFormat('H:i:s', $this->start_time->format('H:i:s'));
-        $endTime = \Carbon\Carbon::createFromFormat('H:i:s', $this->end_time->format('H:i:s'));
+        return $this->fixed_price ? '$' . number_format($this->fixed_price, 0, ',', '.') : null;
+    }
 
-        return $currentTime->between($startTime, $endTime);
+    /**
+     * Verificar si la regla está activa
+     */
+    public function isActive(): bool
+    {
+        return $this->is_active;
+    }
+
+    /**
+     * Obtener el monto mínimo formateado
+     */
+    public function getFormattedMinAmount(): ?string
+    {
+        return $this->min_amount ? '$' . number_format($this->min_amount, 0, ',', '.') : null;
+    }
+
+    /**
+     * Obtener el monto máximo diario formateado
+     */
+    public function getFormattedDailyMaxAmount(): ?string
+    {
+        return $this->daily_max_amount ? '$' . number_format($this->daily_max_amount, 0, ',', '.') : null;
     }
 }

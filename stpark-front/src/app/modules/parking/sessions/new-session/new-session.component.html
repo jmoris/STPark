@@ -1,0 +1,171 @@
+<div class="p-6 mx-auto">
+  <!-- Header -->
+  <div class="mb-8">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">Nueva Sesión de Estacionamiento</h1>
+        <p class="mt-2 text-gray-600">Crear una nueva sesión de estacionamiento</p>
+      </div>
+      <button mat-button class="rounded-sm" (click)="onCancel()">
+        <mat-icon>arrow_back</mat-icon>
+        Volver a Sesiones
+      </button>
+    </div>
+  </div>
+
+  <!-- Form -->
+  <div class="max-w-2xl mx-auto">
+    <fuse-card>
+      <div class="p-6">
+        <form [formGroup]="sessionForm" (ngSubmit)="onSubmit()" novalidate>
+          <!-- Plate Input -->
+          <mat-form-field appearance="outline" class="w-full mb-4">
+            <mat-label>Placa del Vehículo</mat-label>
+            <input matInput 
+                   formControlName="plate"
+                   (input)="formatPlate($event)"
+                   placeholder="ABC123"
+                   maxlength="10"
+                   autocomplete="off">
+            <mat-icon matPrefix>directions_car</mat-icon>
+            <mat-hint>Formato: ABC123, 1234AB, ABCD12</mat-hint>
+            <mat-error *ngIf="isFieldInvalid('plate')">
+              {{ getFieldError('plate') }}
+            </mat-error>
+          </mat-form-field>
+
+          <!-- Sector Selection -->
+          <mat-form-field appearance="outline" class="w-full mb-4">
+            <mat-label>Sector</mat-label>
+            <mat-select formControlName="sector_id">
+              <mat-option *ngFor="let sector of sectors" [value]="sector.id">
+                {{ sector.name }} {{ sector.is_private ? '(Privado)' : '(Público)' }}
+              </mat-option>
+            </mat-select>
+            <mat-icon matPrefix>location_on</mat-icon>
+            <mat-error *ngIf="isFieldInvalid('sector_id')">
+              {{ getFieldError('sector_id') }}
+            </mat-error>
+          </mat-form-field>
+
+          <!-- Street Selection (Optional) -->
+          <mat-form-field appearance="outline" class="w-full mb-4" *ngIf="hasStreets()">
+            <mat-label>Calle (Opcional)</mat-label>
+            <mat-select formControlName="street_id">
+              <mat-option value="">Sin calle específica</mat-option>
+              <mat-option *ngFor="let street of streets" [value]="street.id">
+                {{ street.name }}
+              </mat-option>
+            </mat-select>
+            <mat-icon matPrefix>place</mat-icon>
+            <mat-hint>Selecciona una calle específica si es necesario</mat-hint>
+          </mat-form-field>
+
+          <!-- Operator Selection -->
+          <mat-form-field appearance="outline" class="w-full mb-6">
+            <mat-label>Operador</mat-label>
+            <mat-select formControlName="operator_id">
+              <mat-option *ngFor="let operator of operators" [value]="operator.id">
+                {{ operator.name }} - {{ operator.rut }}
+              </mat-option>
+            </mat-select>
+            <mat-icon matPrefix>person</mat-icon>
+            <mat-error *ngIf="isFieldInvalid('operator_id')">
+              {{ getFieldError('operator_id') }}
+            </mat-error>
+          </mat-form-field>
+
+          <!-- Info Card -->
+          <fuse-card class="mb-6" *ngIf="sessionForm.value.sector_id || sessionForm.value.operator_id">
+            <div class="p-4">
+              <h3 class="text-lg font-medium text-gray-900 mb-3">Información de la Sesión</h3>
+              
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div *ngIf="sessionForm.value.plate" class="flex items-center">
+                  <mat-icon class="text-gray-500 mr-2">directions_car</mat-icon>
+                  <div>
+                    <p class="text-sm text-gray-600">Placa</p>
+                    <p class="font-medium text-gray-900">{{ sessionForm.value.plate }}</p>
+                  </div>
+                </div>
+
+                <div *ngIf="sessionForm.value.sector_id" class="flex items-center">
+                  <mat-icon class="text-gray-500 mr-2">location_on</mat-icon>
+                  <div>
+                    <p class="text-sm text-gray-600">Sector</p>
+                    <p class="font-medium text-gray-900">{{ getSectorName(sessionForm.value.sector_id) }}</p>
+                  </div>
+                </div>
+
+                <div *ngIf="sessionForm.value.street_id" class="flex items-center">
+                  <mat-icon class="text-gray-500 mr-2">place</mat-icon>
+                  <div>
+                    <p class="text-sm text-gray-600">Calle</p>
+                    <p class="font-medium text-gray-900">{{ getStreetName(sessionForm.value.street_id) }}</p>
+                  </div>
+                </div>
+
+                <div *ngIf="sessionForm.value.operator_id" class="flex items-center">
+                  <mat-icon class="text-gray-500 mr-2">person</mat-icon>
+                  <div>
+                    <p class="text-sm text-gray-600">Operador</p>
+                    <p class="font-medium text-gray-900">{{ getOperatorName(sessionForm.value.operator_id) }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </fuse-card>
+
+          <!-- Error Message -->
+          <div *ngIf="error" class="mb-4">
+            <fuse-alert type="error" [dismissible]="true">
+              {{ error }}
+            </fuse-alert>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex items-center justify-end gap-4">
+            <button type="button" 
+                    mat-button 
+                    (click)="onCancel()"
+                    [disabled]="loading">
+              Cancelar
+            </button>
+            <button type="submit" 
+                    mat-raised-button 
+                    color="primary"
+                    [disabled]="loading || sessionForm.invalid || !hasOperators()">
+              <mat-spinner *ngIf="loading" diameter="20" class="mr-2"></mat-spinner>
+              <mat-icon *ngIf="!loading">add</mat-icon>
+              {{ loading ? 'Creando...' : 'Crear Sesión' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </fuse-card>
+
+    <!-- Help Card -->
+    <fuse-card class="mt-6">
+      <div class="p-4">
+        <h3 class="text-lg font-medium text-gray-900 mb-3">Información Importante</h3>
+        <div class="space-y-2 text-sm text-gray-600">
+          <p>• La placa debe tener un formato válido chileno (ABC123, 1234AB, ABCD12)</p>
+          <p>• Solo se pueden crear sesiones en sectores donde el operador tenga acceso</p>
+          <p>• Una vez creada la sesión, el vehículo estará registrado como estacionado</p>
+          <p>• El sistema validará automáticamente que no exista otra sesión activa para la misma placa en el sector</p>
+        </div>
+      </div>
+    </fuse-card>
+  </div>
+
+  <!-- Modal de alerta de deudas pendientes -->
+  <app-debt-alert-modal
+    [(visible)]="showDebtAlert"
+    [debts]="pendingDebts"
+    [plate]="currentPlate"
+    (payDebts)="onPayDebts()"
+    (continueWithoutPayment)="onContinueWithoutPayment()"
+    (visibleChange)="closeDebtAlert()">
+  </app-debt-alert-modal>
+</div>
+

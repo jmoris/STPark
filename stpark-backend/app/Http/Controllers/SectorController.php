@@ -14,17 +14,43 @@ class SectorController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Sector::with(['streets']);
+        $query = Sector::with([
+            'streets', 
+            'operators' => function($query) {
+                $query->wherePivot('valid_to', '>=', now())
+                      ->orWhereNull('valid_to');
+            },
+            'parkingSessions' => function($query) {
+                $query->whereNull('ended_at'); // Solo sesiones activas
+            }
+        ]);
 
-        if ($request->filled('is_private')) {
+        // Aplicar filtros
+        if ($request->filled('name')) {
+            $query->where('name', 'like', '%' . $request->name . '%');
+        }
+
+        if ($request->filled('is_private') && $request->get('is_private') !== 'undefined') {
             $query->where('is_private', $request->boolean('is_private'));
         }
 
-        $sectors = $query->orderBy('name')->get();
+        // Nota: Sector no tiene campo is_active, solo is_private
+
+        // Aplicar paginación
+        $perPage = $request->get('per_page', 10);
+        $sectors = $query->orderBy('name')->paginate($perPage);
 
         return response()->json([
             'success' => true,
-            'data' => $sectors
+            'data' => [
+                'data' => $sectors->items(),
+                'current_page' => $sectors->currentPage(),
+                'last_page' => $sectors->lastPage(),
+                'per_page' => $sectors->perPage(),
+                'total' => $sectors->total(),
+                'from' => $sectors->firstItem(),
+                'to' => $sectors->lastItem(),
+            ]
         ]);
     }
 
@@ -35,7 +61,9 @@ class SectorController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
             'is_private' => 'boolean',
+            'is_active' => 'boolean',
         ]);
 
         if ($validator->fails()) {
@@ -44,7 +72,9 @@ class SectorController extends Controller
 
         $sector = Sector::create([
             'name' => $request->name,
+            'description' => $request->description,
             'is_private' => $request->boolean('is_private', false),
+            'is_active' => $request->boolean('is_active', true),
         ]);
 
         return response()->json([
@@ -83,7 +113,9 @@ class SectorController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
             'is_private' => 'boolean',
+            'is_active' => 'boolean',
         ]);
 
         if ($validator->fails()) {
@@ -95,13 +127,37 @@ class SectorController extends Controller
             
             $sector->update([
                 'name' => $request->name,
+                'description' => $request->description,
                 'is_private' => $request->boolean('is_private', $sector->is_private),
+                'is_active' => $request->boolean('is_active', $sector->is_active),
             ]);
 
             return response()->json([
                 'success' => true,
                 'data' => $sector,
                 'message' => 'Sector actualizado exitosamente'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sector no encontrado'
+            ], 404);
+        }
+    }
+
+    /**
+     * Obtener calles de un sector
+     */
+    public function streets(int $id): JsonResponse
+    {
+        try {
+            $sector = Sector::findOrFail($id);
+            $streets = $sector->streets()->orderBy('name')->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $streets
             ]);
 
         } catch (\Exception $e) {

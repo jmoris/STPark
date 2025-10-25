@@ -1,0 +1,166 @@
+<div class="max-w-7xl mx-auto p-6">
+  <!-- Header with Action Button -->
+  <div class="flex justify-between items-center mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Checkout de Sesión</h1>
+      <p class="text-gray-600">Finalizar sesión de estacionamiento</p>
+    </div>
+    
+    <button 
+      *ngIf="session && !loading && quote"
+      mat-raised-button 
+      color="primary"
+      class="rounded-sm"
+      (click)="openPaymentModal()">
+      <mat-icon>payment</mat-icon>
+      Finalizar Sesión
+    </button>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="text-center py-8">
+    <mat-spinner diameter="40"></mat-spinner>
+    <p class="mt-4 text-gray-600">Cargando sesión...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="error" class="text-center py-8">
+    <mat-icon class="text-red-500 text-6xl mb-4">error</mat-icon>
+    <h2 class="text-xl font-semibold text-gray-900 mb-2">Error</h2>
+    <p class="text-gray-600 mb-4">{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="onBack()" class="rounded-sm">
+      <mat-icon>arrow_back</mat-icon>
+      Volver
+    </button>
+  </div>
+
+  <!-- Two Column Layout -->
+  <div *ngIf="session && !loading" class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+    
+    <!-- Left Column - Session Info (40%) -->
+    <div class="lg:col-span-2">
+      <fuse-card>
+        <div class="p-6">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">Información de Sesión</h2>
+          
+          <div class="space-y-4">
+            <div>
+              <label class="text-sm font-medium text-gray-500">ID de Sesión</label>
+              <p class="text-gray-900">{{ session.id }}</p>
+            </div>
+            
+            <div>
+              <label class="text-sm font-medium text-gray-500">Patente</label>
+              <p class="text-gray-900 font-mono text-lg">{{ session.plate }}</p>
+            </div>
+            
+            <div>
+              <label class="text-sm font-medium text-gray-500">Sector</label>
+              <p class="text-gray-900">{{ session.sector?.name || 'N/A' }}</p>
+            </div>
+            
+            <div>
+              <label class="text-sm font-medium text-gray-500">Calle</label>
+              <p class="text-gray-900">{{ session.street?.name || 'N/A' }}</p>
+            </div>
+            
+            <div>
+              <label class="text-sm font-medium text-gray-500">Operador</label>
+              <p class="text-gray-900">{{ session.operator?.name || 'N/A' }}</p>
+            </div>
+            
+            <div>
+              <label class="text-sm font-medium text-gray-500">Estado</label>
+              <span class="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                {{ session.status }}
+              </span>
+            </div>
+            
+            <div>
+              <label class="text-sm font-medium text-gray-500">Inicio</label>
+              <p class="text-gray-900">{{ formatDateTime(session.started_at) }}</p>
+            </div>
+            
+            <div *ngIf="session.ended_at">
+              <label class="text-sm font-medium text-gray-500">Fin</label>
+              <p class="text-gray-900">{{ formatDateTime(session.ended_at) }}</p>
+            </div>
+          </div>
+        </div>
+      </fuse-card>
+    </div>
+
+    <!-- Right Column - Cost Breakdown (60%) -->
+    <div class="lg:col-span-3">
+      <fuse-card *ngIf="calculating">
+        <div class="p-6 text-center">
+          <mat-spinner diameter="30"></mat-spinner>
+          <p class="text-gray-600">Calculando cotización...</p>
+        </div>
+      </fuse-card>
+
+      <fuse-card *ngIf="!calculating && quote">
+        <div class="p-6">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">Desglose de Costos</h2>
+          
+
+          <!-- Rate and Daily Max -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="bg-gray-50 rounded-lg p-3">
+              <label class="text-sm font-medium text-gray-500">Tarifa por minuto</label>
+              <p class="text-lg font-semibold text-gray-900">{{ getRatePerMinute() }}</p>
+            </div>
+            
+            <div class="bg-gray-50 rounded-lg p-3" *ngIf="hasDailyMaxAmount()">
+              <label class="text-sm font-medium text-gray-500">Máximo diario</label>
+              <p class="text-lg font-semibold text-orange-600">{{ getDailyMaxAmount() }}</p>
+            </div>
+          </div>
+
+          <!-- Duration and Total -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="bg-gray-50 rounded-lg p-3">
+              <label class="text-sm font-medium text-gray-500">Duración</label>
+              <p class="text-lg font-semibold text-gray-900">{{ formatDurationFromMinutes(quote.duration_minutes) }}</p>
+            </div>
+            
+            <div class="bg-primary-50 border border-primary-200 rounded-lg p-3">
+              <label class="text-sm font-medium text-primary-700">Total a Pagar</label>
+              <p class="text-2xl font-bold text-primary-900">{{ formatAmount(quote.net_amount) }}</p>
+            </div>
+          </div>
+
+          <!-- Desglose detallado de reglas -->
+          <div *ngIf="quote.breakdown && quote.breakdown.length > 0" class="mt-4">
+            <button 
+              type="button"
+              class="flex items-center justify-between w-full text-sm font-semibold text-gray-700 mb-2 p-2 rounded hover:bg-gray-100 transition-colors"
+              (click)="toggleBreakdown()">
+              <span>Desglose por reglas:</span>
+              <mat-icon class="text-gray-500" 
+                        [style.transform]="breakdownExpanded ? 'rotate(180deg)' : 'rotate(0deg)'"
+                        style="transition: transform 0.2s ease;">
+                expand_more
+              </mat-icon>
+            </button>
+            
+            <div *ngIf="breakdownExpanded" class="space-y-2">
+              <div *ngFor="let rule of quote.breakdown" 
+                   class="flex justify-between items-center text-sm bg-white p-2 rounded border"
+                   [class]="rule.is_daily_max_adjustment ? 'border-orange-300 bg-orange-50' : ''">
+                <span class="text-gray-600" 
+                      [class]="rule.is_daily_max_adjustment ? 'text-orange-800 font-semibold' : ''">
+                  {{ rule.rule_name }} ({{ rule.minutes }} min)
+                </span>
+                <span class="font-medium" 
+                      [class]="rule.is_daily_max_adjustment ? 'text-orange-700' : ''">
+                  {{ formatAmount(rule.amount) }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </fuse-card>
+    </div>
+  </div>
+</div>

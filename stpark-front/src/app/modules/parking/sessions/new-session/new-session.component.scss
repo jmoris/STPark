@@ -1,0 +1,103 @@
+// New session component styles
+
+.form-container {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.info-card {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  
+  .info-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0;
+    
+    mat-icon {
+      color: #6b7280;
+      margin-right: 0.75rem;
+    }
+    
+    .info-label {
+      font-size: 0.875rem;
+      color: #6b7280;
+      margin-bottom: 0.25rem;
+    }
+    
+    .info-value {
+      font-weight: 500;
+      color: #111827;
+    }
+  }
+}
+
+.help-card {
+  background-color: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  
+  h3 {
+    color: #0c4a6e;
+  }
+  
+  p {
+    color: #075985;
+  }
+}
+
+// Form field adjustments
+.mat-form-field {
+  width: 100%;
+}
+
+// Button styles
+.action-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+// Loading state
+.loading-button {
+  display: flex;
+  align-items: center;
+  
+  mat-spinner {
+    margin-right: 0.5rem;
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+  .form-container {
+    max-width: 100%;
+    padding: 0 1rem;
+  }
+  
+  .action-buttons {
+    flex-direction: column-reverse;
+    
+    button {
+      width: 100%;
+    }
+  }
+}
+
+// Error state
+.error-alert {
+  margin-bottom: 1rem;
+}
+
+// Success state
+.success-message {
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+

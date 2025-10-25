@@ -17,7 +17,6 @@ return new class extends Migration
             $table->string('endpoint');
             $table->string('payload_hash');
             $table->json('response');
-            $table->timestamp('created_at');
             $table->timestamps();
         });
     }

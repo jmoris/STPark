@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import {
     ApplicationConfig,
     provideAppInitializer,
@@ -16,10 +16,13 @@ import { of } from 'rxjs';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { providePrimeNG } from 'primeng/config';
 import STParkPreset from './presets/stpark';
+import { ApiInterceptor } from './core/interceptors/api.interceptor';
 export const appConfig: ApplicationConfig = {
     providers: [
         provideAnimations(),
-        provideHttpClient(),
+        provideHttpClient(
+            withInterceptors([ApiInterceptor])
+        ),
         provideRouter(
             appRoutes,
             withInMemoryScrolling({ scrollPositionRestoration: 'enabled' })

@@ -15,14 +15,14 @@
         <div class="flex h-20 items-center p-6 pb-0">
             <!-- Light version -->
             <img
-                class="w-30 dark:hidden"
-                src="images/logo/logo-text.svg"
+                class="w-30 mx-auto dark:hidden"
+                src="images/logo/logostpark.png"
                 alt="Logo image"
             />
             <!-- Dark version -->
             <img
-                class="hidden w-30 dark:flex"
-                src="images/logo/logo-text-on-dark.svg"
+                class="hidden w-40 mx-auto mb-5 dark:flex"
+                src="images/logo/logostpark.png"
                 alt="Logo image"
             />
         </div>
@@ -42,9 +42,7 @@
         <!-- Components -->
         <div class="ml-auto flex items-center space-x-0.5 pl-2 sm:space-x-2">
             <fuse-fullscreen class="hidden md:block"></fuse-fullscreen>
-            <search [appearance]="'bar'"></search>
             <shortcuts></shortcuts>
-            <messages></messages>
             <notifications></notifications>
             <user></user>
         </div>
@@ -64,7 +62,10 @@
         class="bg-card relative z-49 flex h-14 w-full flex-0 items-center justify-start border-t px-4 dark:bg-transparent md:px-6 print:hidden"
     >
         <span class="text-secondary font-medium"
-            >Fuse &copy; {{ currentYear }}</span
+            >STPark v1.0 </span
         >
+        <span class="text-secondary font-small ml-auto">
+            Desarrollado por SoluciónTotal Chile &copy; {{ currentYear }}
+        </span>
     </div>
 </div>

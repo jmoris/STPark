@@ -16,7 +16,6 @@ return new class extends Migration
             $table->string('plate');
             $table->enum('origin', ['SESSION', 'FINE', 'MANUAL']);
             $table->decimal('principal_amount', 10, 2);
-            $table->timestamp('created_at');
             $table->timestamp('settled_at')->nullable();
             $table->string('status')->default('PENDING');
             $table->foreignId('session_id')->nullable()->constrained('parking_sessions')->onDelete('set null');

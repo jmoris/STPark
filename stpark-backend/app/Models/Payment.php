@@ -11,40 +11,25 @@ class Payment extends Model
     use HasFactory;
 
     protected $fillable = [
-        'sale_id',
         'session_id',
-        'method',
+        'debt_id',
+        'sale_id',
         'amount',
-        'paid_at',
-        'provider_ref',
+        'method',
         'status',
+        'paid_at',
+        'transaction_id',
+        'webpay_token',
+        'approval_code'
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
         'paid_at' => 'datetime',
+        'amount' => 'decimal:2',
     ];
 
-    const METHOD_CASH = 'CASH';
-    const METHOD_CARD = 'CARD';
-    const METHOD_WEBPAY = 'WEBPAY';
-    const METHOD_TRANSFER = 'TRANSFER';
-
-    const STATUS_PENDING = 'PENDING';
-    const STATUS_COMPLETED = 'COMPLETED';
-    const STATUS_FAILED = 'FAILED';
-    const STATUS_CANCELLED = 'CANCELLED';
-
     /**
-     * Relación con venta
-     */
-    public function sale(): BelongsTo
-    {
-        return $this->belongsTo(Sale::class);
-    }
-
-    /**
-     * Relación con sesión de estacionamiento
+     * Relación con la sesión de estacionamiento
      */
     public function parkingSession(): BelongsTo
     {
@@ -52,11 +37,27 @@ class Payment extends Model
     }
 
     /**
+     * Relación con la deuda
+     */
+    public function debt(): BelongsTo
+    {
+        return $this->belongsTo(Debt::class);
+    }
+
+    /**
+     * Relación con la venta
+     */
+    public function sale(): BelongsTo
+    {
+        return $this->belongsTo(Sale::class);
+    }
+
+    /**
      * Verificar si el pago está completado
      */
     public function isCompleted(): bool
     {
-        return $this->status === self::STATUS_COMPLETED;
+        return $this->status === 'COMPLETED';
     }
 
     /**
@@ -64,7 +65,7 @@ class Payment extends Model
      */
     public function isPending(): bool
     {
-        return $this->status === self::STATUS_PENDING;
+        return $this->status === 'PENDING';
     }
 
     /**
@@ -72,22 +73,33 @@ class Payment extends Model
      */
     public function isFailed(): bool
     {
-        return $this->status === self::STATUS_FAILED;
+        return $this->status === 'FAILED';
     }
 
     /**
-     * Scope para pagos completados
+     * Obtener el método de pago formateado
      */
-    public function scopeCompleted($query)
+    public function getPaymentMethodText(): string
     {
-        return $query->where('status', self::STATUS_COMPLETED);
+        return match($this->method) {
+            'CASH' => 'Efectivo',
+            'CARD' => 'Tarjeta',
+            'TRANSFER' => 'Transferencia',
+            default => 'Desconocido'
+        };
     }
 
     /**
-     * Scope para pagos por método
+     * Obtener el estado formateado
      */
-    public function scopeByMethod($query, string $method)
+    public function getStatusText(): string
     {
-        return $query->where('method', $method);
+        return match($this->status) {
+            'PENDING' => 'Pendiente',
+            'COMPLETED' => 'Completado',
+            'FAILED' => 'Fallido',
+            'CANCELLED' => 'Cancelado',
+            default => 'Desconocido'
+        };
     }
 }

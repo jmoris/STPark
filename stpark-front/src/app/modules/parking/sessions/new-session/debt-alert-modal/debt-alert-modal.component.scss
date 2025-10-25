@@ -1,0 +1,287 @@
+.debt-alert-content {
+  .alert-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-radius: 0.75rem;
+    border-left: 4px solid #f59e0b;
+
+    .plate-info {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(255, 255, 255, 0.8);
+      padding: 0.75rem 1rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+      .plate-icon {
+        font-size: 1.5rem;
+        color: #1e40af;
+      }
+
+      .plate-text {
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #1e40af;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+    }
+
+    .alert-message {
+      flex: 1;
+
+      .alert-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #92400e;
+        margin: 0 0 0.25rem 0;
+      }
+
+      .alert-subtitle {
+        font-size: 0.95rem;
+        color: #a16207;
+        margin: 0;
+      }
+    }
+  }
+
+  .debts-list {
+    margin-bottom: 1.5rem;
+
+    h4 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.25rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .debt-items {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.5rem;
+      background: #f9fafb;
+    }
+
+    .debt-item {
+      padding: 0.75rem;
+      border-bottom: 1px solid #e5e7eb;
+      background: white;
+      transition: background-color 0.2s ease;
+
+      &:last-child {
+        border-bottom: none;
+      }
+
+      &:hover {
+        background: #f3f4f6;
+      }
+
+      .debt-info {
+        .debt-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 0.5rem;
+
+          .debt-origin {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            color: #6b7280;
+
+            .origin-icon {
+              font-size: 1rem;
+              color: #9ca3af;
+            }
+          }
+
+          .debt-amount {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #dc2626;
+          }
+        }
+
+        .debt-details {
+          display: flex;
+          justify-content: space-between;
+          font-size: 0.8rem;
+          color: #9ca3af;
+
+          .debt-id {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background: #f3f4f6;
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+          }
+
+          .debt-age {
+            font-style: italic;
+          }
+        }
+      }
+    }
+  }
+
+  .recommendation {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: #eff6ff;
+    border-radius: 0.5rem;
+    border-left: 4px solid #3b82f6;
+
+    .recommendation-content {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+
+      .recommendation-icon {
+        font-size: 1.25rem;
+        color: #3b82f6;
+        margin-top: 0.125rem;
+      }
+
+      .recommendation-text {
+        flex: 1;
+
+        p {
+          margin: 0;
+          font-size: 0.9rem;
+          color: #1e40af;
+          line-height: 1.5;
+        }
+      }
+    }
+  }
+
+  .action-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+
+    .option-card {
+      padding: 1rem;
+      border-radius: 0.75rem;
+      border: 2px solid transparent;
+      transition: all 0.2s ease;
+      cursor: pointer;
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      }
+
+      &.pay-option {
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        border-color: #22c55e;
+
+        &:hover {
+          border-color: #16a34a;
+          background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+        }
+      }
+
+      &.continue-option {
+        background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%);
+        border-color: #eab308;
+
+        &:hover {
+          border-color: #ca8a04;
+          background: linear-gradient(135deg, #fef9c3 0%, #fde68a 100%);
+        }
+      }
+
+      .option-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+
+        .option-icon {
+          font-size: 1.25rem;
+        }
+
+        h5 {
+          margin: 0;
+          font-size: 1rem;
+          font-weight: 600;
+        }
+      }
+
+      .option-description {
+        font-size: 0.9rem;
+        color: #6b7280;
+        margin-bottom: 0.75rem;
+        line-height: 1.4;
+      }
+
+      .option-total {
+        font-size: 0.9rem;
+        color: #059669;
+        font-weight: 600;
+      }
+
+      .option-warning {
+        font-size: 0.9rem;
+        color: #d97706;
+        font-weight: 600;
+      }
+    }
+  }
+}
+
+// Responsive
+@media (max-width: 768px) {
+  .debt-alert-content {
+    .alert-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.75rem;
+
+      .plate-info {
+        justify-content: center;
+      }
+    }
+
+    .action-options {
+      grid-template-columns: 1fr;
+    }
+
+    .debts-list {
+      .debt-item {
+        .debt-info {
+          .debt-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+          }
+
+          .debt-details {
+            flex-direction: column;
+            gap: 0.25rem;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Estilos para el footer del modal
+:host ::ng-deep {
+  .p-dialog-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e5e7eb;
+    background-color: #f9fafb;
+  }
+}

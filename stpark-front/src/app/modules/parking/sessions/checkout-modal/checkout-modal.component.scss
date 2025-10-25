@@ -1,0 +1,27 @@
+.checkout-modal {
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+/* Estilos para los campos de formulario */
+.mat-mdc-form-field {
+  width: 100%;
+}
+
+/* Estilos para los botones */
+.mat-mdc-button {
+  border-radius: 4px !important;
+}
+
+/* Estilos para el spinner */
+.mat-mdc-progress-spinner {
+  margin-right: 8px;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .checkout-modal {
+    max-width: 95vw;
+  }
+}

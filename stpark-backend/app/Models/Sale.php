@@ -12,32 +12,30 @@ class Sale extends Model
     use HasFactory;
 
     protected $fillable = [
-        'session_id',
-        'doc_type',
-        'doc_number',
-        'net',
-        'tax',
-        'total',
-        'issued_at',
+        'parking_session_id',
         'cashier_operator_id',
+        'subtotal',
+        'discount_amount',
+        'total',
+        'status',
     ];
 
     protected $casts = [
-        'net' => 'decimal:2',
-        'tax' => 'decimal:2',
+        'subtotal' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
         'total' => 'decimal:2',
-        'issued_at' => 'datetime',
     ];
 
-    const DOC_TYPE_BOILET = 'BOLETA';
-    const DOC_TYPE_FACTURA = 'FACTURA';
+    const STATUS_PENDING = 'PENDING';
+    const STATUS_PAID = 'PAID';
+    const STATUS_CANCELLED = 'CANCELLED';
 
     /**
      * Relación con sesión de estacionamiento
      */
     public function parkingSession(): BelongsTo
     {
-        return $this->belongsTo(ParkingSession::class, 'session_id');
+        return $this->belongsTo(ParkingSession::class, 'parking_session_id');
     }
 
     /**
@@ -62,7 +60,7 @@ class Sale extends Model
     public function getPaidAmount(): float
     {
         return $this->payments()
-                   ->where('status', Payment::STATUS_COMPLETED)
+                   ->where('status', 'COMPLETED')
                    ->sum('amount');
     }
 

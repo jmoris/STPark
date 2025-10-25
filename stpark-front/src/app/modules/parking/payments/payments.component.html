@@ -1,0 +1,178 @@
+<div class="p-6">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Pagos</h1>
+      <p class="text-gray-600">Gestiona los pagos del sistema de estacionamientos</p>
+    </div>
+    <button mat-raised-button color="primary" class="rounded-sm">
+      <mat-icon>add</mat-icon>
+      Nuevo Pago
+    </button>
+  </div>
+
+  <!-- Filters -->
+  <mat-card class="mb-6">
+    <mat-card-content class="p-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha desde</mat-label>
+          <input matInput [matDatepicker]="picker1" [(ngModel)]="filters.date_from">
+          <mat-datepicker-toggle matSuffix [for]="picker1"></mat-datepicker-toggle>
+          <mat-datepicker #picker1></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha hasta</mat-label>
+          <input matInput [matDatepicker]="picker2" [(ngModel)]="filters.date_to">
+          <mat-datepicker-toggle matSuffix [for]="picker2"></mat-datepicker-toggle>
+          <mat-datepicker #picker2></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Método de pago</mat-label>
+          <mat-select [(ngModel)]="filters.method">
+            <mat-option value="">Todos</mat-option>
+            <mat-option value="CASH">Efectivo</mat-option>
+            <mat-option value="CARD">Tarjeta</mat-option>
+            <mat-option value="WEBPAY">Webpay</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Estado</mat-label>
+          <mat-select [(ngModel)]="filters.status">
+            <mat-option value="">Todos</mat-option>
+            <mat-option value="COMPLETED">Completado</mat-option>
+            <mat-option value="PENDING">Pendiente</mat-option>
+            <mat-option value="FAILED">Fallido</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-4">
+        <button mat-stroked-button class="rounded-sm" (click)="clearFilters()">
+          <mat-icon>clear</mat-icon>
+          Limpiar
+        </button>
+        <button mat-raised-button color="primary" class="rounded-sm" (click)="applyFilters()">
+          <mat-icon>search</mat-icon>
+          Filtrar
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Payments Table -->
+  <mat-card>
+    <mat-card-content class="p-6">
+      <div class="overflow-x-auto">
+        <table mat-table [dataSource]="payments" class="w-full">
+          <!-- ID Column -->
+          <ng-container matColumnDef="id">
+            <th mat-header-cell *matHeaderCellDef>ID</th>
+            <td mat-cell *matCellDef="let payment">{{ payment.id }}</td>
+          </ng-container>
+
+          <!-- Amount Column -->
+          <ng-container matColumnDef="amount">
+            <th mat-header-cell *matHeaderCellDef>Monto</th>
+            <td mat-cell *matCellDef="let payment">
+              <span class="font-semibold text-green-600">
+                {{ formatAmount(payment.amount) }}
+              </span>
+            </td>
+          </ng-container>
+
+          <!-- Method Column -->
+          <ng-container matColumnDef="method">
+            <th mat-header-cell *matHeaderCellDef>Método</th>
+            <td mat-cell *matCellDef="let payment">
+              <div class="flex items-center gap-2">
+                <mat-icon [class]="'text-' + getMethodIcon(payment.method)">{{ getMethodIcon(payment.method) }}</mat-icon>
+                <span>{{ payment.method }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Status Column -->
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let payment">
+              <span class="px-2 py-1 rounded-full text-xs font-medium"
+                    [class]="'bg-' + getStatusColor(payment.status) + '-100 text-' + getStatusColor(payment.status) + '-800'">
+                {{ payment.status }}
+              </span>
+            </td>
+          </ng-container>
+
+          <!-- Created At Column -->
+          <ng-container matColumnDef="created_at">
+            <th mat-header-cell *matHeaderCellDef>Fecha</th>
+            <td mat-cell *matCellDef="let payment">
+              {{ payment.created_at | date:'dd/MM/yyyy HH:mm' }}
+            </td>
+          </ng-container>
+
+          <!-- Actions Column -->
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Acciones</th>
+            <td mat-cell *matCellDef="let payment">
+              <button mat-icon-button class="rounded-sm" [matMenuTriggerFor]="menu">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+              <mat-menu #menu="matMenu">
+                <button mat-menu-item (click)="showPaymentDetails(payment)">
+                  <mat-icon>visibility</mat-icon>
+                  Ver detalles
+                </button>
+                <button mat-menu-item (click)="printReceipt(payment)">
+                  <mat-icon>receipt</mat-icon>
+                  Imprimir recibo
+                </button>
+                <button mat-menu-item *ngIf="payment.status === 'PENDING'" (click)="retryPayment(payment)">
+                  <mat-icon>refresh</mat-icon>
+                  Reintentar
+                </button>
+              </mat-menu>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+
+        <!-- Loading Spinner -->
+        <div *ngIf="loading" class="flex justify-center items-center py-8">
+          <mat-spinner diameter="40"></mat-spinner>
+        </div>
+
+        <!-- Empty State -->
+        <div *ngIf="!loading && payments.length === 0" class="text-center py-8">
+          <mat-icon class="text-gray-400 text-6xl">payment</mat-icon>
+          <h3 class="text-lg font-medium text-gray-900 mt-4">No hay pagos registrados</h3>
+          <p class="text-gray-500">Los pagos aparecerán aquí cuando se realicen transacciones.</p>
+        </div>
+      </div>
+
+      <!-- Paginator -->
+      <mat-paginator 
+        *ngIf="totalItems > 0"
+        [length]="totalItems"
+        [pageSize]="pageSize"
+        [pageIndex]="currentPage"
+        [pageSizeOptions]="pageSizeOptions"
+        [showFirstLastButtons]="true"
+        (page)="onPageChange($event)"
+        class="mt-4">
+      </mat-paginator>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Modal de detalles del pago -->
+  <app-payment-details-modal
+    [(visible)]="showDetailsModal"
+    [payment]="selectedPayment"
+    (visibleChange)="closeDetailsModal()">
+  </app-payment-details-modal>
+</div>

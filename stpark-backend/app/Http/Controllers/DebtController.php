@@ -110,6 +110,7 @@ class DebtController extends Controller
             'amount' => 'required|numeric|min:0.01',
             'method' => 'required|in:CASH,CARD,TRANSFER',
             'cashier_operator_id' => 'required|exists:operators,id',
+            'approval_code' => 'nullable|string|max:50',
         ]);
 
         if ($validator->fails()) {
@@ -123,7 +124,8 @@ class DebtController extends Controller
                 $id,
                 $request->amount,
                 $request->method,
-                $request->cashier_operator_id
+                $request->cashier_operator_id,
+                $request->approval_code
             );
 
             DB::commit();

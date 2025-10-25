@@ -1,0 +1,702 @@
+<div class="p-6 w-full">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Perfiles de Precios</h1>
+      <p class="text-gray-600">Gestiona los perfiles de precios por sector</p>
+    </div>
+    <button mat-raised-button color="primary" class="rounded-sm" (click)="createProfile()">
+      <mat-icon>add</mat-icon>
+      Nuevo Perfil
+    </button>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-blue-100 rounded-full">
+            <mat-icon class="text-blue-600">price_check</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Total Perfiles</p>
+            <p class="text-2xl font-bold text-blue-600">{{ pricingProfiles.length }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-green-100 rounded-full">
+            <mat-icon class="text-green-600">check_circle</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Activos</p>
+            <p class="text-2xl font-bold text-green-600">{{ getActiveProfilesCount() }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-gray-100 rounded-full">
+            <mat-icon class="text-gray-600">pause_circle</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Inactivos</p>
+            <p class="text-2xl font-bold text-gray-600">{{ getInactiveProfilesCount() }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-purple-100 rounded-full">
+            <mat-icon class="text-purple-600">rule</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Total Reglas</p>
+            <p class="text-2xl font-bold text-purple-600">{{ getTotalRulesCount() }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Filters -->
+  <mat-card class="mb-6">
+    <mat-card-content class="p-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <mat-form-field appearance="outline">
+          <mat-label>Buscar por Nombre</mat-label>
+          <input matInput [(ngModel)]="filters.name" placeholder="Nombre del perfil">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Sector</mat-label>
+          <mat-select [(ngModel)]="filters.sector_id">
+            <mat-option [value]="undefined">Todos</mat-option>
+            <mat-option *ngFor="let sector of sectors" [value]="sector.id">
+              {{ sector.name }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Estado</mat-label>
+          <mat-select [(ngModel)]="filters.is_active">
+            <mat-option [value]="undefined">Todos</mat-option>
+            <mat-option [value]="true">Activo</mat-option>
+            <mat-option [value]="false">Inactivo</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-4">
+        <button mat-stroked-button class="rounded-sm" (click)="clearFilters()">
+          <mat-icon>clear</mat-icon>
+          Limpiar
+        </button>
+        <button mat-raised-button color="primary" class="rounded-sm" (click)="applyFilters()">
+          <mat-icon>search</mat-icon>
+          Filtrar
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="flex justify-center items-center h-64">
+    <mat-spinner diameter="50"></mat-spinner>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="error" class="mb-6">
+    <fuse-alert type="error" [dismissible]="true">
+      {{ error }}
+    </fuse-alert>
+  </div>
+
+  <!-- Pricing Profiles Table -->
+  <mat-card *ngIf="!loading">
+    <mat-card-content class="p-0">
+      <div class="overflow-x-auto">
+        <table mat-table [dataSource]="pricingProfiles" class="w-full mat-elevation-z2" style="width: 100%; table-layout: fixed;">
+        <!-- Name Column -->
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef style="width: 20%;">Nombre</th>
+          <td mat-cell *matCellDef="let profile">
+            <div class="font-medium text-gray-900">{{ profile.name }}</div>
+            <div class="text-sm text-gray-600" *ngIf="profile.description">{{ profile.description }}</div>
+          </td>
+        </ng-container>
+
+        <!-- Sector Column -->
+        <ng-container matColumnDef="sector">
+          <th mat-header-cell *matHeaderCellDef style="width: 15%;">Sector</th>
+          <td mat-cell *matCellDef="let profile">
+            <div class="text-sm text-gray-600">{{ getSectorName(profile.sector_id) }}</div>
+          </td>
+        </ng-container>
+
+        <!-- Active From Column -->
+        <ng-container matColumnDef="active_from">
+          <th mat-header-cell *matHeaderCellDef style="width: 15%;">Vigente Desde</th>
+          <td mat-cell *matCellDef="let profile">
+            <div class="text-sm text-gray-600">{{ formatDate(profile.active_from) }}</div>
+          </td>
+        </ng-container>
+
+        <!-- Active To Column -->
+        <ng-container matColumnDef="active_to">
+          <th mat-header-cell *matHeaderCellDef style="width: 15%;">Vigente Hasta</th>
+          <td mat-cell *matCellDef="let profile">
+            <div class="text-sm text-gray-600">{{ profile.active_to ? formatDate(profile.active_to) : 'Indefinido' }}</div>
+          </td>
+        </ng-container>
+
+        <!-- Status Column -->
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef style="width: 10%;">Estado</th>
+          <td mat-cell *matCellDef="let profile">
+            <span class="px-2 py-1 rounded text-xs font-medium"
+                  [class]="'bg-' + getStatusColor(profile.is_active) + '-100 text-' + getStatusColor(profile.is_active) + '-800'">
+              {{ getStatusLabel(profile.is_active) }}
+            </span>
+          </td>
+        </ng-container>
+
+        <!-- Rules Count Column -->
+        <ng-container matColumnDef="rules_count">
+          <th mat-header-cell *matHeaderCellDef style="width: 10%;">Reglas</th>
+          <td mat-cell *matCellDef="let profile">
+            <div class="text-sm text-gray-600">{{ profile.pricing_rules?.length || 0 }}</div>
+          </td>
+        </ng-container>
+
+        <!-- Actions Column -->
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef class="text-right" style="width: 15%;">Acciones</th>
+          <td mat-cell *matCellDef="let profile" class="text-right">
+            <button mat-icon-button class="rounded-sm" [matMenuTriggerFor]="actionMenu">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+            <mat-menu #actionMenu="matMenu">
+              <button mat-menu-item (click)="manageRules(profile)">
+                <mat-icon>rule</mat-icon>
+                Gestionar Reglas
+              </button>
+              <button mat-menu-item (click)="editProfile(profile)">
+                <mat-icon>edit</mat-icon>
+                Editar Perfil
+              </button>
+              <button mat-menu-item (click)="toggleProfile(profile)">
+                <mat-icon>{{ profile.is_active ? 'pause' : 'play_arrow' }}</mat-icon>
+                {{ profile.is_active ? 'Desactivar' : 'Activar' }}
+              </button>
+              <button mat-menu-item (click)="deleteProfile(profile)" class="text-red-600">
+                <mat-icon>delete</mat-icon>
+                Eliminar
+              </button>
+            </mat-menu>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+      </table>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Pagination -->
+  <mat-paginator
+    *ngIf="!loading && pricingProfiles.length > 0"
+    [length]="totalItems"
+    [pageSize]="pageSize"
+    [pageSizeOptions]="pageSizeOptions"
+    [pageIndex]="currentPage"
+    (page)="onPageChange($event)"
+    showFirstLastButtons
+    class="mt-4">
+  </mat-paginator>
+
+  <!-- Empty State -->
+  <div *ngIf="!loading && pricingProfiles.length === 0" class="text-center py-12">
+    <mat-icon class="text-6xl text-gray-400 mb-4">price_check</mat-icon>
+    <h3 class="text-lg font-medium text-gray-900 mb-2">No hay perfiles de precios</h3>
+    <p class="text-gray-600 mb-4">No se encontraron perfiles de precios con los filtros aplicados.</p>
+    <button mat-raised-button color="primary" class="rounded-sm" (click)="createProfile()">
+      <mat-icon>add</mat-icon>
+      Crear Nuevo Perfil
+    </button>
+  </div>
+</div>
+
+<!-- Profile Form Modal -->
+<div *ngIf="showForm" class="modal-overlay bg-black bg-opacity-50 flex items-center justify-center">
+  <div class="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-screen overflow-y-auto">
+    <h2 class="text-xl font-semibold text-gray-900 mb-4">
+      {{ editingProfile ? 'Editar Perfil de Precios' : 'Nuevo Perfil de Precios' }}
+    </h2>
+
+    <form [formGroup]="profileForm" (ngSubmit)="saveProfile()">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <!-- Sector -->
+        <mat-form-field appearance="outline">
+          <mat-label>Sector</mat-label>
+          <mat-select formControlName="sector_id">
+            <mat-option *ngFor="let sector of sectors" [value]="sector.id">
+              {{ sector.name }}
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="profileForm.get('sector_id')?.hasError('required')">
+            {{ getErrorMessage('sector_id') }}
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Name -->
+        <mat-form-field appearance="outline">
+          <mat-label>Nombre</mat-label>
+          <input matInput formControlName="name" placeholder="Nombre del perfil">
+          <mat-error *ngIf="profileForm.get('name')?.hasError('required')">
+            {{ getErrorMessage('name') }}
+          </mat-error>
+          <mat-error *ngIf="profileForm.get('name')?.hasError('minlength')">
+            {{ getErrorMessage('name') }}
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Active From -->
+        <mat-form-field appearance="outline">
+          <mat-label>Vigente Desde</mat-label>
+          <input matInput [matDatepicker]="activeFromPicker" formControlName="active_from">
+          <mat-datepicker-toggle matSuffix [for]="activeFromPicker"></mat-datepicker-toggle>
+          <mat-datepicker #activeFromPicker></mat-datepicker>
+          <mat-error *ngIf="profileForm.get('active_from')?.hasError('required')">
+            {{ getErrorMessage('active_from') }}
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Active To -->
+        <mat-form-field appearance="outline">
+          <mat-label>Vigente Hasta (Opcional)</mat-label>
+          <input matInput [matDatepicker]="activeToPicker" formControlName="active_to">
+          <mat-datepicker-toggle matSuffix [for]="activeToPicker"></mat-datepicker-toggle>
+          <mat-datepicker #activeToPicker></mat-datepicker>
+        </mat-form-field>
+      </div>
+
+      <!-- Description -->
+      <mat-form-field appearance="outline" class="w-full mb-4">
+        <mat-label>Descripción</mat-label>
+        <textarea matInput formControlName="description" rows="3" placeholder="Descripción del perfil"></textarea>
+      </mat-form-field>
+
+      <!-- Is Active -->
+      <div class="mb-6">
+        <mat-checkbox formControlName="is_active">
+          Perfil activo
+        </mat-checkbox>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex justify-end gap-3">
+        <button type="button" mat-stroked-button class="rounded-sm" (click)="cancelEdit()">
+          Cancelar
+        </button>
+        <button type="submit" mat-raised-button color="primary" class="rounded-sm" [disabled]="profileForm.invalid">
+          {{ editingProfile ? 'Actualizar' : 'Crear' }} Perfil
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Rules Management Modal -->
+<div *ngIf="showRulesModal" class="modal-overlay bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-[95vw] sm:max-w-[90vw] md:max-w-[85vw] lg:max-w-[80vw] xl:max-w-[75vw] max-h-[95vh] flex flex-col">
+    <!-- Modal Header -->
+    <div class="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+      <div class="flex items-center gap-3">
+        <mat-icon class="text-blue-600">price_check</mat-icon>
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900">
+            Gestionar Reglas de Precios
+          </h2>
+          <p class="text-sm text-gray-600">{{ selectedProfile?.name }}</p>
+        </div>
+      </div>
+      <button mat-icon-button class="text-gray-500 hover:text-gray-700" (click)="closeRulesModal()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    <!-- Modal Content -->
+    <div class="flex-1 overflow-hidden flex flex-col">
+
+      <!-- Action Bar -->
+      <div class="p-6 border-b border-gray-200 bg-white">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-4">
+            <button mat-raised-button color="primary" (click)="addRule()">
+              <mat-icon>add</mat-icon>
+              Nueva Regla
+            </button>
+            <span class="text-sm text-gray-600">
+              {{ pricingRules.length }} regla{{ pricingRules.length !== 1 ? 's' : '' }} configurada{{ pricingRules.length !== 1 ? 's' : '' }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rules Table -->
+      <div class="flex-1 overflow-auto p-2 sm:p-4 lg:p-6">
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <!-- Desktop Table -->
+          <div class="hidden md:block">
+            <table mat-table [dataSource]="pricingRules" class="w-full">
+            <!-- Name Column -->
+            <ng-container matColumnDef="name">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-gray-700">Nombre</th>
+              <td mat-cell *matCellDef="let rule" class="py-4">
+                <div class="font-medium text-gray-900">{{ rule.name }}</div>
+              </td>
+            </ng-container>
+
+            <!-- Type Column -->
+            <ng-container matColumnDef="rule_type">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-gray-700">Tipo</th>
+              <td mat-cell *matCellDef="let rule" class="py-4">
+                <span class="px-2 py-1 rounded-full text-xs font-medium"
+                      [class]="'bg-' + getRuleTypeColor(rule.rule_type) + '-100 text-' + getRuleTypeColor(rule.rule_type) + '-800'">
+                  {{ getRuleTypeLabel(rule.rule_type) }}
+                </span>
+              </td>
+            </ng-container>
+
+            <!-- Duration Column -->
+            <ng-container matColumnDef="duration">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-gray-700">Duración</th>
+              <td mat-cell *matCellDef="let rule" class="py-4">
+                <div class="text-sm text-gray-600">
+                  <div>{{ rule.min_duration_minutes }}-{{ rule.max_duration_minutes || '∞' }} min</div>
+                  <div *ngIf="rule.min_amount" class="text-green-600 font-medium">
+                    Mín: ${{ rule.min_amount }}
+                  </div>
+                  <div *ngIf="rule.daily_max_amount" class="text-blue-600 font-medium">
+                    Máx: ${{ rule.daily_max_amount }}
+                  </div>
+                </div>
+              </td>
+            </ng-container>
+
+            <!-- Price Column -->
+            <ng-container matColumnDef="price">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-gray-700">Precio</th>
+              <td mat-cell *matCellDef="let rule" class="py-4">
+                <div class="text-sm font-medium text-gray-900">
+                  <span *ngIf="rule.fixed_price" class="text-green-600">${{ rule.fixed_price }}</span>
+                  <span *ngIf="rule.price_per_min" class="text-blue-600">${{ rule.price_per_min }}/min</span>
+                </div>
+              </td>
+            </ng-container>
+
+            <!-- Days Column -->
+            <ng-container matColumnDef="days">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-gray-700">Días</th>
+              <td mat-cell *matCellDef="let rule" class="py-4">
+                <div class="text-sm text-gray-600">
+                  {{ getDaysLabel(rule.days_of_week) }}
+                </div>
+              </td>
+            </ng-container>
+
+            <!-- Time Column -->
+            <ng-container matColumnDef="time">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-gray-700">Horario</th>
+              <td mat-cell *matCellDef="let rule" class="py-4">
+                <div class="text-sm text-gray-600">
+                  {{ formatTimeRange(rule.start_time, rule.end_time) }}
+                </div>
+              </td>
+            </ng-container>
+
+            <!-- Status Column -->
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-gray-700">Estado</th>
+              <td mat-cell *matCellDef="let rule" class="py-4">
+                <span class="px-2 py-1 rounded-full text-xs font-medium"
+                      [class]="'bg-' + getStatusColor(rule.is_active) + '-100 text-' + getStatusColor(rule.is_active) + '-800'">
+                  {{ getStatusLabel(rule.is_active) }}
+                </span>
+              </td>
+            </ng-container>
+
+            <!-- Actions Column -->
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-gray-700 text-right">Acciones</th>
+              <td mat-cell *matCellDef="let rule" class="text-right py-4">
+                <button mat-icon-button [matMenuTriggerFor]="ruleActionMenu" class="text-gray-500 hover:text-gray-700">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-menu #ruleActionMenu="matMenu">
+                  <button mat-menu-item (click)="editRule(rule)">
+                    <mat-icon>edit</mat-icon>
+                    Editar
+                  </button>
+                  <button mat-menu-item (click)="toggleRule(rule)">
+                    <mat-icon>{{ rule.is_active ? 'pause' : 'play_arrow' }}</mat-icon>
+                    {{ rule.is_active ? 'Desactivar' : 'Activar' }}
+                  </button>
+                  <button mat-menu-item (click)="deleteRule(rule)" class="text-red-600">
+                    <mat-icon>delete</mat-icon>
+                    Eliminar
+                  </button>
+                </mat-menu>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="ruleColumns" class="bg-gray-50"></tr>
+            <tr mat-row *matRowDef="let row; columns: ruleColumns;" class="hover:bg-gray-50"></tr>
+          </table>
+          </div>
+
+          <!-- Mobile Cards View -->
+          <div class="md:hidden">
+            <div *ngFor="let rule of pricingRules" class="border-b border-gray-200 p-4 last:border-b-0">
+              <div class="flex items-start justify-between mb-3">
+                <div class="flex-1">
+                  <h3 class="font-medium text-gray-900 text-sm">{{ rule.name }}</h3>
+                  <div class="flex items-center gap-2 mt-1">
+                    <span class="px-2 py-1 rounded-full text-xs font-medium"
+                          [class]="'bg-' + getRuleTypeColor(rule.rule_type) + '-100 text-' + getRuleTypeColor(rule.rule_type) + '-800'">
+                      {{ getRuleTypeLabel(rule.rule_type) }}
+                    </span>
+                    <span class="px-2 py-1 rounded-full text-xs font-medium"
+                          [class]="'bg-' + getStatusColor(rule.is_active) + '-100 text-' + getStatusColor(rule.is_active) + '-800'">
+                      {{ getStatusLabel(rule.is_active) }}
+                    </span>
+                  </div>
+                </div>
+                <button mat-icon-button [matMenuTriggerFor]="ruleActionMenu" class="text-gray-500">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-menu #ruleActionMenu="matMenu">
+                  <button mat-menu-item (click)="editRule(rule)">
+                    <mat-icon>edit</mat-icon>
+                    Editar
+                  </button>
+                  <button mat-menu-item (click)="toggleRule(rule)">
+                    <mat-icon>{{ rule.is_active ? 'pause' : 'play_arrow' }}</mat-icon>
+                    {{ rule.is_active ? 'Desactivar' : 'Activar' }}
+                  </button>
+                  <button mat-menu-item (click)="deleteRule(rule)" class="text-red-600">
+                    <mat-icon>delete</mat-icon>
+                    Eliminar
+                  </button>
+                </mat-menu>
+              </div>
+              
+              <div class="grid grid-cols-2 gap-3 text-xs text-gray-600">
+                <div>
+                  <span class="font-medium">Duración:</span><br>
+                  {{ rule.min_duration_minutes }}-{{ rule.max_duration_minutes || '∞' }} min
+                  <div *ngIf="rule.min_amount" class="text-green-600 font-medium">
+                    Mín: ${{ rule.min_amount }}
+                  </div>
+                  <div *ngIf="rule.daily_max_amount" class="text-blue-600 font-medium">
+                    Máx: ${{ rule.daily_max_amount }}
+                  </div>
+                </div>
+                <div>
+                  <span class="font-medium">Precio:</span><br>
+                  <span *ngIf="rule.fixed_price" class="text-green-600 font-medium">${{ rule.fixed_price }}</span>
+                  <span *ngIf="rule.price_per_min" class="text-blue-600 font-medium">${{ rule.price_per_min }}/min</span>
+                </div>
+                <div>
+                  <span class="font-medium">Días:</span><br>
+                  {{ getDaysLabel(rule.days_of_week) }}
+                </div>
+                <div>
+                  <span class="font-medium">Horario:</span><br>
+                  {{ formatTimeRange(rule.start_time, rule.end_time) }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-6 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+        <div class="flex justify-end">
+          <button mat-button (click)="closeRulesModal()" class="mr-3">
+            Cerrar
+          </button>
+        </div>
+        <!-- Empty Rules State -->
+        <div *ngIf="pricingRules.length === 0" class="text-center py-12">
+          <mat-icon class="text-6xl text-gray-400 mb-4">rule</mat-icon>
+          <h3 class="text-lg font-medium text-gray-900 mb-2">No hay reglas de precios</h3>
+          <p class="text-gray-600 mb-6">Este perfil no tiene reglas de precios configuradas.</p>
+          <button mat-raised-button color="primary" (click)="addRule()">
+            <mat-icon>add</mat-icon>
+            Crear Primera Regla
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Rule Form Modal -->
+<div *ngIf="showRuleForm" class="modal-overlay bg-black bg-opacity-50 flex items-center justify-center">
+  <div class="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-screen overflow-y-auto">
+    <h2 class="text-xl font-semibold text-gray-900 mb-4">
+      {{ editingRule ? 'Editar Regla de Precios' : 'Nueva Regla de Precios' }}
+    </h2>
+
+    <form [formGroup]="ruleForm" (ngSubmit)="saveRule()">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <!-- Name -->
+        <mat-form-field appearance="outline">
+          <mat-label>Nombre de la Regla</mat-label>
+          <input matInput formControlName="name" placeholder="Ej: Tarifa estándar">
+          <mat-error *ngIf="ruleForm.get('name')?.hasError('required')">
+            {{ getErrorMessage('name') }}
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Rule Type -->
+        <mat-form-field appearance="outline">
+          <mat-label>Tipo de Regla</mat-label>
+          <mat-select formControlName="rule_type">
+            <mat-option value="TIME_BASED">Por Tiempo</mat-option>
+            <mat-option value="FIXED">Precio Fijo</mat-option>
+            <mat-option value="GRADUATED">Graduada</mat-option>
+            <mat-option value="HOURLY">Por Hora</mat-option>
+          </mat-select>
+          <mat-error *ngIf="ruleForm.get('rule_type')?.hasError('required')">
+            {{ getErrorMessage('rule_type') }}
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Min Duration -->
+        <mat-form-field appearance="outline">
+          <mat-label>Duración Mínima (min)</mat-label>
+          <input matInput formControlName="min_duration_minutes" type="number" min="0">
+          <mat-error *ngIf="ruleForm.get('min_duration_minutes')?.hasError('required')">
+            {{ getErrorMessage('min_duration_minutes') }}
+          </mat-error>
+        </mat-form-field>
+
+          <!-- Max Duration -->
+          <mat-form-field appearance="outline">
+            <mat-label>Duración Máxima (min)</mat-label>
+            <input matInput formControlName="max_duration_minutes" type="number" min="0">
+            <mat-hint>Dejar vacío para sin límite</mat-hint>
+          </mat-form-field>
+
+          <!-- Daily Max Amount -->
+          <mat-form-field appearance="outline">
+            <mat-label>Monto Máximo Diario</mat-label>
+            <input matInput formControlName="daily_max_amount" type="number" min="0" step="0.01">
+            <span matPrefix>$&nbsp;</span>
+            <mat-hint>Monto máximo a cobrar por día completo (ej: $10.000)</mat-hint>
+          </mat-form-field>
+
+          <!-- Min Amount -->
+          <mat-form-field appearance="outline">
+            <mat-label>Monto Mínimo</mat-label>
+            <input matInput formControlName="min_amount" type="number" min="0" step="0.01">
+            <span matPrefix>$&nbsp;</span>
+            <mat-hint>Monto mínimo a cobrar independientemente del tiempo (ej: $500)</mat-hint>
+          </mat-form-field>
+
+        <!-- Price per Minute -->
+        <mat-form-field appearance="outline" *ngIf="ruleForm.get('rule_type')?.value === 'TIME_BASED' || ruleForm.get('rule_type')?.value === 'HOURLY'">
+          <mat-label>Precio por Minuto</mat-label>
+          <input matInput formControlName="price_per_minute" type="number" min="0" step="0.01">
+          <span matPrefix>$&nbsp;</span>
+          <mat-error *ngIf="ruleForm.get('price_per_minute')?.hasError('required')">
+            {{ getErrorMessage('price_per_minute') }}
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Fixed Price -->
+        <mat-form-field appearance="outline" *ngIf="ruleForm.get('rule_type')?.value === 'FIXED'">
+          <mat-label>Precio Fijo</mat-label>
+          <input matInput formControlName="fixed_price" type="number" min="0" step="0.01">
+          <span matPrefix>$&nbsp;</span>
+          <mat-error *ngIf="ruleForm.get('fixed_price')?.hasError('required')">
+            {{ getErrorMessage('fixed_price') }}
+          </mat-error>
+        </mat-form-field>
+
+        <!-- Start Time -->
+        <mat-form-field appearance="outline">
+          <mat-label>Hora de Inicio</mat-label>
+          <input matInput formControlName="start_time" type="time" 
+                 [value]="getTimeValue(ruleForm.get('start_time')?.value)"
+                 (change)="onTimeChange('start_time', $event)">
+          <mat-hint>Dejar vacío para todo el día</mat-hint>
+        </mat-form-field>
+
+        <!-- End Time -->
+        <mat-form-field appearance="outline">
+          <mat-label>Hora de Fin</mat-label>
+          <input matInput formControlName="end_time" type="time" 
+                 [value]="getTimeValue(ruleForm.get('end_time')?.value)"
+                 (change)="onTimeChange('end_time', $event)">
+          <mat-hint>Dejar vacío para todo el día</mat-hint>
+        </mat-form-field>
+      </div>
+
+      <!-- Days of Week -->
+      <div class="mb-4">
+        <label class="text-sm font-medium text-gray-700 mb-2 block">Días de la Semana</label>
+        <div class="flex flex-wrap gap-2">
+          <mat-checkbox *ngFor="let day of daysOfWeek" 
+                        [value]="day.value" 
+                        (change)="onDayChange($event, day.value)"
+                        [checked]="isDaySelected(day.value)">
+            {{ day.label }}
+          </mat-checkbox>
+        </div>
+        <mat-hint>Seleccionar días aplicables (opcional)</mat-hint>
+      </div>
+
+      <!-- Priority -->
+      <mat-form-field appearance="outline" class="w-full mb-4">
+        <mat-label>Prioridad</mat-label>
+        <input matInput formControlName="priority" type="number" min="1" value="1">
+        <mat-hint>Las reglas con mayor prioridad se evalúan primero</mat-hint>
+      </mat-form-field>
+
+      <!-- Is Active -->
+      <div class="mb-6">
+        <mat-checkbox formControlName="is_active">
+          Regla activa
+        </mat-checkbox>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex justify-end gap-3">
+        <button type="button" mat-stroked-button class="rounded-sm" (click)="cancelRuleEdit()">
+          Cancelar
+        </button>
+        <button type="submit" mat-raised-button color="primary" class="rounded-sm" [disabled]="ruleForm.invalid">
+          {{ editingRule ? 'Actualizar' : 'Crear' }} Regla
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

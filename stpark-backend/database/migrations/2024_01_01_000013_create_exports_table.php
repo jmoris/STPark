@@ -17,7 +17,6 @@ return new class extends Migration
             $table->json('params_json')->nullable();
             $table->string('file_url')->nullable();
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
-            $table->timestamp('created_at');
             $table->timestamps();
         });
     }

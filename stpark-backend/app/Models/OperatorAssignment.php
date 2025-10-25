@@ -15,7 +15,7 @@ class OperatorAssignment extends Model
         'sector_id',
         'street_id',
         'valid_from',
-        'valid_to',
+        'valid_to'
     ];
 
     protected $casts = [
@@ -24,7 +24,7 @@ class OperatorAssignment extends Model
     ];
 
     /**
-     * Relación con operador
+     * Relación con el operador
      */
     public function operator(): BelongsTo
     {
@@ -32,7 +32,7 @@ class OperatorAssignment extends Model
     }
 
     /**
-     * Relación con sector
+     * Relación con el sector
      */
     public function sector(): BelongsTo
     {
@@ -40,7 +40,7 @@ class OperatorAssignment extends Model
     }
 
     /**
-     * Relación con calle
+     * Relación con la calle
      */
     public function street(): BelongsTo
     {
@@ -48,12 +48,31 @@ class OperatorAssignment extends Model
     }
 
     /**
-     * Verificar si la asignación está vigente
+     * Verificar si la asignación está activa
      */
-    public function isValid(): bool
+    public function isActive(): bool
     {
         $now = now();
-        return $this->valid_from <= $now && 
-               ($this->valid_to === null || $this->valid_to >= $now);
+        
+        if ($this->valid_from > $now) {
+            return false;
+        }
+        
+        if ($this->valid_to && $this->valid_to < $now) {
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
+     * Obtener el período de validez formateado
+     */
+    public function getValidityPeriod(): string
+    {
+        $from = $this->valid_from->format('d/m/Y');
+        $to = $this->valid_to ? $this->valid_to->format('d/m/Y') : 'Indefinido';
+        
+        return "Desde {$from} hasta {$to}";
     }
 }

@@ -29,10 +29,7 @@ return new class extends Migration
             // Índices según especificación
             $table->index(['plate', 'status']);
             $table->index(['sector_id', 'started_at']);
-            
-            // Constraint para unicidad de sesión activa por placa y sector
-            $table->unique(['plate', 'sector_id'], 'unique_active_session_per_plate_sector')
-                  ->where('status', 'ACTIVE');
+            $table->index(['plate', 'sector_id', 'status']);
         });
     }
 

@@ -15,13 +15,50 @@ class OperatorController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Operator::with(['operatorAssignments.sector', 'operatorAssignments.street']);
+        $query = Operator::with(['sectors', 'streets']);
 
-        if ($request->filled('status')) {
+        // Aplicar filtros
+        if ($request->filled('name')) {
+            $query->where('name', 'like', '%' . $request->name . '%');
+        }
+
+        if ($request->filled('status') && $request->get('status') !== 'undefined') {
             $query->where('status', $request->status);
         }
 
-        $operators = $query->orderBy('name')->get();
+        if ($request->filled('sector') && $request->get('sector') !== 'undefined') {
+            $query->whereHas('sectors', function($q) use ($request) {
+                $q->where('sectors.id', $request->sector);
+            });
+        }
+
+        // Aplicar paginación
+        $perPage = $request->get('per_page', 10);
+        $operators = $query->orderBy('name')->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'data' => $operators->items(),
+                'current_page' => $operators->currentPage(),
+                'last_page' => $operators->lastPage(),
+                'per_page' => $operators->perPage(),
+                'total' => $operators->total(),
+                'from' => $operators->firstItem(),
+                'to' => $operators->lastItem(),
+            ]
+        ]);
+    }
+
+    /**
+     * Obtener todos los operadores (sin paginación)
+     */
+    public function all(): JsonResponse
+    {
+        $operators = Operator::with(['sectors', 'streets'])
+            ->where('status', 'ACTIVE')
+            ->orderBy('name')
+            ->get();
 
         return response()->json([
             'success' => true,
@@ -37,6 +74,9 @@ class OperatorController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'rut' => 'required|string|unique:operators,rut',
+            'email' => 'nullable|email|max:255',
+            'phone' => 'nullable|string|max:20',
+            'pin' => 'nullable|string|size:6',
             'status' => 'in:ACTIVE,INACTIVE',
         ]);
 
@@ -47,6 +87,9 @@ class OperatorController extends Controller
         $operator = Operator::create([
             'name' => $request->name,
             'rut' => $request->rut,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'pin' => $request->pin,
             'status' => $request->status ?? 'ACTIVE',
         ]);
 
@@ -64,10 +107,9 @@ class OperatorController extends Controller
     {
         try {
             $operator = Operator::with([
-                'operatorAssignments.sector',
-                'operatorAssignments.street',
-                'parkingSessions',
-                'sales'
+                'sectors',
+                'streets',
+                'parkingSessions'
             ])->findOrFail($id);
 
             return response()->json([
@@ -91,6 +133,9 @@ class OperatorController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'rut' => 'required|string|unique:operators,rut,' . $id,
+            'email' => 'nullable|email|max:255',
+            'phone' => 'nullable|string|max:20',
+            'pin' => 'nullable|string|size:6',
             'status' => 'in:ACTIVE,INACTIVE',
         ]);
 
@@ -104,6 +149,9 @@ class OperatorController extends Controller
             $operator->update([
                 'name' => $request->name,
                 'rut' => $request->rut,
+                'email' => $request->email,
+                'phone' => $request->phone,
+                'pin' => $request->pin,
                 'status' => $request->status,
             ]);
 
@@ -123,6 +171,7 @@ class OperatorController extends Controller
 
     /**
      * Asignar operador a sector/calle
+     * Elimina todas las asignaciones anteriores antes de crear la nueva
      */
     public function assign(Request $request, int $id): JsonResponse
     {
@@ -140,6 +189,10 @@ class OperatorController extends Controller
         try {
             $operator = Operator::findOrFail($id);
 
+            // Eliminar todas las asignaciones anteriores del operador
+            $deletedAssignments = OperatorAssignment::where('operator_id', $id)->delete();
+
+            // Crear la nueva asignación
             $assignment = OperatorAssignment::create([
                 'operator_id' => $id,
                 'sector_id' => $request->sector_id,
@@ -148,16 +201,56 @@ class OperatorController extends Controller
                 'valid_to' => $request->valid_to,
             ]);
 
+            $message = 'Asignación creada exitosamente';
+            if ($deletedAssignments > 0) {
+                $message .= " (se eliminaron {$deletedAssignments} asignación" . ($deletedAssignments > 1 ? 'es' : '') . " anterior" . ($deletedAssignments > 1 ? 'es' : '') . ")";
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => $assignment->load(['sector', 'street']),
-                'message' => 'Asignación creada exitosamente'
+                'message' => $message
             ], 201);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Error al asignar operador: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Eliminar todas las asignaciones de un operador
+     */
+    public function removeAllAssignments(int $id): JsonResponse
+    {
+        try {
+            $operator = Operator::findOrFail($id);
+
+            // Eliminar todas las asignaciones del operador
+            $deletedCount = OperatorAssignment::where('operator_id', $id)->delete();
+
+            $message = 'Todas las asignaciones han sido eliminadas';
+            if ($deletedCount > 0) {
+                $message .= " ({$deletedCount} asignación" . ($deletedCount > 1 ? 'es' : '') . " eliminada" . ($deletedCount > 1 ? 's' : '') . ")";
+            } else {
+                $message = 'El operador no tenía asignaciones activas';
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'operator_id' => $id,
+                    'deleted_assignments' => $deletedCount
+                ],
+                'message' => $message
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al eliminar asignaciones: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -182,6 +275,40 @@ class OperatorController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $assignments
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Operador no encontrado'
+            ], 404);
+        }
+    }
+
+    /**
+     * Actualizar PIN del operador
+     */
+    public function updatePin(Request $request, int $id): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'pin' => 'required|string|size:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $operator = Operator::findOrFail($id);
+            
+            $operator->update([
+                'pin' => $request->pin,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $operator,
+                'message' => 'PIN actualizado exitosamente'
             ]);
 
         } catch (\Exception $e) {

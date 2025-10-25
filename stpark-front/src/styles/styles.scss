@@ -6,6 +6,127 @@
 /* PrimeIcons */
 @import 'primeicons/primeicons.css';
 
+/* Custom button styles with border-radius */
+::ng-deep .mat-mdc-button,
+::ng-deep .mat-mdc-raised-button,
+::ng-deep .mat-mdc-unelevated-button,
+::ng-deep .mat-mdc-outlined-button,
+::ng-deep .mat-mdc-icon-button,
+::ng-deep .mat-mdc-fab,
+::ng-deep .mat-mdc-mini-fab {
+  border-radius: 4px !important;
+}
+
+/* Override Angular Material button styles */
+::ng-deep .mat-button,
+::ng-deep .mat-raised-button,
+::ng-deep .mat-flat-button,
+::ng-deep .mat-stroked-button,
+::ng-deep .mat-icon-button,
+::ng-deep .mat-fab,
+::ng-deep .mat-mini-fab {
+  border-radius: 4px !important;
+}
+
+/* Custom border-radius for form fields and other components */
+::ng-deep .mat-mdc-form-field,
+::ng-deep .mat-form-field {
+  .mat-mdc-text-field-wrapper,
+  .mat-form-field-wrapper {
+    border-radius: 4px !important;
+  }
+}
+
+/* Custom border-radius for cards and other components */
+::ng-deep .mat-mdc-card,
+::ng-deep .mat-card {
+  border-radius: 4px !important;
+}
+
+/* Custom border-radius for chips and badges */
+::ng-deep .mat-mdc-chip,
+::ng-deep .mat-chip {
+  border-radius: 4px !important;
+}
+
+/* Custom border-radius for badges */
+::ng-deep .mat-badge,
+::ng-deep .mat-mdc-badge {
+  .mat-badge-content,
+  .mat-mdc-badge-content {
+    border-radius: 4px !important;
+  }
+}
+
+/* Custom border-radius for all badge-like elements */
+::ng-deep .badge,
+::ng-deep .mat-chip-set .mat-chip,
+::ng-deep .mat-chip-list .mat-chip,
+::ng-deep .mat-chip-listbox .mat-chip {
+  border-radius: 4px !important;
+}
+
+/* Global status badge styles */
+::ng-deep .status-badge-active,
+::ng-deep .status-badge-activo,
+::ng-deep .mat-chip.status-active,
+::ng-deep .mat-mdc-chip.status-active,
+::ng-deep .status-active {
+  background-color: #22c55e !important; /* green-500 */
+  color: #ffffff !important;
+  border-radius: 4px !important;
+}
+
+::ng-deep .status-badge-inactive,
+::ng-deep .status-badge-inactivo,
+::ng-deep .mat-chip.status-inactive,
+::ng-deep .mat-mdc-chip.status-inactive,
+::ng-deep .status-inactive {
+  background-color: #6b7280 !important; /* gray-500 */
+  color: #000000 !important;
+  border-radius: 4px !important;
+}
+
+/* Additional status colors */
+::ng-deep .status-blue,
+::ng-deep .mat-chip.status-blue,
+::ng-deep .mat-mdc-chip.status-blue {
+  background-color: #3b82f6 !important; /* blue-500 */
+  color: #ffffff !important;
+  border-radius: 4px !important;
+}
+
+::ng-deep .status-orange,
+::ng-deep .mat-chip.status-orange,
+::ng-deep .mat-mdc-chip.status-orange {
+  background-color: #f97316 !important; /* orange-500 */
+  color: #ffffff !important;
+  border-radius: 4px !important;
+}
+
+::ng-deep .status-red,
+::ng-deep .mat-chip.status-red,
+::ng-deep .mat-mdc-chip.status-red {
+  background-color: #ef4444 !important; /* red-500 */
+  color: #ffffff !important;
+  border-radius: 4px !important;
+}
+
+/* Status chip classes for dynamic styling */
+::ng-deep .mat-chip-green,
+::ng-deep .mat-mdc-chip.mat-chip-green {
+  background-color: #22c55e !important; /* green-500 */
+  color: #ffffff !important;
+  border-radius: 4px !important;
+}
+
+::ng-deep .mat-chip-gray,
+::ng-deep .mat-mdc-chip.mat-chip-gray {
+  background-color: #6b7280 !important; /* gray-500 */
+  color: #000000 !important;
+  border-radius: 4px !important;
+}
+
 ::ng-deep .p-datatable-sm .p-datatable-thead > tr > th,
 ::ng-deep .p-datatable-sm .p-datatable-tbody > tr > td {
   padding: 0.25rem 0.5rem !important;

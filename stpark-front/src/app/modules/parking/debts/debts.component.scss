@@ -1,0 +1,65 @@
+// Estilos específicos para el componente de deudas
+.mat-mdc-card {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.mat-mdc-table {
+  background: transparent;
+}
+
+.mat-mdc-header-cell {
+  font-weight: 600;
+  color: #374151;
+}
+
+.mat-mdc-cell {
+  border-bottom: 1px solid #f3f4f6;
+}
+
+// Estados de deuda
+.status-pending {
+  background-color: #fed7aa;
+  color: #9a3412;
+}
+
+.status-settled {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+// Orígenes de deuda
+.origin-session {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.origin-fine {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.origin-manual {
+  background-color: #e9d5ff;
+  color: #7c3aed;
+}
+
+// Chips personalizados
+.mat-mdc-chip {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+// Responsive
+@media (max-width: 768px) {
+  .grid-cols-3 {
+    grid-template-columns: 1fr;
+  }
+  
+  .grid-cols-4 {
+    grid-template-columns: 1fr;
+  }
+  
+  .mat-mdc-table {
+    font-size: 0.875rem;
+  }
+}

@@ -12,19 +12,22 @@ class PricingProfile extends Model
     use HasFactory;
 
     protected $fillable = [
-        'sector_id',
         'name',
+        'description',
+        'sector_id',
+        'is_active',
         'active_from',
-        'active_to',
+        'active_to'
     ];
 
     protected $casts = [
+        'is_active' => 'boolean',
         'active_from' => 'datetime',
         'active_to' => 'datetime',
     ];
 
     /**
-     * Relación con sector
+     * Relación con el sector
      */
     public function sector(): BelongsTo
     {
@@ -32,21 +35,11 @@ class PricingProfile extends Model
     }
 
     /**
-     * Relación con reglas de precios
+     * Relación con las reglas de precios
      */
     public function pricingRules(): HasMany
     {
-        return $this->hasMany(PricingRule::class, 'profile_id')
-                    ->orderBy('priority');
-    }
-
-    /**
-     * Relación con reglas de descuento
-     */
-    public function discountRules(): HasMany
-    {
-        return $this->hasMany(DiscountRule::class, 'profile_id')
-                    ->orderBy('priority');
+        return $this->hasMany(PricingRule::class, 'profile_id');
     }
 
     /**
@@ -54,8 +47,22 @@ class PricingProfile extends Model
      */
     public function isActive(): bool
     {
-        $now = now();
-        return $this->active_from <= $now && 
-               ($this->active_to === null || $this->active_to >= $now);
+        return $this->is_active;
+    }
+
+    /**
+     * Activar el perfil
+     */
+    public function activate(): void
+    {
+        $this->update(['is_active' => true]);
+    }
+
+    /**
+     * Desactivar el perfil
+     */
+    public function deactivate(): void
+    {
+        $this->update(['is_active' => false]);
     }
 }

@@ -4,8 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Builder;
 
 class Debt extends Model
 {
@@ -13,12 +13,12 @@ class Debt extends Model
 
     protected $fillable = [
         'plate',
+        'session_id',
         'origin',
         'principal_amount',
-        'created_at',
-        'settled_at',
         'status',
-        'session_id',
+        'settled_at',
+        'created_at'
     ];
 
     protected $casts = [
@@ -27,24 +27,16 @@ class Debt extends Model
         'settled_at' => 'datetime',
     ];
 
-    const ORIGIN_SESSION = 'SESSION';
-    const ORIGIN_FINE = 'FINE';
-    const ORIGIN_MANUAL = 'MANUAL';
-
-    const STATUS_PENDING = 'PENDING';
-    const STATUS_SETTLED = 'SETTLED';
-    const STATUS_CANCELLED = 'CANCELLED';
-
     /**
-     * Relación con sesión de estacionamiento
+     * Scope para buscar deudas por placa
      */
-    public function parkingSession(): BelongsTo
+    public function scopeByPlate($query, string $plate)
     {
-        return $this->belongsTo(ParkingSession::class, 'session_id');
+        return $query->where('plate', strtoupper($plate));
     }
 
     /**
-     * Relación con pagos de deuda
+     * Relación con los pagos
      */
     public function payments(): HasMany
     {
@@ -52,11 +44,19 @@ class Debt extends Model
     }
 
     /**
+     * Relación con la sesión de estacionamiento (si existe)
+     */
+    public function parkingSession()
+    {
+        return $this->belongsTo(ParkingSession::class, 'session_id');
+    }
+
+    /**
      * Verificar si la deuda está pendiente
      */
     public function isPending(): bool
     {
-        return $this->status === self::STATUS_PENDING;
+        return $this->status === 'PENDING';
     }
 
     /**
@@ -64,40 +64,55 @@ class Debt extends Model
      */
     public function isSettled(): bool
     {
-        return $this->status === self::STATUS_SETTLED;
+        return $this->status === 'SETTLED';
     }
 
     /**
-     * Calcular monto pagado de la deuda
+     * Obtener el estado formateado
      */
-    public function getPaidAmount(): float
+    public function getStatusText(): string
     {
-        return $this->payments()
-                   ->where('status', Payment::STATUS_COMPLETED)
-                   ->sum('amount');
+        return match($this->status) {
+            'PENDING' => 'Pendiente',
+            'SETTLED' => 'Liquidada',
+            'CANCELLED' => 'Cancelada',
+            default => 'Desconocido'
+        };
     }
 
     /**
-     * Obtener monto pendiente de la deuda
+     * Obtener el monto pendiente de la deuda
      */
     public function getPendingAmount(): float
     {
-        return max(0, $this->principal_amount - $this->getPaidAmount());
+        if ($this->isSettled()) {
+            return 0;
+        }
+        
+        return (float) $this->principal_amount;
     }
 
     /**
      * Scope para deudas pendientes
      */
-    public function scopePending($query)
+    public function scopePending(Builder $query): Builder
     {
-        return $query->where('status', self::STATUS_PENDING);
+        return $query->where('status', 'PENDING');
     }
 
     /**
-     * Scope para deudas por placa
+     * Scope para deudas liquidadas
      */
-    public function scopeByPlate($query, string $plate)
+    public function scopeSettled(Builder $query): Builder
     {
-        return $query->where('plate', $plate);
+        return $query->where('status', 'SETTLED');
+    }
+
+    /**
+     * Scope para deudas canceladas
+     */
+    public function scopeCancelled(Builder $query): Builder
+    {
+        return $query->where('status', 'CANCELLED');
     }
 }

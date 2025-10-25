@@ -1,0 +1,81 @@
+<div class="view-modal-dialog">
+  <!-- Header -->
+  <div class="dialog-header">
+    <h2 class="dialog-title">
+      <mat-icon class="title-icon">visibility</mat-icon>
+      {{ data.title }}
+    </h2>
+    <button mat-icon-button class="close-button" (click)="onClose()">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <!-- Content -->
+  <div class="dialog-content">
+    <div class="fields-container">
+      <div *ngFor="let field of data.fields" class="field-item">
+        <div class="field-header">
+          <div class="field-label">
+            <mat-icon *ngIf="field.icon" class="field-icon">{{ field.icon }}</mat-icon>
+            <span>{{ field.label }}</span>
+          </div>
+        </div>
+        
+        <div class="field-value">
+          <!-- Text, Date, Boolean -->
+          <span *ngIf="field.type === 'text' || field.type === 'date' || field.type === 'boolean' || !field.type"
+                class="text-value">
+            {{ getFieldDisplayValue(field) }}
+          </span>
+          
+          <!-- Chip -->
+          <mat-chip *ngIf="field.type === 'chip'" 
+                    [color]="getChipColor(field)"
+                    class="field-chip">
+            {{ getFieldDisplayValue(field) }}
+          </mat-chip>
+          
+          <!-- Badge -->
+          <span *ngIf="field.type === 'badge'" 
+                class="badge"
+                [class]="'badge-' + getBadgeColor(field)">
+            {{ getFieldDisplayValue(field) }}
+          </span>
+          
+          <!-- Array -->
+          <div *ngIf="field.type === 'array'" class="array-container">
+            <mat-chip *ngFor="let item of getFieldValue(field)" 
+                      class="array-chip">
+              {{ item }}
+            </mat-chip>
+            <span *ngIf="!getFieldValue(field) || getFieldValue(field).length === 0" 
+                  class="no-data">
+              No especificado
+            </span>
+          </div>
+          
+          <!-- Object -->
+          <div *ngIf="field.type === 'object'" class="object-container">
+            <pre *ngIf="getFieldValue(field)" class="object-content">{{ getFieldValue(field) | json }}</pre>
+            <span *ngIf="!getFieldValue(field)" class="no-data">No especificado</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="dialog-actions" *ngIf="data.actions && data.actions.length > 0">
+    <mat-divider></mat-divider>
+    <div class="actions-container">
+      <button *ngFor="let action of data.actions"
+              mat-raised-button
+              [color]="action.color"
+              class="action-button"
+              (click)="onAction(action)">
+        <mat-icon>{{ action.icon }}</mat-icon>
+        {{ action.label }}
+      </button>
+    </div>
+  </div>
+</div>

@@ -3,108 +3,197 @@
 namespace App\Services;
 
 use App\Models\ParkingSession;
-use App\Models\Operator;
-use App\Models\Sale;
 use App\Models\Debt;
-use App\Models\AuditLog;
+use App\Models\Sector;
+use App\Models\Street;
+use App\Models\Operator;
 use App\Services\PricingService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class ParkingSessionService
 {
-    public function __construct(
-        private PricingService $pricingService
-    ) {}
+    protected $pricingService;
+
+    public function __construct(PricingService $pricingService)
+    {
+        $this->pricingService = $pricingService;
+    }
 
     /**
      * Crear nueva sesión de estacionamiento
      */
-    public function createSession(
-        string $plate,
-        int $sectorId,
-        ?int $streetId,
-        int $operatorId
-    ): ParkingSession {
-        // Verificar que el operador esté asignado al sector/calle
-        $this->validateOperatorAssignment($operatorId, $sectorId, $streetId);
-
-        // Verificar que no exista sesión activa para la misma placa en el mismo sector
-        $existingSession = ParkingSession::active()
-            ->byPlate($plate)
-            ->bySector($sectorId)
+    public function createSession(string $plate, int $sectorId, ?int $streetId, int $operatorId): ParkingSession
+    {
+        // Verificar si ya existe una sesión activa para esta placa en el mismo sector
+        $activeSession = ParkingSession::where('plate', $plate)
+            ->where('sector_id', $sectorId)
+            ->where('status', 'ACTIVE')
             ->first();
 
-        if ($existingSession) {
+        if ($activeSession) {
             throw new \Exception('Ya existe una sesión activa para esta placa en este sector');
         }
 
+        // Crear la sesión
         $session = ParkingSession::create([
             'plate' => strtoupper($plate),
             'sector_id' => $sectorId,
             'street_id' => $streetId,
             'operator_in_id' => $operatorId,
             'started_at' => now(),
-            'status' => ParkingSession::STATUS_ACTIVE,
+            'status' => 'ACTIVE'
         ]);
 
-        // Registrar auditoría
-        AuditLog::log(
-            $operatorId,
-            'CREATE',
-            'parking_sessions',
-            $session->id,
-            null,
-            $session->toArray()
-        );
-
-        return $session;
+        return $session->load(['sector', 'street', 'operator']);
     }
 
     /**
-     * Procesar checkout de sesión
+     * Crear sesión con verificación de deudas
      */
-    public function checkoutSession(int $sessionId, string $endedAt): ParkingSession
+    public function createSessionWithDebtCheck(string $plate, int $sectorId, ?int $streetId, int $operatorId): array
+    {
+        // Verificar deudas pendientes
+        $pendingDebts = Debt::where('plate', strtoupper($plate))
+            ->where('status', 'PENDING')
+            ->sum('amount');
+
+        // Crear la sesión
+        $session = $this->createSession($plate, $sectorId, $streetId, $operatorId);
+
+        return [
+            'session' => $session,
+            'pending_debts' => $pendingDebts,
+            'has_pending_debts' => $pendingDebts > 0
+        ];
+    }
+
+    /**
+     * Obtener sesión activa por placa
+     */
+    public function getActiveSessionByPlate(string $plate): ?ParkingSession
+    {
+        return ParkingSession::where('plate', strtoupper($plate))
+            ->whereNull('ended_at')
+            ->with(['sector', 'street', 'operator'])
+            ->first();
+    }
+
+    /**
+     * Obtener cotización para una sesión
+     */
+    public function getQuote(int $sessionId, array $params = []): array
     {
         $session = ParkingSession::findOrFail($sessionId);
-
-        if (!$session->isActive()) {
-            throw new \Exception('La sesión no está activa');
+        
+        if ($session->ended_at) {
+            throw new \Exception('La sesión ya ha terminado');
         }
 
-        // Calcular cotización
-        $quote = $this->pricingService->calculateQuote($session, $endedAt);
+        $startTime = Carbon::parse($session->started_at);
+        $endTime = isset($params['ended_at']) ? Carbon::parse($params['ended_at']) : now();
+        $duration = $startTime->diffInMinutes($endTime);
 
-        // Actualizar sesión
-        $session->update([
-            'ended_at' => $endedAt,
-            'seconds_total' => $quote['duration_minutes'] * 60,
-            'gross_amount' => $quote['gross_amount'],
-            'discount_amount' => $quote['discount_amount'],
-            'net_amount' => $quote['net_amount'],
-            'status' => ParkingSession::STATUS_TO_PAY,
-        ]);
-
-        // Crear venta
-        $sale = Sale::create([
-            'session_id' => $session->id,
-            'doc_type' => Sale::DOC_TYPE_BOILET,
-            'net' => $quote['net_amount'],
-            'tax' => 0, // Asumiendo que no hay impuestos
-            'total' => $quote['net_amount'],
-            'issued_at' => null, // Se emite cuando se paga
-        ]);
-
-        // Registrar auditoría
-        AuditLog::log(
-            $session->operator_in_id,
-            'CHECKOUT',
-            'parking_sessions',
-            $session->id,
-            null,
-            $session->toArray()
+        $quote = $this->pricingService->calculatePrice(
+            $session->sector_id,
+            $session->street_id,
+            $duration
         );
 
-        return $session->load(['sale']);
+        // Aplicar descuento si se proporciona código
+        $discountAmount = 0;
+        if (isset($params['discount_code']) && !empty($params['discount_code'])) {
+            // Aquí se podría implementar la lógica de descuentos
+            // Por ahora, simulamos un descuento del 10%
+            $discountAmount = $quote['total'] * 0.1;
+        }
+
+        $netAmount = $quote['total'] - $discountAmount;
+
+        return [
+            'session_id' => $sessionId,
+            'started_at' => $session->started_at,
+            'ended_at' => $endTime->toISOString(),
+            'duration_minutes' => $duration,
+            'gross_amount' => $quote['total'],
+            'discount_amount' => $discountAmount,
+            'net_amount' => $netAmount,
+            'pricing_profile' => $quote['pricing_profile'] ?? 'Perfil por defecto',
+            'breakdown' => $quote['breakdown'] ?? []
+        ];
+    }
+
+    /**
+     * Realizar checkout de una sesión
+     */
+    public function checkout(int $sessionId, string $paymentMethod, float $amount, string $endedAt, ?string $approvalCode = null): array
+    {
+        $session = ParkingSession::findOrFail($sessionId);
+        
+        if ($session->ended_at) {
+            throw new \Exception('La sesión ya ha terminado');
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Actualizar la sesión
+            $session->update([
+                'ended_at' => $endedAt,
+                'status' => 'COMPLETED'
+            ]);
+
+            // Calcular el precio real
+            $startTime = Carbon::parse($session->started_at);
+            $endTime = Carbon::parse($endedAt);
+            $duration = $startTime->diffInMinutes($endTime);
+
+            $quote = $this->pricingService->calculatePrice(
+                $session->sector_id,
+                $session->street_id,
+                $duration
+            );
+
+            $result = [
+                'session' => $session->load(['sector', 'street', 'operator', 'payments']),
+                'quote' => $quote
+            ];
+
+            // Si el monto pagado es 0, crear deuda automáticamente
+            if ($amount == 0 && $quote['total'] > 0) {
+                // Crear deuda por el monto que corresponde
+                $debt = Debt::create([
+                    'plate' => $session->plate,
+                    'session_id' => $session->id,
+                    'origin' => 'SESSION',
+                    'principal_amount' => $quote['total'],
+                    'status' => 'PENDING',
+                    'created_at' => now()
+                ]);
+
+                $result['debt'] = $debt;
+                $result['message'] = 'Sesión cerrada sin pago. Deuda creada automáticamente.';
+            } else {
+                // Crear el pago normal
+                $payment = $session->payments()->create([
+                    'amount' => $amount,
+                    'method' => $paymentMethod,
+                    'status' => 'COMPLETED',
+                    'paid_at' => now(),
+                    'approval_code' => $approvalCode,
+                ]);
+
+                $result['payment'] = $payment;
+                $result['message'] = 'Checkout procesado exitosamente';
+            }
+
+            DB::commit();
+            return $result;
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
     }
 
     /**
@@ -113,136 +202,89 @@ class ParkingSessionService
     public function cancelSession(int $sessionId): ParkingSession
     {
         $session = ParkingSession::findOrFail($sessionId);
-
-        if ($session->isClosed()) {
-            throw new \Exception('No se puede cancelar una sesión cerrada');
+        
+        if ($session->ended_at) {
+            throw new \Exception('La sesión ya ha terminado');
         }
 
         $session->update([
-            'status' => ParkingSession::STATUS_CANCELED,
+            'ended_at' => now(),
+            'status' => 'CANCELLED'
         ]);
 
-        // Registrar auditoría
-        AuditLog::log(
-            $session->operator_in_id,
-            'CANCEL',
-            'parking_sessions',
-            $session->id,
-            null,
-            $session->toArray()
-        );
-
-        return $session;
+        return $session->load(['sector', 'street', 'operator']);
     }
 
     /**
-     * Marcar sesión como pagada
+     * Forzar checkout sin pago
      */
-    public function markAsPaid(ParkingSession $session): void
+    public function forceCheckoutWithoutPayment(int $sessionId, string $endedAt): array
     {
-        $session->update([
-            'status' => ParkingSession::STATUS_PAID,
-        ]);
-
-        // Verificar si hay venta asociada y marcarla como pagada
-        if ($session->sale) {
-            $session->sale->update([
-                'issued_at' => now(),
-            ]);
+        $session = ParkingSession::findOrFail($sessionId);
+        
+        if ($session->ended_at) {
+            throw new \Exception('La sesión ya ha terminado');
         }
 
-        // Registrar auditoría
-        AuditLog::log(
-            $session->operator_in_id,
-            'PAY',
-            'parking_sessions',
-            $session->id,
-            null,
-            $session->toArray()
-        );
-    }
+        DB::beginTransaction();
 
-    /**
-     * Cerrar sesión
-     */
-    public function closeSession(ParkingSession $session): void
-    {
-        $session->update([
-            'status' => ParkingSession::STATUS_CLOSED,
-        ]);
-
-        // Registrar auditoría
-        AuditLog::log(
-            $session->operator_in_id,
-            'CLOSE',
-            'parking_sessions',
-            $session->id,
-            null,
-            $session->toArray()
-        );
-    }
-
-    /**
-     * Crear deuda si el pago es insuficiente
-     */
-    public function createDebtIfNeeded(ParkingSession $session, float $paidAmount): ?Debt
-    {
-        if ($paidAmount < $session->net_amount) {
-            $debt = Debt::create([
-                'plate' => $session->plate,
-                'origin' => Debt::ORIGIN_SESSION,
-                'principal_amount' => $session->net_amount - $paidAmount,
-                'created_at' => now(),
-                'status' => Debt::STATUS_PENDING,
-                'session_id' => $session->id,
+        try {
+            // Actualizar la sesión
+            $session->update([
+                'ended_at' => $endedAt,
+                'status' => 'FORCED_CHECKOUT'
             ]);
 
-            // Registrar auditoría
-            AuditLog::log(
-                $session->operator_in_id,
-                'CREATE',
-                'debts',
-                $debt->id,
-                null,
-                $debt->toArray()
+            // Calcular el precio
+            $startTime = Carbon::parse($session->started_at);
+            $endTime = Carbon::parse($endedAt);
+            $duration = $startTime->diffInMinutes($endTime);
+
+            $quote = $this->pricingService->calculatePrice(
+                $session->sector_id,
+                $session->street_id,
+                $duration
             );
 
-            return $debt;
-        }
+            // Crear deuda
+            $debt = Debt::create([
+                'plate' => $session->plate,
+                'amount' => $quote['total'],
+                'description' => 'Deuda por estacionamiento no pagado',
+                'status' => 'PENDING',
+                'created_at' => now()
+            ]);
 
-        return null;
+            DB::commit();
+
+            return [
+                'session' => $session->load(['sector', 'street', 'operator']),
+                'debt' => $debt,
+                'quote' => $quote
+            ];
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
     }
 
     /**
-     * Validar asignación de operador
+     * Verificar deudas pendientes por placa
      */
-    private function validateOperatorAssignment(int $operatorId, int $sectorId, ?int $streetId): void
+    public function checkPendingDebtsForPlate(string $plate): array
     {
-        $operator = Operator::findOrFail($operatorId);
+        $debts = Debt::where('plate', strtoupper($plate))
+            ->where('status', 'PENDING')
+            ->get();
 
-        if (!$operator->isActive()) {
-            throw new \Exception('El operador no está activo');
-        }
+        $totalAmount = $debts->sum('amount');
 
-        $assignment = $operator->operatorAssignments()
-            ->where('sector_id', $sectorId)
-            ->where(function($query) use ($streetId) {
-                if ($streetId) {
-                    $query->where('street_id', $streetId)
-                          ->orWhereNull('street_id');
-                } else {
-                    $query->whereNull('street_id');
-                }
-            })
-            ->where('valid_from', '<=', now())
-            ->where(function($query) {
-                $query->whereNull('valid_to')
-                      ->orWhere('valid_to', '>=', now());
-            })
-            ->first();
-
-        if (!$assignment) {
-            throw new \Exception('El operador no está asignado a este sector/calle');
-        }
+        return [
+            'plate' => strtoupper($plate),
+            'has_debts' => $debts->count() > 0,
+            'total_amount' => $totalAmount,
+            'debts' => $debts
+        ];
     }
 }

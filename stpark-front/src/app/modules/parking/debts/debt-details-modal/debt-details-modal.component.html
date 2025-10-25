@@ -1,0 +1,137 @@
+<p-dialog 
+    header="DETALLES DE LA DEUDA" 
+    [(visible)]="visible" 
+    [modal]="true" 
+    [style]="{width: '45rem'}"
+    [breakpoints]="{'1199px': '70vw', '575px': '90vw'}"
+    [draggable]="false" 
+    [resizable]="false"
+    [closable]="false"
+    [closeOnEscape]="false"
+    (visibleChange)="visibleChange.emit($event)">
+    
+    <!-- Loading indicator -->
+    <div *ngIf="!debt" class="flex justify-center items-center py-8">
+      <div class="text-center">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p class="text-gray-600">Cargando detalles de la deuda...</p>
+      </div>
+    </div>
+
+    <div class="debt-details" *ngIf="debt">
+        <!-- Información Principal de la Deuda -->
+        <div class="detail-section">
+            <h3>Información de la Deuda</h3>
+            <div class="detail-grid compact">
+                <div class="detail-item">
+                    <label>ID:</label>
+                    <span class="font-mono">{{ debt.id }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Placa:</label>
+                    <span class="plate">{{ debt.plate }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Monto:</label>
+                    <span class="amount">{{ formatAmount(debt.principal_amount) }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Origen:</label>
+                    <div class="origin-info">
+                        <i [class]="getOriginIcon(debt.origin)" class="origin-icon"></i>
+                        <span>{{ getOriginText(debt.origin) }}</span>
+                    </div>
+                </div>
+                <div class="detail-item">
+                    <label>Estado:</label>
+                    <span class="status" [ngClass]="'status-' + getStatusColor(debt.status)">
+                        {{ getStatusText(debt.status) }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información de la Sesión -->
+        <div class="detail-section" *ngIf="debt.session_id">
+            <h3>Sesión Asociada</h3>
+            <div class="detail-grid compact">
+                <div class="detail-item">
+                    <label>ID de Sesión:</label>
+                    <span class="font-mono">{{ debt.session_id }}</span>
+                </div>
+                <div class="detail-item" *ngIf="debt.parking_session">
+                    <label>Patente:</label>
+                    <span class="plate">{{ debt.parking_session.plate }}</span>
+                </div>
+                <div class="detail-item" *ngIf="debt.parking_session?.sector">
+                    <label>Sector:</label>
+                    <span>{{ debt.parking_session.sector.name }}</span>
+                </div>
+                <div class="detail-item" *ngIf="debt.parking_session?.street">
+                    <label>Calle:</label>
+                    <span>{{ debt.parking_session.street.name }}</span>
+                </div>
+                <div class="detail-item" *ngIf="debt.parking_session?.started_at">
+                    <label>Inicio:</label>
+                    <span>{{ debt.parking_session.started_at | date:'dd/MM HH:mm' }}</span>
+                </div>
+                <div class="detail-item" *ngIf="debt.parking_session?.ended_at">
+                    <label>Fin:</label>
+                    <span>{{ debt.parking_session.ended_at | date:'dd/MM HH:mm' }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información de Pagos -->
+        <div class="detail-section" *ngIf="debt.payments && debt.payments.length > 0">
+            <h3>Pagos Realizados</h3>
+            <div class="payments-list">
+                <div *ngFor="let payment of debt.payments" class="payment-item">
+                    <div class="payment-info">
+                        <span class="payment-method">{{ payment.method }}</span>
+                        <span class="payment-amount">{{ formatAmount(payment.amount) }}</span>
+                    </div>
+                    <div class="payment-date">{{ payment.created_at | date:'dd/MM/yyyy HH:mm' }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información de Auditoría -->
+        <div class="detail-section">
+            <h3>Auditoría</h3>
+            <div class="detail-grid compact">
+                <div class="detail-item">
+                    <label>Creada:</label>
+                    <span>{{ debt.created_at | date:'dd/MM/yyyy HH:mm' }}</span>
+                </div>
+                <div class="detail-item" *ngIf="debt.settled_at">
+                    <label>Liquidada:</label>
+                    <span>{{ debt.settled_at | date:'dd/MM/yyyy HH:mm' }}</span>
+                </div>
+                <div class="detail-item" *ngIf="debt.updated_at && debt.updated_at !== debt.created_at">
+                    <label>Actualizada:</label>
+                    <span>{{ debt.updated_at | date:'dd/MM/yyyy HH:mm' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <div class="flex justify-end gap-2">
+            <button pButton 
+                    type="button" 
+                    label="Cerrar" 
+                    icon="pi pi-times" 
+                    class="p-button-text"
+                    (click)="closeModal()">
+            </button>
+            <button pButton 
+                    type="button" 
+                    label="Imprimir" 
+                    icon="pi pi-print" 
+                    class="p-button-outlined"
+                    (click)="printDebt()">
+            </button>
+        </div>
+    </ng-template>
+</p-dialog>

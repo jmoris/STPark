@@ -1,0 +1,128 @@
+<div class="session-detail-container">
+  <!-- Header -->
+  <div class="header">
+    <button mat-icon-button (click)="goBack()" class="back-button">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <div class="header-content">
+      <h1>Detalle de Sesión</h1>
+      <div class="session-meta" *ngIf="session">
+        <span class="session-id">#{{ session.id }}</span>
+        <span class="plate">{{ session.plate }}</span>
+        <span class="px-2 py-1 rounded text-xs font-medium"
+              [class]="'bg-' + getStatusColor(session.status) + '-100 text-' + getStatusColor(session.status) + '-800'">
+          {{ getStatusLabel(session.status) }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-container" *ngIf="loading">
+    <mat-spinner></mat-spinner>
+    <p>Cargando detalles de la sesión...</p>
+  </div>
+
+  <!-- Error -->
+  <div class="error-container" *ngIf="error && !loading">
+    <mat-icon color="warn">error</mat-icon>
+    <p>{{ error }}</p>
+    <button mat-raised-button color="primary" (click)="loadSession()">
+      Reintentar
+    </button>
+  </div>
+
+  <!-- Session Details -->
+  <div class="session-details" *ngIf="session && !loading">
+    
+    <!-- Información Principal -->
+    <div class="main-info">
+      <div class="info-section">
+        <h3>Información de la Sesión</h3>
+        <div class="info-list">
+          <div class="info-entry">
+            <span class="info-label">Sector</span>
+            <span class="info-value">{{ session.sector?.name || 'N/A' }}</span>
+          </div>
+          <div class="info-entry">
+            <span class="info-label">Calle</span>
+            <span class="info-value">{{ session.street?.name || 'N/A' }}</span>
+          </div>
+          <div class="info-entry">
+            <span class="info-label">Operador</span>
+            <span class="info-value">{{ session.operator?.name || 'N/A' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <h3>Tiempo</h3>
+        <div class="info-list">
+          <div class="info-entry">
+            <span class="info-label">Inicio</span>
+            <span class="info-value">{{ formatDate(session.started_at) }}</span>
+          </div>
+          <div class="info-entry" *ngIf="session.ended_at">
+            <span class="info-label">Fin</span>
+            <span class="info-value">{{ formatDate(session.ended_at) }}</span>
+          </div>
+          <div class="info-entry" *ngIf="session.seconds_total && !isActiveSession">
+            <span class="info-label">Duración</span>
+            <span class="info-value">{{ formatDuration(session.seconds_total) }}</span>
+          </div>
+          <div class="info-entry" *ngIf="isActiveSession">
+            <span class="info-label">Duración Actual</span>
+            <span class="info-value real-time">{{ getCurrentDurationFormatted() }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resumen Financiero -->
+    <div class="financial-summary" *ngIf="session.gross_amount || session.net_amount || isActiveSession">
+      <h3>Resumen Financiero</h3>
+      <div class="amounts">
+        <div class="amount-item" *ngIf="session.gross_amount">
+          <span class="amount-label">Monto Bruto</span>
+          <span class="amount-value">{{ formatAmount(session.gross_amount) }}</span>
+        </div>
+        <div class="amount-item" *ngIf="session.discount_amount">
+          <span class="amount-label">Descuento</span>
+          <span class="amount-value discount">-{{ formatAmount(session.discount_amount) }}</span>
+        </div>
+        <div class="amount-item total" *ngIf="session.net_amount">
+          <span class="amount-label">Total</span>
+          <span class="amount-value">{{ formatAmount(session.net_amount) }}</span>
+        </div>
+        <div class="amount-item estimated" *ngIf="isActiveSession">
+          <span class="amount-label">Costo Estimado</span>
+          <span class="amount-value">{{ getEstimatedCostFormatted() }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Estado y Acciones -->
+    <div class="status-section">
+      <div class="status-card" [class]="'status-' + session.status">
+        <div class="status-content">
+          <mat-icon class="status-icon">{{ getPaymentIcon(session.status) }}</mat-icon>
+          <div class="status-text">
+            <div class="status-title">{{ getPaymentStatusTitle(session.status) }}</div>
+            <div class="status-description">{{ getPaymentStatusDescription(session.status) }}</div>
+          </div>
+        </div>
+        <div class="status-actions" *ngIf="session.status === 'TO_PAY' || session.status === 'ACTIVE'">
+          <button mat-raised-button color="primary" (click)="paySession()" *ngIf="session.status === 'TO_PAY'">
+            <mat-icon>payment</mat-icon>
+            Pagar
+          </button>
+          <button mat-raised-button color="accent" (click)="checkoutSession()" *ngIf="session.status === 'ACTIVE'">
+            <mat-icon>payment</mat-icon>
+            Procesar Checkout
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
