@@ -3,7 +3,11 @@
 return [
     'paths' => ['api/*', 'parking/*', 'auth/*', 'sanctum/csrf-cookie'],
     'allowed_methods' => ['*'],
-    'allowed_origins' => ['*'],
+    'allowed_origins' => [
+        'https://panel.stpark.cl',
+        'http://localhost:4200',
+        'http://localhost:8081',
+    ],
     'allowed_origins_patterns' => [],
     'allowed_headers' => ['*'],
     'exposed_headers' => [],
