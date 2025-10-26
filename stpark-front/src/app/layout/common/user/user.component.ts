@@ -14,9 +14,8 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { Router } from '@angular/router';
-import { UserService } from 'app/core/user/user.service';
-import { User } from 'app/core/user/user.types';
 import { Subject, takeUntil } from 'rxjs';
+import { AuthService, Tenant, User } from 'app/core/services/auth.service';
 
 @Component({
     selector: 'user',
@@ -38,7 +37,9 @@ export class UserComponent implements OnInit, OnDestroy {
     /* eslint-enable @typescript-eslint/naming-convention */
 
     @Input() showAvatar: boolean = true;
-    user: User;
+    user: { id: string; name: string; email: string; avatar?: string; status?: string; } | null = null;
+    tenants: Tenant[] = [];
+    currentTenant: Tenant | null = null;
 
     private _unsubscribeAll: Subject<any> = new Subject<any>();
 
@@ -48,7 +49,7 @@ export class UserComponent implements OnInit, OnDestroy {
     constructor(
         private _changeDetectorRef: ChangeDetectorRef,
         private _router: Router,
-        private _userService: UserService
+        private _authService: AuthService
     ) {}
 
     // -----------------------------------------------------------------------------------------------------
@@ -59,11 +60,42 @@ export class UserComponent implements OnInit, OnDestroy {
      * On init
      */
     ngOnInit(): void {
-        // Subscribe to user changes
-        this._userService.user$
+        // Subscribe to user changes from the new auth service
+        this._authService.currentUser$
             .pipe(takeUntil(this._unsubscribeAll))
-            .subscribe((user: User) => {
-                this.user = user;
+            .subscribe((user: User | null) => {
+                if (user) {
+                    this.user = {
+                        id: user.id.toString(),
+                        name: user.name,
+                        email: user.email,
+                        avatar: user.avatar,
+                        status: user.status || 'online'
+                    };
+                } else {
+                    this.user = null;
+                }
+
+                // Mark for check
+                this._changeDetectorRef.markForCheck();
+            });
+
+        // Subscribe to tenants changes
+        this._authService.tenants$
+            .pipe(takeUntil(this._unsubscribeAll))
+            .subscribe((tenants: Tenant[]) => {
+                console.log('UserComponent: tenants received:', tenants);
+                this.tenants = tenants;
+
+                // Mark for check
+                this._changeDetectorRef.markForCheck();
+            });
+
+        // Subscribe to current tenant changes
+        this._authService.currentTenant$
+            .pipe(takeUntil(this._unsubscribeAll))
+            .subscribe((tenant: Tenant | null) => {
+                this.currentTenant = tenant;
 
                 // Mark for check
                 this._changeDetectorRef.markForCheck();
@@ -94,19 +126,24 @@ export class UserComponent implements OnInit, OnDestroy {
             return;
         }
 
-        // Update the user
-        this._userService
-            .update({
-                ...this.user,
-                status,
-            })
-            .subscribe();
+        // Update the user status locally
+        this.user.status = status;
+        this._changeDetectorRef.markForCheck();
+    }
+
+    /**
+     * Change tenant
+     */
+    changeTenant(tenant: Tenant): void {
+        this._authService.setCurrentTenant(tenant);
+        // Recargar la página para que todas las peticiones usen el nuevo tenant
+        location.reload();
     }
 
     /**
      * Sign out
      */
     signOut(): void {
-        this._router.navigate(['/sign-out']);
+        this._authService.logout();
     }
 }

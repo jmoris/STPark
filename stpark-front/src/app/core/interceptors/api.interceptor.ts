@@ -5,8 +5,7 @@ import { throwError, Observable } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router } from '@angular/router';
 import { environment } from 'environments/environment';
-import { AuthService } from 'app/core/auth/auth.service';
-import { AuthUtils } from 'app/core/auth/auth.utils';
+import { AuthService } from 'app/core/services/auth.service';
 
 export const ApiInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, next) => {
   const snackBar = inject(MatSnackBar);
@@ -16,10 +15,17 @@ export const ApiInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, nex
   // Clone the request object
   let newReq = req.clone();
 
-  // Add X-Tenant header
-  newReq = newReq.clone({
-    headers: newReq.headers.set('X-Tenant', environment.tenant),
-  });
+  // Get current tenant and add X-Tenant header
+  const currentTenant = authService.getCurrentTenant();
+  console.log('ApiInterceptor: Current tenant:', currentTenant);
+  if (currentTenant) {
+    console.log('ApiInterceptor: Adding X-Tenant header:', currentTenant.id);
+    newReq = newReq.clone({
+      headers: newReq.headers.set('X-Tenant', currentTenant.id),
+    });
+  } else {
+    console.warn('ApiInterceptor: No current tenant selected');
+  }
 
   // Add Content-Type and Accept headers
   newReq = newReq.clone({
@@ -28,15 +34,13 @@ export const ApiInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, nex
       .set('Accept', 'application/json')
   });
 
-  // Add Authorization header if token exists and is not expired
-  if (
-    authService.accessToken &&
-    !AuthUtils.isTokenExpired(authService.accessToken)
-  ) {
+  // Add Authorization header if token exists
+  const token = authService.getToken();
+  if (token) {
     newReq = newReq.clone({
       headers: newReq.headers.set(
         'Authorization',
-        'Bearer ' + authService.accessToken
+        'Bearer ' + token
       ),
     });
   }
@@ -46,9 +50,7 @@ export const ApiInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, nex
       // Catch "401 Unauthorized" responses
       if (error.status === 401) {
         // Sign out
-        authService.signOut();
-        // Reload the app
-        location.reload();
+        authService.logout();
       }
       
       return handleError(error, snackBar, router);

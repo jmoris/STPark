@@ -98,8 +98,24 @@ class AuthController extends Controller
             if (Auth::attempt($request->only('email', 'password'))) {
                 $user = Auth::user();
                 
+                // Cargar los tenants asociados al usuario
+                $user->load('tenants');
+                
+                Log::info('User tenants loaded:', ['tenants_count' => $user->tenants->count()]);
+                Log::info('Tenants data:', ['tenants' => $user->tenants->toArray()]);
+                
                 // Crear token de Sanctum
                 $token = $user->createToken('auth-token')->plainTextToken;
+                
+                $tenants = $user->tenants->map(function ($tenant) {
+                    return [
+                        'id' => $tenant->id,
+                        'name' => $tenant->name ?? $tenant->id,
+                        'domains' => $tenant->domains->pluck('domain'),
+                    ];
+                });
+                
+                Log::info('Tenants mapped:', ['tenants' => $tenants->toArray()]);
                 
                 return response()->json([
                     'success' => true,
@@ -111,6 +127,7 @@ class AuthController extends Controller
                             'email' => $user->email,
                             'email_verified_at' => $user->email_verified_at,
                         ],
+                        'tenants' => $tenants,
                         'token' => $token
                     ]
                 ]);
@@ -231,20 +248,26 @@ class AuthController extends Controller
     }
 
     /**
-     * Obtener listado de tenants (solo para usuarios autenticados)
+     * Obtener listado de tenants asociados al usuario autenticado
      */
     public function getTenants(Request $request): JsonResponse
     {
         try {
-            // Obtener todos los tenants
-            $tenants = Tenant::all()->map(function ($tenant) {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+            
+            // Obtener los tenants asociados al usuario
+            $tenants = $user->tenants()->get()->map(function ($tenant) {
                 return [
                     'id' => $tenant->id,
                     'name' => $tenant->name ?? $tenant->id,
                     'domains' => $tenant->domains->pluck('domain'),
-                    'database' => $tenant->databaseName(),
-                    'created_at' => $tenant->created_at,
-                    'updated_at' => $tenant->updated_at,
                 ];
             });
 

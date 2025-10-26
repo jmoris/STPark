@@ -1,6 +1,7 @@
 export const environment = {
   production: false,
-  apiUrl: 'http://localhost:8000/parking',
+  apiUrl: 'http://localhost:8000/parking', // Para servicios del tenant
+  authApiUrl: 'http://localhost:8000', // Para autenticación central
   appName: 'STPark',
   appVersion: '1.0.0',
   defaultLanguage: 'es',

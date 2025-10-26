@@ -13,10 +13,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { fuseAnimations } from '@fuse/animations';
 import { FuseAlertComponent, FuseAlertType } from '@fuse/components/alert';
-import { AuthService } from 'app/core/auth/auth.service';
+import { AuthService as AuthServiceCore } from 'app/core/auth/auth.service';
+import { AuthService } from 'app/core/services/auth.service';
 
 @Component({
     selector: 'auth-sign-in',
@@ -24,7 +25,6 @@ import { AuthService } from 'app/core/auth/auth.service';
     encapsulation: ViewEncapsulation.None,
     animations: fuseAnimations,
     imports: [
-        RouterLink,
         FuseAlertComponent,
         FormsModule,
         ReactiveFormsModule,
@@ -51,6 +51,7 @@ export class AuthSignInComponent implements OnInit {
      */
     constructor(
         private _activatedRoute: ActivatedRoute,
+        private _authServiceCore: AuthServiceCore,
         private _authService: AuthService,
         private _formBuilder: UntypedFormBuilder,
         private _router: Router
@@ -66,11 +67,8 @@ export class AuthSignInComponent implements OnInit {
     ngOnInit(): void {
         // Create the form
         this.signInForm = this._formBuilder.group({
-            email: [
-                'hughes.brian@company.com',
-                [Validators.required, Validators.email],
-            ],
-            password: ['admin', Validators.required],
+            email: ['', [Validators.required, Validators.email]],
+            password: ['', Validators.required],
             rememberMe: [''],
         });
     }
@@ -94,9 +92,12 @@ export class AuthSignInComponent implements OnInit {
         // Hide the alert
         this.showAlert = false;
 
-        // Sign in
-        this._authService.signIn(this.signInForm.value).subscribe(
-            () => {
+        // Sign in using the new auth service
+        this._authService.login({
+            email: this.signInForm.get('email').value,
+            password: this.signInForm.get('password').value
+        }).subscribe(
+            (response) => {
                 // Set the redirect url.
                 // The '/signed-in-redirect' is a dummy url to catch the request and redirect the user
                 // to the correct page after a successful sign in. This way, that url can be set via
@@ -109,7 +110,7 @@ export class AuthSignInComponent implements OnInit {
                 // Navigate to the redirect url
                 this._router.navigateByUrl(redirectURL);
             },
-            (response) => {
+            (error) => {
                 // Re-enable the form
                 this.signInForm.enable();
 
@@ -119,7 +120,7 @@ export class AuthSignInComponent implements OnInit {
                 // Set the alert
                 this.alert = {
                     type: 'error',
-                    message: 'Wrong email or password',
+                    message: error.error?.message || 'Wrong email or password',
                 };
 
                 // Show the alert

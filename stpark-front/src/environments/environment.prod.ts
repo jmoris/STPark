@@ -1,6 +1,7 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://api.stpark.com/parking',
+  apiUrl: 'https://api.stpark.cl/parking', // Para servicios del tenant
+  authApiUrl: 'https://api.stpark.cl', // Para autenticación central
   appName: 'STPark',
   appVersion: '1.0.0',
   defaultLanguage: 'es',

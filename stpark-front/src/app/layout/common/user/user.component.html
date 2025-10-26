@@ -1,4 +1,5 @@
 <!-- Button -->
+@if (user) {
 <button mat-icon-button [matMenuTriggerFor]="userActions">
     <span class="relative">
         @if (showAvatar && user.avatar) {
@@ -27,6 +28,16 @@
             <span class="mt-1.5 text-md font-medium">{{ user.email }}</span>
         </span>
     </button>
+    
+    <!-- Selector de tenants -->
+    @if (tenants.length > 0) {
+        <mat-divider class="my-2"></mat-divider>
+        <button mat-menu-item [matMenuTriggerFor]="tenantMenu">
+            <mat-icon [svgIcon]="'heroicons_outline:building-office'"></mat-icon>
+            <span>{{ currentTenant?.name || 'No seleccionado' }}</span>
+        </button>
+    }
+    
     <mat-divider class="my-2"></mat-divider>
     <button mat-menu-item>
         <mat-icon [svgIcon]="'heroicons_outline:user-circle'"></mat-icon>
@@ -51,6 +62,19 @@
     </button>
 </mat-menu>
 
+<!-- Menu de selección de tenants -->
+<mat-menu #tenantMenu="matMenu">
+    @for (tenant of tenants; track tenant.id) {
+        <button mat-menu-item (click)="changeTenant(tenant)">
+            <mat-icon [svgIcon]="'heroicons_outline:check-circle'"></mat-icon>
+            @if (currentTenant?.id === tenant.id) {
+                <mat-icon class="ml-2" [svgIcon]="'heroicons_outline:check'"></mat-icon>
+            }
+            <span class="ml-2">{{ tenant.name }}</span>
+        </button>
+    }
+</mat-menu>
+
 <mat-menu class="user-status-menu" #userStatus="matMenu">
     <button mat-menu-item (click)="updateUserStatus('online')">
         <span class="mr-3 inline-flex h-4 w-4 rounded-full bg-green-500"></span>
@@ -69,3 +93,4 @@
         <span>Invisible</span>
     </button>
 </mat-menu>
+}
