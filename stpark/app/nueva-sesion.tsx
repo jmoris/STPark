@@ -7,18 +7,17 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   Modal,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { STParkLogo } from '@/components/STParkLogo';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { KeyboardAwareScrollView } from '@/components/KeyboardAwareScrollView';
 import { router } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 import { ticketPrinterService, SessionTicketData } from '../services/ticketPrinter';
-import { checkSunmiModule } from '../services/sunmiTest';
 import { PaymentModal } from '@/components/PaymentModal';
 
 export default function NuevaSesionScreen() {
@@ -139,10 +138,6 @@ export default function NuevaSesionScreen() {
       if (response.success) {
         // Intentar imprimir ticket de ingreso
         console.log('Iniciando proceso de impresión de ticket...');
-        
-        // Verificar estado del módulo Sunmi
-        console.log('🔍 Verificando módulo Sunmi...');
-        checkSunmiModule();
         
         try {
           const selectedStreet = streets.find(street => street.id === selectedStreetId);
@@ -496,15 +491,8 @@ export default function NuevaSesionScreen() {
         <IconSymbol size={24} name="arrow.left" color="#ffffff" />
       </TouchableOpacity>
       
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
-      >
-        <ScrollView 
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={true}
-          bounces={true}
-        >
+      <KeyboardAwareScrollView>
+        <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.iconContainer}>
               <STParkLogo size={50} color="#ffffff" showText={false} />
@@ -587,8 +575,8 @@ export default function NuevaSesionScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </View>
+      </KeyboardAwareScrollView>
 
       {/* Modal de Deudas Pendientes */}
       <Modal

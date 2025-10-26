@@ -6,14 +6,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   Modal,
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { STParkLogo } from '@/components/STParkLogo';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { KeyboardAwareScrollView } from '@/components/KeyboardAwareScrollView';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
@@ -37,52 +36,64 @@ export default function LoginScreen() {
   const [autoHideTimer, setAutoHideTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [serviceStatus, setServiceStatus] = useState<'Conectado' | 'Desconectado'>('Desconectado');
   const [networkStatus, setNetworkStatus] = useState<'Conectado' | 'Desconectado'>('Desconectado');
-  const [serviceCheckTimer, setServiceCheckTimer] = useState<ReturnType<typeof setInterval> | null>(null);
   const [showTenantConfigModal, setShowTenantConfigModal] = useState(false);
   const [tenantInput, setTenantInput] = useState('');
   const [tenantConfigLoading, setTenantConfigLoading] = useState(false);
+  const [serviceCheckTimer, setServiceCheckTimer] = useState<ReturnType<typeof setInterval> | null>(null);
   const { login, operator } = useAuth();
   const { tenantConfig, isLoading: tenantLoading } = useTenant();
   const pinInputRef = useRef<TextInput>(null);
+  const tenantConfigRef = useRef({ isValid: tenantConfig.isValid, loading: tenantLoading });
+  const serviceCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Cargar operadores al montar el componente
+  // Mantener refs actualizadas
   useEffect(() => {
-    loadOperators();
-  }, []);
+    tenantConfigRef.current = { isValid: tenantConfig.isValid, loading: tenantLoading };
+  }, [tenantConfig.isValid, tenantLoading]);
 
-  // Mostrar modal de tenant si no está configurado
+  // Gestionar modal de tenant
   useEffect(() => {
     if (!tenantLoading && !tenantConfig.isValid) {
       console.log('No hay tenant configurado, mostrando modal de configuración');
       setShowTenantConfigModal(true);
+      setLoadingOperators(false);
     } else if (!tenantLoading && tenantConfig.isValid) {
       console.log('Tenant configurado correctamente:', tenantConfig.tenant);
       setShowTenantConfigModal(false);
     }
   }, [tenantLoading, tenantConfig.isValid]);
 
-  // Detectar estado de la red y manejar timer de verificación del servicio
+  // Detectar estado de la red
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state: any) => {
       const isConnected = state.isConnected && state.isInternetReachable;
       setNetworkStatus(isConnected ? 'Conectado' : 'Desconectado');
       
       console.log('Estado de red:', isConnected ? 'Conectado' : 'Desconectado');
-      console.log('Tipo de conexión:', state.type);
       
-      if (isConnected) {
-        // Si hay red, iniciar timer de verificación del servicio cada 30s
-        console.log('Iniciando verificación periódica del servicio cada 30s');
-        const timer = setInterval(() => {
-          console.log('Verificación automática del servicio...');
-          loadOperators();
-        }, 30000);
-        setServiceCheckTimer(timer);
+      // Si no hay red, marcar servicio como desconectado
+      if (!isConnected) {
+        setServiceStatus('Desconectado');
+      }
+      
+      // Usar refs para acceder a los valores actuales
+      if (isConnected && !tenantConfigRef.current.loading && tenantConfigRef.current.isValid) {
+        // Iniciar timer de verificación del servicio cada 30s
+        if (!serviceCheckTimerRef.current) {
+          console.log('Iniciando verificación periódica del servicio cada 30s');
+          const timer = setInterval(() => {
+            console.log('Verificación automática del servicio...');
+            loadOperators();
+          }, 30000);
+          serviceCheckTimerRef.current = timer;
+          setServiceCheckTimer(timer);
+        }
       } else {
-        // Si no hay red, parar timer y marcar servicio como ERROR
-        console.log('Sin conexión de red, deteniendo verificación del servicio');
-        if (serviceCheckTimer) {
-          clearInterval(serviceCheckTimer);
+        // Detener timer si no hay red o tenant
+        if (serviceCheckTimerRef.current) {
+          console.log('Deteniendo verificación del servicio');
+          clearInterval(serviceCheckTimerRef.current);
+          serviceCheckTimerRef.current = null;
           setServiceCheckTimer(null);
         }
         setServiceStatus('Desconectado');
@@ -91,20 +102,42 @@ export default function LoginScreen() {
 
     return () => {
       unsubscribe();
-      if (serviceCheckTimer) {
-        clearInterval(serviceCheckTimer);
+      if (serviceCheckTimerRef.current) {
+        clearInterval(serviceCheckTimerRef.current);
       }
     };
-  }, []); // Removido serviceCheckTimer de las dependencias
+  }, []); // Solo se ejecuta al montar
 
-  // Recargar operadores cuando se regresa de configuración
+  // Cargar operadores al montar y cuando cambia el tenant
+  useEffect(() => {
+    if (!tenantLoading && tenantConfig.isValid) {
+      loadOperators();
+    }
+  }, [tenantLoading, tenantConfig.isValid]);
+
+  // Solo verificar estado de red cuando la pantalla recibe foco
   useFocusEffect(
     React.useCallback(() => {
       console.log('=== PANTALLA DE LOGIN ENFOCADA ===');
-      console.log('Timestamp:', new Date().toISOString());
-      console.log('Recargando operadores...');
-      loadOperators();
-    }, [])
+      
+      // Verificar estado de red inmediatamente
+      NetInfo.fetch().then((state: any) => {
+        const isConnected = state.isConnected && state.isInternetReachable;
+        setNetworkStatus(isConnected ? 'Conectado' : 'Desconectado');
+        console.log('Estado de red al enfocar:', isConnected ? 'Conectado' : 'Desconectado');
+        
+        if (!isConnected) {
+          setServiceStatus('Desconectado');
+        } else if (tenantConfig.isValid) {
+          // Si hay red y tenant configurado, hacer una verificación del servicio
+          loadOperators();
+        }
+      });
+      
+      return () => {
+        console.log('=== PANTALLA DE LOGIN PERDIÓ EL FOCO ===');
+      };
+    }, [tenantConfig.isValid])
   );
 
   // Limpiar timers al desmontar el componente
@@ -116,11 +149,11 @@ export default function LoginScreen() {
       if (autoHideTimer) {
         clearTimeout(autoHideTimer);
       }
-      if (serviceCheckTimer) {
-        clearInterval(serviceCheckTimer);
+      if (serviceCheckTimerRef.current) {
+        clearInterval(serviceCheckTimerRef.current);
       }
     };
-  }, [longPressTimer, autoHideTimer, serviceCheckTimer]);
+  }, [longPressTimer, autoHideTimer]);
 
   // Función para manejar la presión larga en la esquina inferior derecha
   const handleLongPressStart = () => {
@@ -198,6 +231,19 @@ export default function LoginScreen() {
   };
 
   const loadOperators = async () => {
+    // Evitar llamadas múltiples simultáneas
+    if (loadingOperators) {
+      console.log('Operadores ya se están cargando, omitiendo llamada duplicada');
+      return;
+    }
+    
+    // No cargar operadores si no hay tenant configurado
+    if (!tenantConfig.isValid) {
+      console.log('No hay tenant configurado, omitiendo carga de operadores');
+      setLoadingOperators(false); // Asegurar que el estado se resetee
+      return;
+    }
+    
     console.log('=== INICIANDO CARGA DE OPERADORES ===');
     console.log('Timestamp:', new Date().toISOString());
     console.log('URL base del servidor:', CONFIG.API_BASE_URL);
@@ -209,27 +255,23 @@ export default function LoginScreen() {
       
       if (response.success && response.data) {
         setOperators(response.data);
-        // Solo actualizar estado del servicio si hay red
-        if (networkStatus === 'Conectado') {
-          setServiceStatus('Conectado');
-        }
+        // Actualizar estado del servicio basado en el resultado
+        setServiceStatus('Conectado');
         console.log('Operadores cargados exitosamente:', response.data.length);
         console.log('Lista de operadores:', response.data);
       } else {
-        // Solo actualizar estado del servicio si hay red
-        if (networkStatus === 'Conectado') {
-          setServiceStatus('Desconectado');
-        }
+        // El servicio no está funcionando correctamente
+        setServiceStatus('Desconectado');
         console.error('Error en respuesta del API:', response);
-        Alert.alert('Error', `No se pudieron cargar los operadores: ${response.message || 'Error desconocido'}`);
+        // Mostrar alerta solo si no es una verificación automática
+        // (La verificación automática ocurre cada 30s, no queremos alertas cada vez)
       }
     } catch (error) {
-      // Solo actualizar estado del servicio si hay red
-      if (networkStatus === 'Conectado') {
-        setServiceStatus('Desconectado');
-      }
+      // El servicio no está disponible
+      setServiceStatus('Desconectado');
       console.error('Error cargando operadores:', error);
-      Alert.alert('Error de Red', 'No se pudo conectar con el servidor. Verifica que el backend esté ejecutándose y la IP sea correcta.');
+      // No mostrar alertas en verificaciones automáticas
+      // Solo mostraremos alertas en cargas manuales o iniciales
     } finally {
       setLoadingOperators(false);
       console.log('=== FINALIZADA CARGA DE OPERADORES ===');
@@ -271,14 +313,11 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
-      >
+      <KeyboardAwareScrollView>
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.iconContainer}>
-              <STParkLogo />
+              <STParkLogo size={60} color="#ffffff" showText={false} />
             </View>
             <Text style={styles.title}>STPark</Text>
             <Text style={styles.subtitle}>Sistema de Gestión de Estacionamientos</Text>
@@ -346,7 +385,7 @@ export default function LoginScreen() {
               Selecciona tu operador y PIN asignado
             </Text>
             <View style={styles.statusRow}>
-              <View style={styles.serviceStatusContainer}>
+              <View style={[styles.serviceStatusContainer, styles.statusItem]}>
                 <IconSymbol 
                   name={serviceStatus === 'Conectado' ? 'checkmark.circle.fill' : 'xmark.circle.fill'} 
                   size={16} 
@@ -363,13 +402,13 @@ export default function LoginScreen() {
                 </Text>
               </View>
               
-              <View style={styles.serviceStatusContainer}>
+              <View style={[styles.serviceStatusContainer, styles.statusItem]}>
                 <IconSymbol 
                   name={networkStatus === 'Conectado' ? 'wifi' : 'wifi.slash'} 
                   size={16} 
                   color={networkStatus === 'Conectado' ? '#28a745' : '#dc3545'} 
                 />
-                <Text style={styles.footerText}>
+            <Text style={styles.footerText}>
                   Red: 
                 </Text>
                 <Text style={[
@@ -377,12 +416,12 @@ export default function LoginScreen() {
                   { color: networkStatus === 'Conectado' ? '#28a745' : '#dc3545' }
                 ]}>
                   {networkStatus}
-                </Text>
+            </Text>
               </View>
             </View>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
 
       {/* Modal selector de operadores */}
       <Modal
@@ -403,7 +442,13 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
             
-            <ScrollView style={styles.modalContent}>
+            <ScrollView 
+              style={styles.modalContent}
+              contentContainerStyle={styles.modalContentContainer}
+              showsVerticalScrollIndicator={true}
+              bounces={true}
+              keyboardShouldPersistTaps="handled"
+            >
               {operators.map((op) => (
                 <TouchableOpacity
                   key={op.id}
@@ -450,33 +495,33 @@ export default function LoginScreen() {
               <Text style={styles.successModalSubtitle}>Sesión iniciada correctamente</Text>
             </View>
             
-            <View style={styles.successModalContent}>
-              <View style={styles.operatorInfoContainer}>
-                <View style={styles.operatorInfoRow}>
-                  <Text style={styles.operatorInfoLabel}>Operador:</Text>
+              <View style={styles.successModalContent}>
+                <View style={styles.operatorInfoContainer}>
+                  <View style={styles.operatorInfoRow}>
+                    <Text style={styles.operatorInfoLabel}>Operador:</Text>
                   <Text style={styles.operatorInfoValue}>{operatorInfo?.name}</Text>
-                </View>
-                <View style={styles.operatorInfoRow}>
-                  <Text style={styles.operatorInfoLabel}>Email:</Text>
+                  </View>
+                  <View style={styles.operatorInfoRow}>
+                    <Text style={styles.operatorInfoLabel}>Email:</Text>
                   <Text style={styles.operatorInfoValue}>{operatorInfo?.email}</Text>
                 </View>
                 <View style={styles.operatorInfoRow}>
                   <Text style={styles.operatorInfoLabel}>Sector Activo:</Text>
-                  <Text style={styles.operatorInfoValue}>
+                    <Text style={styles.operatorInfoValue}>
                     {operatorInfo?.activeSector?.name || 'Sin asignar'}
-                  </Text>
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.successModalButtons}>
+                  <TouchableOpacity
+                    style={[styles.successModalButton, styles.successModalButtonConfirm]}
+                  onPress={handleSuccessConfirm}
+                  >
+                    <Text style={styles.successModalButtonText}>Continuar</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
-              
-              <View style={styles.successModalButtons}>
-                <TouchableOpacity
-                  style={[styles.successModalButton, styles.successModalButtonConfirm]}
-                  onPress={handleSuccessConfirm}
-                >
-                  <Text style={styles.successModalButtonText}>Continuar</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
           </View>
         </View>
       </Modal>
@@ -658,7 +703,6 @@ const styles = StyleSheet.create({
   footer: {
     alignItems: 'center',
     marginTop: 20, // Reducido de 30 a 20 para menos espacio
-    paddingBottom: 100, // Margen inferior para evitar que la barra de navegación oculte el contenido
   },
   footerText: {
     fontSize: 14,
@@ -677,6 +721,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
     paddingHorizontal: 20,
+  },
+  statusItem: {
+    gap: 4,
+    paddingHorizontal: 12,
   },
   // Estilos para modal de login exitoso
   successModalOverlay: {
@@ -763,13 +811,25 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 50,
   },
   modalContainer: {
     backgroundColor: '#ffffff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '70%',
+    borderRadius: 20,
+    maxHeight: '60%',
+    minHeight: '35%',
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -791,16 +851,21 @@ const styles = StyleSheet.create({
   modalContent: {
     paddingHorizontal: 20,
     paddingVertical: 10,
+    flex: 1,
+  },
+  modalContentContainer: {
+    paddingBottom: 20, // Espacio adicional al final para evitar que el contenido quede pegado
   },
   operatorItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
+    paddingVertical: 18,
     paddingHorizontal: 16,
     borderRadius: 12,
-    marginVertical: 4,
+    marginVertical: 6,
     backgroundColor: '#f8f9fa',
+    minHeight: 56, // Altura mínima para mejor usabilidad táctil
   },
   operatorItemSelected: {
     backgroundColor: '#e3f2fd',

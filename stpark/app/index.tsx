@@ -16,6 +16,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { router, Link } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
+import { tenantConfigService } from '../services/tenantConfig';
 import { apiService } from '@/services/api';
 import { PaymentModal } from '@/components/PaymentModal';
 import { useFocusEffect } from '@react-navigation/native';
@@ -75,23 +76,25 @@ export default function HomeScreen() {
     setTenantConfigLoading(true);
 
     try {
-      const success = await setTenant(tenantInput.trim());
-      if (success) {
-        console.log('Tenant configurado exitosamente:', tenantInput.trim());
-        setShowTenantConfigModal(false);
-        setTenantInput('');
-        
-        // Esperar un momento para que el contexto se actualice
-        setTimeout(async () => {
-          // Recargar todos los datos con el nuevo tenant
-          console.log('Recargando datos con el nuevo tenant...');
-          await loadDailyStats();
-          await loadActiveSessions();
-          await loadSelectedPrinter();
-        }, 500);
-      } else {
-        alert('No se pudo configurar el tenant');
-      }
+      // Usar el servicio directamente como en configuración
+      await tenantConfigService.setTenant(tenantInput.trim());
+      console.log('Tenant configurado exitosamente:', tenantInput.trim());
+      
+      // Actualizar el contexto manualmente
+      await refreshTenantConfig();
+      
+      setShowTenantConfigModal(false);
+      setTenantInput('');
+      
+      // Esperar un momento para que el contexto se actualice
+      setTimeout(async () => {
+        // Recargar todos los datos con el nuevo tenant
+        console.log('Recargando datos con el nuevo tenant...');
+        await loadDailyStats();
+        await loadActiveSessions();
+        await loadSelectedPrinter();
+      }, 500);
+      
     } catch (error) {
       console.error('Error configurando tenant:', error);
       alert('Error al configurar el tenant');
@@ -337,7 +340,7 @@ export default function HomeScreen() {
     },
     header: {
       alignItems: 'center',
-      marginBottom: 40,
+      marginBottom: 20,
     },
     title: {
       fontSize: 28,
@@ -356,7 +359,8 @@ export default function HomeScreen() {
       marginBottom: 20,
     },
     menuContainer: {
-      marginBottom: 15, // Reducido de 30 a 15 para menos espacio entre menú y resumen
+      marginBottom: 15,
+      marginTop: 8, // Espacio adicional desde el header
     },
     menuItem: {
       backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -479,7 +483,7 @@ export default function HomeScreen() {
     },
     operatorInfo: {
       alignItems: 'center',
-      marginBottom: 20,
+      marginBottom: 12,
     },
     operatorName: {
       fontSize: 20,

@@ -792,11 +792,6 @@
   dependencies:
     "@types/hammerjs" "^2.0.36"
 
-"@es-webdev/react-native-sunmi-printer@^2.0.10":
-  version "2.0.10"
-  resolved "https://registry.npmjs.org/@es-webdev/react-native-sunmi-printer/-/react-native-sunmi-printer-2.0.10.tgz"
-  integrity sha512-Z6Ll2QsYPavc7xXwUSimmUd3MJNgqGBEPWhwSshjIJOl7T33BvNcJaxyWiO3r09ynz3mO/mY+jM4sGw8UzRyHQ==
-
 "@eslint-community/eslint-utils@^4.7.0", "@eslint-community/eslint-utils@^4.8.0":
   version "4.9.0"
   resolved "https://registry.npmjs.org/@eslint-community/eslint-utils/-/eslint-utils-4.9.0.tgz"

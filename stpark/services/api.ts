@@ -60,6 +60,89 @@ export interface ApiResponse<T> {
 class ApiService {
   private token: string | null = null;
 
+  // Función de diagnóstico de conectividad
+  async diagnoseConnectivity(): Promise<{
+    serverReachable: boolean;
+    sslValid: boolean;
+    endpointWorking: boolean;
+    errorDetails: string[];
+  }> {
+    const errors: string[] = [];
+    let serverReachable = false;
+    let sslValid = false;
+    let endpointWorking = false;
+
+    try {
+      const apiBaseUrl = await getApiBaseUrl();
+      console.log('DIAGNÓSTICO: Iniciando pruebas de conectividad');
+      console.log('DIAGNÓSTICO: URL base:', apiBaseUrl);
+
+      // Test 1: Conectividad básica
+      try {
+        const testUrl = `${apiBaseUrl}/operators/all`;
+        console.log('DIAGNÓSTICO: Probando endpoint:', testUrl);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        const response = await fetch(testUrl, {
+          method: 'GET',
+          headers: await this.getHeaders(),
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        
+        console.log('DIAGNÓSTICO: Status:', response.status);
+        console.log('DIAGNÓSTICO: OK:', response.ok);
+        
+        serverReachable = true;
+        
+        if (response.ok) {
+          endpointWorking = true;
+          console.log('DIAGNÓSTICO: ✅ Endpoint funcionando correctamente');
+        } else {
+          const errorText = await response.text();
+          errors.push(`HTTP ${response.status}: ${errorText}`);
+          console.log('DIAGNÓSTICO: ❌ Error HTTP:', response.status, errorText);
+        }
+        
+      } catch (fetchError) {
+        if (fetchError instanceof Error) {
+          if (fetchError.name === 'AbortError') {
+            errors.push('Timeout: El servidor tardó demasiado en responder');
+          } else if (fetchError.message.includes('Network request failed')) {
+            errors.push('Error de red: No se puede conectar al servidor');
+          } else if (fetchError.message.includes('SSL')) {
+            errors.push('Error SSL: Problema con el certificado');
+            sslValid = false;
+          } else {
+            errors.push(`Error de conexión: ${fetchError.message}`);
+          }
+        }
+        console.log('DIAGNÓSTICO: ❌ Error de fetch:', fetchError);
+      }
+
+    } catch (error) {
+      errors.push(`Error general: ${error}`);
+      console.log('DIAGNÓSTICO: ❌ Error general:', error);
+    }
+
+    console.log('DIAGNÓSTICO: Resultado final:', {
+      serverReachable,
+      sslValid,
+      endpointWorking,
+      errors
+    });
+
+    return {
+      serverReachable,
+      sslValid,
+      endpointWorking,
+      errorDetails: errors
+    };
+  }
+
   // Configurar token de autenticación
   setToken(token: string) {
     this.token = token;
@@ -461,13 +544,27 @@ class ApiService {
       console.log('API: URL completa:', fullUrl);
       console.log('API: Headers:', await this.getHeaders());
       
+      // Agregar timeout para evitar que se cuelgue
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos timeout
+      
       const response = await fetch(fullUrl, {
         method: 'GET',
         headers: await this.getHeaders(),
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
+      
       console.log('API: Status de respuesta:', response.status);
       console.log('API: Status OK:', response.ok);
+      console.log('API: Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API: Error response body:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+      }
       
       const result = await response.json();
       console.log('API: Respuesta de operadores:', result);
@@ -478,9 +575,22 @@ class ApiService {
       console.error('API: Error obteniendo operadores:', error);
       console.error('API: Tipo de error:', typeof error);
       console.error('API: Mensaje de error:', (error as Error).message);
+      
+      // Proporcionar mensajes de error más específicos
+      let errorMessage = 'Error de conexión con el servidor';
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = 'Timeout: El servidor tardó demasiado en responder';
+        } else if (error.message.includes('Network request failed')) {
+          errorMessage = 'Error de red: Verifica tu conexión a internet y la configuración del servidor';
+        } else if (error.message.includes('HTTP error')) {
+          errorMessage = `Error del servidor: ${error.message}`;
+        }
+      }
+      
       return {
         success: false,
-        message: 'Error de conexión con el servidor',
+        message: errorMessage,
       };
     }
   }

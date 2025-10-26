@@ -7,12 +7,12 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   Modal,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { KeyboardAwareScrollView } from '@/components/KeyboardAwareScrollView';
 import { router } from 'expo-router';
 import { apiService } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -559,15 +559,7 @@ export default function CheckoutScreen() {
         <IconSymbol size={24} name="arrow.left" color="#ffffff" />
       </TouchableOpacity>
       
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
-      >
-        <ScrollView 
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={true}
-          bounces={true}
-        >
+      <KeyboardAwareScrollView>
           <View style={styles.header}>
             <View style={styles.iconContainer}>
               <IconSymbol size={50} name="checkmark.circle.fill" color="#ffffff" />
@@ -652,8 +644,7 @@ export default function CheckoutScreen() {
               </TouchableOpacity>
             </View>
           )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
 
       {/* PaymentModal unificado */}
       <PaymentModal

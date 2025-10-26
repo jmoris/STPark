@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ReactNativePosPrinter, ThermalPrinterDevice } from 'react-native-thermal-pos-printer';
-import { sunmiPrinterService, SunmiSessionTicketData, SunmiCheckoutTicketData } from './sunmiPrinter';
 
 export interface TicketData {
   plate: string;
@@ -207,39 +206,21 @@ Monto a pagar: ${this.formatAmount(data.amount)}
     try {
       console.log('Iniciando impresión de ticket de ingreso...');
       
-      // Intentar conectar a impresora Bluetooth primero
+      // Conectar a impresora Bluetooth
       const connected = await this.ensureConnected();
-      if (connected) {
-        console.log('Usando impresora Bluetooth para ticket de ingreso');
-        const ticketText = this.generateIngressTicket(data);
-        console.log('Ticket generado:', ticketText);
-        
-        // Imprimir ticket principal
-        await this.selectedPrinter!.printText(ticketText);
-        console.log('Ticket de ingreso impreso exitosamente con Bluetooth');
-        return true;
+      if (!connected) {
+        console.log('No hay impresora Bluetooth conectada');
+        return false;
       }
 
-      // Si no hay Bluetooth, intentar con Sunmi Printer
-      console.log('No hay impresora Bluetooth conectada, intentando con Sunmi Printer...');
-      if (sunmiPrinterService.isSunmiAvailable()) {
-        console.log('Usando Sunmi Printer como fallback');
-        
-        // Convertir datos a formato Sunmi
-        const sunmiData: SunmiSessionTicketData = {
-          ...data,
-          type: 'INGRESO'
-        };
-        
-        const success = await sunmiPrinterService.printIngressTicket(sunmiData);
-        if (success) {
-          console.log('Ticket de ingreso impreso exitosamente con Sunmi');
-          return true;
-        }
-      }
-
-      console.log('No se pudo imprimir el ticket - ni Bluetooth ni Sunmi disponibles');
-      return false;
+      console.log('Usando impresora Bluetooth para ticket de ingreso');
+      const ticketText = this.generateIngressTicket(data);
+      console.log('Ticket generado:', ticketText);
+      
+      // Imprimir ticket principal
+      await this.selectedPrinter!.printText(ticketText);
+      console.log('Ticket de ingreso impreso exitosamente con Bluetooth');
+      return true;
     } catch (error) {
       console.error('Error imprimiendo ticket de ingreso:', error);
       return false;
@@ -251,46 +232,28 @@ Monto a pagar: ${this.formatAmount(data.amount)}
     try {
       console.log('Iniciando impresión de ticket de checkout...');
       
-      // Intentar conectar a impresora Bluetooth primero
+      // Conectar a impresora Bluetooth
       const connected = await this.ensureConnected();
-      if (connected) {
-        console.log('Usando impresora Bluetooth para ticket de checkout');
-        const ticketText = this.generateCheckoutTicket(data);
-        console.log('Ticket generado:', ticketText);
-        
-        // Imprimir ticket principal
-        await this.selectedPrinter!.printText(ticketText);
-        
-        const noValido = `No valido como documento fiscal
+      if (!connected) {
+        console.log('No hay impresora Bluetooth conectada');
+        return false;
+      }
+
+      console.log('Usando impresora Bluetooth para ticket de checkout');
+      const ticketText = this.generateCheckoutTicket(data);
+      console.log('Ticket generado:', ticketText);
+      
+      // Imprimir ticket principal
+      await this.selectedPrinter!.printText(ticketText);
+      
+      const noValido = `No valido como documento fiscal
       
       
       `;
-        await this.selectedPrinter!.printText(noValido, {align: 'CENTER', size: 8});
-        
-        console.log('Ticket de checkout impreso exitosamente con Bluetooth');
-        return true;
-      }
-
-      // Si no hay Bluetooth, intentar con Sunmi Printer
-      console.log('No hay impresora Bluetooth conectada, intentando con Sunmi Printer...');
-      if (sunmiPrinterService.isSunmiAvailable()) {
-        console.log('Usando Sunmi Printer como fallback');
-        
-        // Convertir datos a formato Sunmi
-        const sunmiData: SunmiCheckoutTicketData = {
-          ...data,
-          type: 'CHECKOUT'
-        };
-        
-        const success = await sunmiPrinterService.printCheckoutTicket(sunmiData);
-        if (success) {
-          console.log('Ticket de checkout impreso exitosamente con Sunmi');
-          return true;
-        }
-      }
-
-      console.log('No se pudo imprimir el ticket - ni Bluetooth ni Sunmi disponibles');
-      return false;
+      await this.selectedPrinter!.printText(noValido, {align: 'CENTER', size: 8});
+      
+      console.log('Ticket de checkout impreso exitosamente con Bluetooth');
+      return true;
     } catch (error) {
       console.error('Error imprimiendo ticket de checkout:', error);
       return false;
@@ -329,15 +292,11 @@ Monto a pagar: ${this.formatAmount(data.amount)}
   // Verificar qué tipos de impresoras están disponibles
   async getAvailablePrinters(): Promise<{
     bluetooth: boolean;
-    sunmi: boolean;
     bluetoothInfo?: {name: string, address: string};
-    sunmiInfo?: any;
   }> {
     const result = {
       bluetooth: false,
-      sunmi: false,
-      bluetoothInfo: undefined as {name: string, address: string} | undefined,
-      sunmiInfo: undefined as any
+      bluetoothInfo: undefined as {name: string, address: string} | undefined
     };
 
     try {
@@ -351,17 +310,6 @@ Monto a pagar: ${this.formatAmount(data.amount)}
         }
       }
 
-      // Verificar Sunmi
-      if (sunmiPrinterService.isSunmiAvailable()) {
-        result.sunmi = true;
-        try {
-          const sunmiInfo = await sunmiPrinterService.getDeviceInfo();
-          result.sunmiInfo = sunmiInfo;
-        } catch (error) {
-          console.log('No se pudo obtener información de Sunmi:', error);
-        }
-      }
-
       return result;
     } catch (error) {
       console.error('Error verificando impresoras disponibles:', error);
@@ -369,16 +317,20 @@ Monto a pagar: ${this.formatAmount(data.amount)}
     }
   }
 
-  // Imprimir ticket de prueba usando el método disponible
+  // Imprimir ticket de prueba usando Bluetooth
   async printTestTicket(): Promise<boolean> {
     try {
       console.log('Iniciando impresión de ticket de prueba...');
       
-      // Intentar con Bluetooth primero
+      // Conectar a impresora Bluetooth
       const connected = await this.ensureConnected();
-      if (connected) {
-        console.log('Usando impresora Bluetooth para ticket de prueba');
-        const testText = `
+      if (!connected) {
+        console.log('No hay impresora Bluetooth conectada');
+        return false;
+      }
+
+      console.log('Usando impresora Bluetooth para ticket de prueba');
+      const testText = `
 ================================
       TICKET DE PRUEBA
 ================================
@@ -393,55 +345,31 @@ Patente: ABCD12
 ================================
 
 `;
-        await this.selectedPrinter!.printText(testText);
-        console.log('Ticket de prueba impreso exitosamente con Bluetooth');
-        return true;
-      }
-
-      // Si no hay Bluetooth, intentar con Sunmi
-      if (sunmiPrinterService.isSunmiAvailable()) {
-        console.log('Usando Sunmi Printer para ticket de prueba');
-        const success = await sunmiPrinterService.printTestTicket();
-        if (success) {
-          console.log('Ticket de prueba impreso exitosamente con Sunmi');
-          return true;
-        }
-      }
-
-      console.log('No se pudo imprimir el ticket de prueba - ninguna impresora disponible');
-      return false;
+      await this.selectedPrinter!.printText(testText);
+      console.log('Ticket de prueba impreso exitosamente con Bluetooth');
+      return true;
     } catch (error) {
       console.error('Error imprimiendo ticket de prueba:', error);
       return false;
     }
   }
 
-  // Imprimir texto personalizado usando el método disponible
+  // Imprimir texto personalizado usando Bluetooth
   async printCustomText(text: string): Promise<boolean> {
     try {
       console.log('Iniciando impresión de texto personalizado...');
       
-      // Intentar con Bluetooth primero
+      // Conectar a impresora Bluetooth
       const connected = await this.ensureConnected();
-      if (connected) {
-        console.log('Usando impresora Bluetooth para texto personalizado');
-        await this.selectedPrinter!.printText(text);
-        console.log('Texto personalizado impreso exitosamente con Bluetooth');
-        return true;
+      if (!connected) {
+        console.log('No hay impresora Bluetooth conectada');
+        return false;
       }
 
-      // Si no hay Bluetooth, intentar con Sunmi
-      if (sunmiPrinterService.isSunmiAvailable()) {
-        console.log('Usando Sunmi Printer para texto personalizado');
-        const success = await sunmiPrinterService.printCustomText(text);
-        if (success) {
-          console.log('Texto personalizado impreso exitosamente con Sunmi');
-          return true;
-        }
-      }
-
-      console.log('No se pudo imprimir el texto - ninguna impresora disponible');
-      return false;
+      console.log('Usando impresora Bluetooth para texto personalizado');
+      await this.selectedPrinter!.printText(text);
+      console.log('Texto personalizado impreso exitosamente con Bluetooth');
+      return true;
     } catch (error) {
       console.error('Error imprimiendo texto personalizado:', error);
       return false;

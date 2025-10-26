@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { KeyboardAwareScrollView } from '@/components/KeyboardAwareScrollView';
 import { router } from 'expo-router';
 import { CONFIG, updateServerUrl } from '@/config/app';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -1318,11 +1319,7 @@ correctamente.
         <IconSymbol size={24} name="arrow.left" color="#ffffff" />
       </TouchableOpacity>
       
-      <ScrollView 
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={true}
-        bounces={true}
-      >
+      <KeyboardAwareScrollView>
         <View style={styles.header}>
           <View style={styles.iconContainer}>
             <IconSymbol size={50} name="gear" color="#ffffff" />
@@ -1453,25 +1450,6 @@ correctamente.
         <View style={styles.configSection}>
           <Text style={styles.sectionTitle}>Aplicación</Text>
           
-          <View style={styles.configItem}>
-            <Text style={styles.configLabel}>Notificaciones</Text>
-            <Switch
-              value={notificacionesActivas}
-              onValueChange={setNotificacionesActivas}
-              trackColor={{ false: '#767577', true: '#043476' }}
-              thumbColor={notificacionesActivas ? '#ffffff' : '#f4f3f4'}
-            />
-          </View>
-
-          <View style={styles.configItem}>
-            <Text style={styles.configLabel}>Modo oscuro</Text>
-            <Switch
-              value={modoOscuro}
-              onValueChange={setModoOscuro}
-              trackColor={{ false: '#767577', true: '#043476' }}
-              thumbColor={modoOscuro ? '#ffffff' : '#f4f3f4'}
-            />
-          </View>
 
           <View style={styles.configItem}>
             <Text style={styles.configLabel}>Tenant</Text>
@@ -1543,10 +1521,10 @@ correctamente.
 
           <View style={[styles.configItem, styles.configItemLast]}>
             <Text style={styles.configLabel}>Desarrollado por</Text>
-            <Text style={styles.configValue}>STPark Team</Text>
+            <Text style={styles.configValue}>SoluciónTotal Chile</Text>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Modal de dispositivos Bluetooth */}
       <Modal

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "stpark",
+    "name": "STPark",
     "slug": "stpark",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -46,9 +46,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#043476",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#043476"
           }
         }
       ]
