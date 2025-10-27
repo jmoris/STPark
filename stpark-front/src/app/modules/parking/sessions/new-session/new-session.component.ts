@@ -99,7 +99,7 @@ export class NewSessionComponent implements OnInit, OnDestroy {
     return this.fb.group({
       plate: ['', [Validators.required, Validators.pattern(/^[A-Z0-9]+$/i)]],
       sector_id: ['', Validators.required],
-      street_id: [''],
+      street_id: [null, Validators.required],
       operator_id: ['', Validators.required]
     });
   }
@@ -111,7 +111,7 @@ export class NewSessionComponent implements OnInit, OnDestroy {
       .subscribe(sectorId => {
         this.loadStreetsBySector(sectorId);
         this.filterOperatorsBySector(sectorId);
-        this.sessionForm.patchValue({ street_id: '', operator_id: '' });
+        this.sessionForm.patchValue({ street_id: null, operator_id: '' });
       });
 
     // Cuando cambia la calle, filtrar operadores
@@ -152,15 +152,33 @@ export class NewSessionComponent implements OnInit, OnDestroy {
   }
 
   loadStreetsBySector(sectorId: number): void {
+    if (!sectorId) {
+      this.streets = [];
+      console.log('No sector selected, clearing streets');
+      return;
+    }
+
+    console.log('Loading streets for sector:', sectorId);
     this.sectorService.getSectorStreets(sectorId)
       .pipe(takeUntil(this._unsubscribeAll))
       .subscribe({
         next: (response) => {
-          this.streets = (response.data as any)?.data || [];
+          // El backend retorna el array directamente en data (sin paginación)
+          this.streets = response.data || [];
+          console.log('Streets loaded for sector', sectorId, ':', this.streets.length, 'streets');
+          
+          // Seleccionar automáticamente la primera calle
+          if (this.streets.length > 0) {
+            this.sessionForm.patchValue({ street_id: this.streets[0].id });
+            console.log('Auto-selected first street:', this.streets[0].id);
+          } else {
+            this.sessionForm.patchValue({ street_id: null });
+          }
         },
         error: (error) => {
           console.error('Error loading streets:', error);
           this.streets = [];
+          this.sessionForm.patchValue({ street_id: null });
         }
       });
   }
@@ -274,10 +292,14 @@ export class NewSessionComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.error = null;
 
+    // Obtener el valor de street_id y convertirlo a null si está vacío o undefined
+    const streetIdValue = this.sessionForm.value.street_id;
+    const streetId = (streetIdValue && streetIdValue !== '') ? streetIdValue : null;
+
     const request: CreateSessionRequest = {
       plate: plate,
       sector_id: this.sessionForm.value.sector_id,
-      street_id: this.sessionForm.value.street_id || undefined,
+      street_id: streetId,
       operator_id: this.sessionForm.value.operator_id
     };
 

@@ -48,17 +48,20 @@
             </mat-error>
           </mat-form-field>
 
-          <!-- Street Selection (Optional) -->
-          <mat-form-field appearance="outline" class="w-full mb-4" *ngIf="hasStreets()">
-            <mat-label>Calle (Opcional)</mat-label>
-            <mat-select formControlName="street_id">
-              <mat-option value="">Sin calle específica</mat-option>
+          <!-- Street Selection (Required) -->
+          <mat-form-field appearance="outline" class="w-full mb-4" [class.mat-form-field-disabled]="!hasStreets()">
+            <mat-label>Calle *</mat-label>
+            <mat-select formControlName="street_id" [disabled]="!sessionForm.value.sector_id">
               <mat-option *ngFor="let street of streets" [value]="street.id">
                 {{ street.name }}
               </mat-option>
             </mat-select>
             <mat-icon matPrefix>place</mat-icon>
-            <mat-hint>Selecciona una calle específica si es necesario</mat-hint>
+            <mat-error *ngIf="isFieldInvalid('street_id')">
+              {{ getFieldError('street_id') }}
+            </mat-error>
+            <mat-hint *ngIf="!sessionForm.value.sector_id">Selecciona primero un sector</mat-hint>
+            <mat-hint *ngIf="sessionForm.value.sector_id && !hasStreets()">Este sector no tiene calles registradas</mat-hint>
           </mat-form-field>
 
           <!-- Operator Selection -->

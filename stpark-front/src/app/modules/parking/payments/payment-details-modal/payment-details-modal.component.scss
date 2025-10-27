@@ -177,7 +177,7 @@
   }
 }
 
-// Estilos para el footer del modal
+// Estilos para el modal y su contenedor
 :host ::ng-deep {
   .p-dialog-footer {
     padding: 1rem 1.5rem;
@@ -185,3 +185,19 @@
     background-color: #f9fafb;
   }
 }
+
+// Estilos específicos para centrar este modal
+:host {
+  ::ng-deep {
+    .p-dialog-mask {
+      .p-dialog {
+        margin: 1.75rem auto !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        position: fixed !important;
+      }
+    }
+  }
+}
+

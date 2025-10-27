@@ -70,7 +70,7 @@ class ParkingSessionController extends Controller
         $validator = Validator::make($request->all(), [
             'plate' => 'required|string|max:10',
             'sector_id' => 'required|exists:sectors,id',
-            'street_id' => 'nullable|exists:streets,id',
+            'street_id' => 'required|exists:streets,id',
             'operator_id' => 'required|exists:operators,id',
         ]);
 
@@ -337,7 +337,7 @@ class ParkingSessionController extends Controller
         $validator = Validator::make($request->all(), [
             'plate' => 'required|string|max:10',
             'sector_id' => 'required|exists:sectors,id',
-            'street_id' => 'nullable|exists:streets,id',
+            'street_id' => 'required|exists:streets,id',
             'operator_id' => 'required|exists:operators,id',
         ]);
 

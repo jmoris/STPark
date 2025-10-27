@@ -24,7 +24,7 @@
 <mat-menu [xPosition]="'before'" #userActions="matMenu">
     <button mat-menu-item>
         <span class="flex flex-col leading-none">
-            <span>Signed in as</span>
+            <span>Conectado como</span>
             <span class="mt-1.5 text-md font-medium">{{ user.email }}</span>
         </span>
     </button>
@@ -39,26 +39,11 @@
     }
     
     <mat-divider class="my-2"></mat-divider>
-    <button mat-menu-item>
-        <ng-icon [name]="'heroicons_outline:user-circle' | iconName" class="icon-size-7"></ng-icon>
-        <span>Profile</span>
-    </button>
-    <button mat-menu-item>
-        <ng-icon [name]="'heroicons_outline:cog-8-tooth' | iconName" class="icon-size-7"></ng-icon>
-        <span>Settings</span>
-    </button>
-    <button mat-menu-item [matMenuTriggerFor]="userStatus">
-        <ng-icon
-            [name]="'heroicons_outline:ellipsis-horizontal-circle' | iconName" class="icon-size-7"
-        ></ng-icon>
-        <span>Status</span>
-    </button>
-    <mat-divider class="my-2"></mat-divider>
     <button mat-menu-item (click)="signOut()">
         <ng-icon
             [name]="'heroicons_outline:arrow-right-on-rectangle' | iconName" class="icon-size-7"
         ></ng-icon>
-        <span>Sign out</span>
+        <span>Cerrar Sesión</span>
     </button>
 </mat-menu>
 
@@ -73,24 +58,5 @@
             <span class="ml-2">{{ tenant.name }}</span>
         </button>
     }
-</mat-menu>
-
-<mat-menu class="user-status-menu" #userStatus="matMenu">
-    <button mat-menu-item (click)="updateUserStatus('online')">
-        <span class="mr-3 inline-flex h-4 w-4 rounded-full bg-green-500"></span>
-        <span>Online</span>
-    </button>
-    <button mat-menu-item (click)="updateUserStatus('away')">
-        <span class="mr-3 inline-flex h-4 w-4 rounded-full bg-amber-500"></span>
-        <span>Away</span>
-    </button>
-    <button mat-menu-item (click)="updateUserStatus('busy')">
-        <span class="mr-3 inline-flex h-4 w-4 rounded-full bg-red-500"></span>
-        <span>Busy</span>
-    </button>
-    <button mat-menu-item (click)="updateUserStatus('not-visible')">
-        <span class="mr-3 inline-flex h-4 w-4 rounded-full bg-gray-400"></span>
-        <span>Invisible</span>
-    </button>
 </mat-menu>
 }

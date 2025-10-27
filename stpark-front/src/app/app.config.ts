@@ -3,8 +3,7 @@ import {
     ApplicationConfig,
     provideAppInitializer,
 } from '@angular/core';
-import { LuxonDateAdapter } from '@angular/material-luxon-adapter';
-import { DateAdapter, MAT_DATE_FORMATS } from '@angular/material/core';
+import { MAT_DATE_FORMATS, MAT_DATE_LOCALE, provideNativeDateAdapter } from '@angular/material/core';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideRouter, withInMemoryScrolling } from '@angular/router';
 import { provideFuse } from '@fuse';
@@ -31,21 +30,22 @@ export const appConfig: ApplicationConfig = {
         ),      
 
         // Material Date Adapter
+        provideNativeDateAdapter(),
         {
-            provide: DateAdapter,
-            useClass: LuxonDateAdapter,
+            provide: MAT_DATE_LOCALE,
+            useValue: 'es-ES',
         },
         {
             provide: MAT_DATE_FORMATS,
             useValue: {
                 parse: {
-                    dateInput: 'dd/MM/yyyy',
+                    dateInput: 'DD/MM/YYYY',
                 },
                 display: {
-                    dateInput: 'dd/MM/yyyy',
-                    monthYearLabel: 'LLL yyyy',
-                    dateA11yLabel: 'dd/MM/yyyy',
-                    monthYearA11yLabel: 'LLLL yyyy',
+                    dateInput: 'DD/MM/YYYY',
+                    monthYearLabel: 'MMM YYYY',
+                    dateA11yLabel: 'DD/MM/YYYY',
+                    monthYearA11yLabel: 'MMMM YYYY',
                 },
             },
         },

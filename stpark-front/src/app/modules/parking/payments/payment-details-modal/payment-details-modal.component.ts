@@ -114,6 +114,17 @@ export class PaymentDetailsModalComponent implements OnChanges {
     }
   }
 
+  getSaleStatusText(status: string): string {
+    switch (status) {
+      case 'PENDING': return 'Pendiente';
+      case 'PAID': return 'Pagada';
+      case 'PARTIAL': return 'Parcial';
+      case 'CANCELED': return 'Cancelada';
+      case 'REFUNDED': return 'Reembolsada';
+      default: return status;
+    }
+  }
+
   printReceipt(): void {
     if (!this.payment) return;
     

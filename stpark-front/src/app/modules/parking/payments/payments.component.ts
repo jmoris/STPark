@@ -125,6 +125,14 @@ export class PaymentsComponent implements OnInit, OnDestroy {
     }
   }
 
+  getMethodText(method: string): string {
+    return this.paymentService.getPaymentMethodLabel(method);
+  }
+
+  getStatusText(status: string): string {
+    return this.paymentService.getPaymentStatusLabel(status);
+  }
+
   // Manejo de paginación
   onPageChange(event: PageEvent): void {
     this.currentPage = event.pageIndex;

@@ -1,4 +1,4 @@
-<div class="p-6">
+<div class="p-6 w-full">
   <!-- Header -->
   <div class="flex items-center justify-between mb-6">
     <div>
@@ -8,9 +8,14 @@
   </div>
 
   <!-- Report Cards -->
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
     <!-- Sales Report -->
-    <mat-card class="hover:shadow-lg transition-shadow cursor-pointer" (click)="generateReport('sales')">
+    <mat-card class="relative hover:shadow-lg transition-all" 
+              [class.cursor-pointer]="selectedReportType === 'sales'"
+              [class.opacity-50]="selectedReportType !== 'sales'">
+      <!-- Overlay gris cuando no está activo -->
+      <div *ngIf="selectedReportType !== 'sales'" 
+           class="absolute inset-0 bg-gray-300 bg-opacity-30 z-10 rounded-lg"></div>
       <mat-card-content class="p-6">
         <div class="flex items-center mb-4">
           <div class="p-3 bg-green-100 rounded-full">
@@ -23,28 +28,7 @@
         </div>
         <div class="flex justify-between items-center">
           <span class="text-2xl font-bold text-green-600">{{ getTotalSales() }}</span>
-          <button mat-icon-button (click)="exportReport('sales')">
-            <mat-icon>download</mat-icon>
-          </button>
-        </div>
-      </mat-card-content>
-    </mat-card>
-
-    <!-- Payments Report -->
-    <mat-card class="hover:shadow-lg transition-shadow cursor-pointer" (click)="generateReport('payments')">
-      <mat-card-content class="p-6">
-        <div class="flex items-center mb-4">
-          <div class="p-3 bg-blue-100 rounded-full">
-            <mat-icon class="text-blue-600">payment</mat-icon>
-          </div>
-          <div class="ml-4">
-            <h3 class="text-lg font-semibold text-gray-900">Reporte de Pagos</h3>
-            <p class="text-sm text-gray-600">Análisis de métodos de pago</p>
-          </div>
-        </div>
-        <div class="flex justify-between items-center">
-          <span class="text-2xl font-bold text-blue-600">{{ getTotalPayments() }}</span>
-          <button mat-icon-button (click)="exportReport('payments')">
+          <button mat-icon-button (click)="exportReport('sales'); $event.stopPropagation()">
             <mat-icon>download</mat-icon>
           </button>
         </div>
@@ -52,7 +36,12 @@
     </mat-card>
 
     <!-- Debts Report -->
-    <mat-card class="hover:shadow-lg transition-shadow cursor-pointer" (click)="generateReport('debts')">
+    <mat-card class="relative hover:shadow-lg transition-all" 
+              [class.cursor-pointer]="selectedReportType === 'debts'"
+              [class.opacity-50]="selectedReportType !== 'debts'">
+      <!-- Overlay gris cuando no está activo -->
+      <div *ngIf="selectedReportType !== 'debts'" 
+           class="absolute inset-0 bg-gray-300 bg-opacity-30 z-10 rounded-lg"></div>
       <mat-card-content class="p-6">
         <div class="flex items-center mb-4">
           <div class="p-3 bg-red-100 rounded-full">
@@ -64,8 +53,8 @@
           </div>
         </div>
         <div class="flex justify-between items-center">
-          <span class="text-2xl font-bold text-red-600">{{ getTotalDebts() }}</span>
-          <button mat-icon-button (click)="exportReport('debts')">
+          <span class="text-2xl font-bold text-red-600">{{ getTotalDebtsAmount() }}</span>
+          <button mat-icon-button (click)="exportReport('debts'); $event.stopPropagation()">
             <mat-icon>download</mat-icon>
           </button>
         </div>
@@ -73,7 +62,12 @@
     </mat-card>
 
     <!-- Operator Report -->
-    <mat-card class="hover:shadow-lg transition-shadow cursor-pointer" (click)="generateReport('operator')">
+    <mat-card class="relative hover:shadow-lg transition-all" 
+              [class.cursor-pointer]="selectedReportType === 'operator'"
+              [class.opacity-50]="selectedReportType !== 'operator'">
+      <!-- Overlay gris cuando no está activo -->
+      <div *ngIf="selectedReportType !== 'operator'" 
+           class="absolute inset-0 bg-gray-300 bg-opacity-30 z-10 rounded-lg"></div>
       <mat-card-content class="p-6">
         <div class="flex items-center mb-4">
           <div class="p-3 bg-purple-100 rounded-full">
@@ -85,8 +79,8 @@
           </div>
         </div>
         <div class="flex justify-between items-center">
-          <span class="text-2xl font-bold text-purple-600">0</span>
-          <button mat-icon-button>
+          <span class="text-2xl font-bold text-purple-600">{{ getOperatorCount() }}</span>
+          <button mat-icon-button (click)="exportReport('operator'); $event.stopPropagation()">
             <mat-icon>download</mat-icon>
           </button>
         </div>
@@ -94,7 +88,12 @@
     </mat-card>
 
     <!-- Sessions Report -->
-    <mat-card class="hover:shadow-lg transition-shadow cursor-pointer" (click)="generateReport('sessions')">
+    <mat-card class="relative hover:shadow-lg transition-all" 
+              [class.cursor-pointer]="selectedReportType === 'sessions'"
+              [class.opacity-50]="selectedReportType !== 'sessions'">
+      <!-- Overlay gris cuando no está activo -->
+      <div *ngIf="selectedReportType !== 'sessions'" 
+           class="absolute inset-0 bg-gray-300 bg-opacity-30 z-10 rounded-lg"></div>
       <mat-card-content class="p-6">
         <div class="flex items-center mb-4">
           <div class="p-3 bg-orange-100 rounded-full">
@@ -102,33 +101,12 @@
           </div>
           <div class="ml-4">
             <h3 class="text-lg font-semibold text-gray-900">Reporte de Sesiones</h3>
-            <p class="text-sm text-gray-600">Análisis de uso por sector</p>
+            <p class="text-sm text-gray-600">Todas las sesiones del período</p>
           </div>
         </div>
         <div class="flex justify-between items-center">
-          <span class="text-2xl font-bold text-orange-600">0</span>
-          <button mat-icon-button>
-            <mat-icon>download</mat-icon>
-          </button>
-        </div>
-      </mat-card-content>
-    </mat-card>
-
-    <!-- Dashboard Report -->
-    <mat-card class="hover:shadow-lg transition-shadow cursor-pointer" (click)="generateReport('dashboard')">
-      <mat-card-content class="p-6">
-        <div class="flex items-center mb-4">
-          <div class="p-3 bg-gray-100 rounded-full">
-            <mat-icon class="text-gray-600">dashboard</mat-icon>
-          </div>
-          <div class="ml-4">
-            <h3 class="text-lg font-semibold text-gray-900">Dashboard Completo</h3>
-            <p class="text-sm text-gray-600">Resumen general del sistema</p>
-          </div>
-        </div>
-        <div class="flex justify-between items-center">
-          <span class="text-2xl font-bold text-gray-600">📊</span>
-          <button mat-icon-button>
+          <span class="text-2xl font-bold text-orange-600">{{ getSessionsCount() }}</span>
+          <button mat-icon-button (click)="exportReport('sessions'); $event.stopPropagation()">
             <mat-icon>download</mat-icon>
           </button>
         </div>
@@ -143,49 +121,150 @@
       <mat-card-subtitle>Configura los parámetros para generar reportes personalizados</mat-card-subtitle>
     </mat-card-header>
     <mat-card-content class="p-6">
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <mat-form-field appearance="outline">
+          <mat-label>Tipo de Reporte</mat-label>
+          <mat-select [(ngModel)]="selectedReportType">
+            <mat-option value="sales">Reporte de Ventas</mat-option>
+            <mat-option value="debts">Reporte de Deudas</mat-option>
+            <mat-option value="operator">Reporte por Operador</mat-option>
+            <mat-option value="sessions">Reporte de Sesiones</mat-option>
+          </mat-select>
+        </mat-form-field>
+
         <mat-form-field appearance="outline">
           <mat-label>Fecha desde</mat-label>
-          <input matInput [matDatepicker]="picker1">
+          <input matInput 
+                 [matDatepicker]="picker1" 
+                 [(ngModel)]="filters.date_from"
+                 type="text"
+                 placeholder="dd/mm/yyyy">
           <mat-datepicker-toggle matSuffix [for]="picker1"></mat-datepicker-toggle>
           <mat-datepicker #picker1></mat-datepicker>
         </mat-form-field>
 
         <mat-form-field appearance="outline">
           <mat-label>Fecha hasta</mat-label>
-          <input matInput [matDatepicker]="picker2">
+          <input matInput 
+                 [matDatepicker]="picker2" 
+                 [(ngModel)]="filters.date_to"
+                 type="text"
+                 placeholder="dd/mm/yyyy">
           <mat-datepicker-toggle matSuffix [for]="picker2"></mat-datepicker-toggle>
           <mat-datepicker #picker2></mat-datepicker>
         </mat-form-field>
 
         <mat-form-field appearance="outline">
           <mat-label>Sector</mat-label>
-          <mat-select>
-            <mat-option value="">Todos los sectores</mat-option>
-            <mat-option value="1">Sector 1</mat-option>
-            <mat-option value="2">Sector 2</mat-option>
+          <mat-select [(ngModel)]="filters.sector_id">
+            <mat-option [value]="undefined">Todos los sectores</mat-option>
+            <mat-option *ngFor="let sector of sectors" [value]="sector.id">{{ sector.name }}</mat-option>
           </mat-select>
         </mat-form-field>
 
         <mat-form-field appearance="outline">
           <mat-label>Operador</mat-label>
-          <mat-select>
-            <mat-option value="">Todos los operadores</mat-option>
-            <mat-option value="1">Operador 1</mat-option>
-            <mat-option value="2">Operador 2</mat-option>
+          <mat-select [(ngModel)]="filters.operator_id">
+            <mat-option [value]="undefined">Todos los operadores</mat-option>
+            <mat-option *ngFor="let operator of operators" [value]="operator.id">{{ operator.name }}</mat-option>
           </mat-select>
         </mat-form-field>
       </div>
 
       <div class="flex justify-end gap-4 mt-6">
-        <button mat-stroked-button>
+        <button mat-stroked-button (click)="clearFilters()">
           <mat-icon>refresh</mat-icon>
-          Actualizar
+          Limpiar
         </button>
-        <button mat-raised-button color="primary">
-          <mat-icon>file_download</mat-icon>
-          Exportar Todos
+        <button mat-raised-button color="primary" (click)="generateReportFromFilters()">
+          <mat-icon>search</mat-icon>
+          Generar Reporte
         </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Results Table -->
+  <mat-card *ngIf="currentReport && currentReportType" class="mt-6">
+    <mat-card-header>
+      <mat-card-title>
+        <span *ngIf="currentReportType === 'sales'">Resultados - Reporte de Ventas</span>
+        <span *ngIf="currentReportType === 'debts'">Resultados - Reporte de Deudas</span>
+        <span *ngIf="currentReportType === 'sessions'">Resultados - Reporte de Sesiones</span>
+        <span *ngIf="currentReportType === 'operator'">Resultados - Reporte por Operador</span>
+      </mat-card-title>
+      <mat-card-subtitle>
+        Período: {{ filters.date_from | date:'dd/MM/yyyy' }} - {{ filters.date_to | date:'dd/MM/yyyy' }}
+      </mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content class="p-6">
+      <!-- Summary Stats -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-blue-50 p-4 rounded-lg">
+          <p class="text-sm text-gray-600">Total Registros</p>
+          <p class="text-2xl font-bold text-blue-600">
+            {{ currentReport.total_sales || currentReport.total_sessions || currentReport.total_debts || 0 }}
+          </p>
+        </div>
+        <div class="bg-green-50 p-4 rounded-lg">
+          <p class="text-sm text-gray-600">Monto Total</p>
+          <p class="text-2xl font-bold text-green-600">
+            {{ reportService.formatAmount(currentReport.total_amount || 0) }}
+          </p>
+        </div>
+        <div class="bg-purple-50 p-4 rounded-lg">
+          <p class="text-sm text-gray-600">Período</p>
+          <p class="text-lg font-semibold text-purple-600">
+            {{ currentReport.period?.from }} - {{ currentReport.period?.to }}
+          </p>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="overflow-x-auto" *ngIf="currentReportType === 'sales' || currentReportType === 'sessions'">
+        <table mat-table [dataSource]="currentReport.sessions || []" class="w-full">
+          <ng-container matColumnDef="plate">
+            <th mat-header-cell *matHeaderCellDef>Placa</th>
+            <td mat-cell *matCellDef="let session">{{ session.plate }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="started_at">
+            <th mat-header-cell *matHeaderCellDef>Fecha Inicio</th>
+            <td mat-cell *matCellDef="let session">{{ session.started_at | date:'dd/MM/yyyy HH:mm' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="ended_at">
+            <th mat-header-cell *matHeaderCellDef>Fecha Fin</th>
+            <td mat-cell *matCellDef="let session">{{ session.ended_at | date:'dd/MM/yyyy HH:mm' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="sector">
+            <th mat-header-cell *matHeaderCellDef>Sector</th>
+            <td mat-cell *matCellDef="let session">{{ session.sector }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="operator">
+            <th mat-header-cell *matHeaderCellDef>Operador</th>
+            <td mat-cell *matCellDef="let session">{{ session.operator }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="duration">
+            <th mat-header-cell *matHeaderCellDef>Duración</th>
+            <td mat-cell *matCellDef="let session">{{ session.duration_formatted || 'N/A' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="amount">
+            <th mat-header-cell *matHeaderCellDef>Monto</th>
+            <td mat-cell *matCellDef="let session">{{ reportService.formatAmount(session.amount || 0) }}</td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="['plate', 'started_at', 'ended_at', 'sector', 'operator', 'duration', 'amount']"></tr>
+          <tr mat-row *matRowDef="let row; columns: ['plate', 'started_at', 'ended_at', 'sector', 'operator', 'duration', 'amount'];"></tr>
+        </table>
+
+        <div *ngIf="!currentReport.sessions || currentReport.sessions.length === 0" class="text-center py-8">
+          <p class="text-gray-500">No hay datos para mostrar</p>
+        </div>
       </div>
     </mat-card-content>
   </mat-card>

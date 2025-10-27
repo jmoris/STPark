@@ -13,7 +13,6 @@ import { FuseMediaWatcherService } from '@fuse/services/media-watcher';
 import { NavigationService } from 'app/core/navigation/navigation.service';
 import { Navigation } from 'app/core/navigation/navigation.types';
 import { MessagesComponent } from 'app/layout/common/messages/messages.component';
-import { NotificationsComponent } from 'app/layout/common/notifications/notifications.component';
 import { QuickChatComponent } from 'app/layout/common/quick-chat/quick-chat.component';
 import { SearchComponent } from 'app/layout/common/search/search.component';
 import { ShortcutsComponent } from 'app/layout/common/shortcuts/shortcuts.component';
@@ -33,7 +32,6 @@ import { Subject, takeUntil } from 'rxjs';
         SearchComponent,
         ShortcutsComponent,
         MessagesComponent,
-        NotificationsComponent,
         UserComponent,
         RouterOutlet,
         QuickChatComponent,

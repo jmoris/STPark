@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ReactNativePosPrinter, ThermalPrinterDevice } from 'react-native-thermal-pos-printer';
+import { systemConfigService } from './systemConfig';
 
 export interface TicketData {
   plate: string;
@@ -137,6 +138,16 @@ class TicketPrinterService {
     return `$${amount.toLocaleString('es-CL')}`;
   }
 
+  // Obtener nombre del sistema
+  private async getSystemName(): Promise<string> {
+    try {
+      return await systemConfigService.getSystemName();
+    } catch (error) {
+      console.error('Error obteniendo nombre del sistema:', error);
+      return 'STPark - Sistema de Gestión de Estacionamientos';
+    }
+  }
+
   // Determinar qué información de ubicación mostrar
   private getLocationInfo(data: TicketData): string {
     if (data.sectorIsPrivate && data.streetAddress) {
@@ -153,16 +164,18 @@ class TicketPrinterService {
   }
 
   // Generar ticket de ingreso
-  private generateIngressTicket(data: SessionTicketData): string {
+  private async generateIngressTicket(data: SessionTicketData): Promise<string> {
     const startTime = this.formatDateTime(data.startTime);
     const locationInfo = this.getLocationInfo(data);
+    
+    // Obtener nombre del sistema
+    const systemName = await this.getSystemName();
     
     return `
 ================================
       TICKET DE INGRESO
 ================================
-            STPark
-  Sistema de Estacionamiento
+        ${systemName}
 
 Patente: ${data.plate}
 ${locationInfo}
@@ -176,17 +189,19 @@ Hora Ingreso: ${startTime}
   }
 
   // Generar ticket de checkout
-  private generateCheckoutTicket(data: CheckoutTicketData): string {
+  private async generateCheckoutTicket(data: CheckoutTicketData): Promise<string> {
     const startTime = this.formatDateTime(data.startTime);
     const endTime = this.formatDateTime(data.endTime);
     const locationInfo = this.getLocationInfo(data);
+    
+    // Obtener nombre del sistema
+    const systemName = await this.getSystemName();
     
     return `
 ================================
       TICKET DE SALIDA
 ================================
-            STPark
-  Sistema de Estacionamiento
+        ${systemName}
 
 Patente: ${data.plate}
 ${locationInfo}
@@ -214,7 +229,7 @@ Monto a pagar: ${this.formatAmount(data.amount)}
       }
 
       console.log('Usando impresora Bluetooth para ticket de ingreso');
-      const ticketText = this.generateIngressTicket(data);
+      const ticketText = await this.generateIngressTicket(data);
       console.log('Ticket generado:', ticketText);
       
       // Imprimir ticket principal
@@ -240,7 +255,7 @@ Monto a pagar: ${this.formatAmount(data.amount)}
       }
 
       console.log('Usando impresora Bluetooth para ticket de checkout');
-      const ticketText = this.generateCheckoutTicket(data);
+      const ticketText = await this.generateCheckoutTicket(data);
       console.log('Ticket generado:', ticketText);
       
       // Imprimir ticket principal

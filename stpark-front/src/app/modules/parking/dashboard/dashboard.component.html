@@ -43,7 +43,7 @@
   <!-- Dashboard Content -->
   <div *ngIf="dashboardData && !loading">
     <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-8">
       <!-- Total Revenue -->
       <fuse-card class="p-6">
         <div class="flex items-center">
@@ -92,19 +92,6 @@
           <div class="ml-4">
             <p class="text-sm font-medium text-gray-600">Sesiones Activas</p>
             <p class="text-2xl font-bold text-gray-900">{{ stats.activeSessions }}</p>
-          </div>
-        </div>
-      </fuse-card>
-
-      <!-- Today Payments -->
-      <fuse-card class="p-6">
-        <div class="flex items-center">
-          <div class="p-3 bg-indigo-100 rounded-lg">
-            <mat-icon class="text-indigo-600">payment</mat-icon>
-          </div>
-          <div class="ml-4">
-            <p class="text-sm font-medium text-gray-600">Pagos Hoy</p>
-            <p class="text-2xl font-bold text-gray-900">{{ formatAmount(stats.todayPayments) }}</p>
           </div>
         </div>
       </fuse-card>

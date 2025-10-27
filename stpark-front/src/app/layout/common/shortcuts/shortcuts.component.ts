@@ -1,6 +1,6 @@
 import { Overlay, OverlayRef } from '@angular/cdk/overlay';
 import { TemplatePortal } from '@angular/cdk/portal';
-import { NgClass, NgTemplateOutlet } from '@angular/common';
+import { NgTemplateOutlet } from '@angular/common';
 import {
     ChangeDetectionStrategy,
     ChangeDetectorRef,
@@ -12,17 +12,7 @@ import {
     ViewContainerRef,
     ViewEncapsulation,
 } from '@angular/core';
-import {
-    FormsModule,
-    ReactiveFormsModule,
-    UntypedFormBuilder,
-    UntypedFormGroup,
-    Validators,
-} from '@angular/forms';
 import { MatButton, MatButtonModule } from '@angular/material/button';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import { NgIconsModule } from '@ng-icons/core';
@@ -40,14 +30,8 @@ import { Subject, takeUntil } from 'rxjs';
     imports: [
         MatButtonModule,
         MatTooltipModule,
-        NgClass,
         NgTemplateOutlet,
         RouterLink,
-        FormsModule,
-        ReactiveFormsModule,
-        MatFormFieldModule,
-        MatInputModule,
-        MatSlideToggleModule,
         NgIconsModule,
         IconNamePipe,
     ],
@@ -56,8 +40,6 @@ export class ShortcutsComponent implements OnInit, OnDestroy {
     @ViewChild('shortcutsOrigin') private _shortcutsOrigin: MatButton;
     @ViewChild('shortcutsPanel') private _shortcutsPanel: TemplateRef<any>;
 
-    mode: 'view' | 'modify' | 'add' | 'edit' = 'view';
-    shortcutForm: UntypedFormGroup;
     shortcuts: Shortcut[];
     private _overlayRef: OverlayRef;
     private _unsubscribeAll: Subject<any> = new Subject<any>();
@@ -67,7 +49,6 @@ export class ShortcutsComponent implements OnInit, OnDestroy {
      */
     constructor(
         private _changeDetectorRef: ChangeDetectorRef,
-        private _formBuilder: UntypedFormBuilder,
         private _shortcutsService: ShortcutsService,
         private _overlay: Overlay,
         private _viewContainerRef: ViewContainerRef
@@ -81,16 +62,6 @@ export class ShortcutsComponent implements OnInit, OnDestroy {
      * On init
      */
     ngOnInit(): void {
-        // Initialize the form
-        this.shortcutForm = this._formBuilder.group({
-            id: [null],
-            label: ['', Validators.required],
-            description: [''],
-            icon: ['', Validators.required],
-            link: ['', Validators.required],
-            useRouter: ['', Validators.required],
-        });
-
         // Get the shortcuts
         this._shortcutsService.shortcuts$
             .pipe(takeUntil(this._unsubscribeAll))
@@ -130,9 +101,6 @@ export class ShortcutsComponent implements OnInit, OnDestroy {
             return;
         }
 
-        // Make sure to start in 'view' mode
-        this.mode = 'view';
-
         // Create the overlay if it doesn't exist
         if (!this._overlayRef) {
             this._createOverlay();
@@ -149,70 +117,6 @@ export class ShortcutsComponent implements OnInit, OnDestroy {
      */
     closePanel(): void {
         this._overlayRef.detach();
-    }
-
-    /**
-     * Change the mode
-     */
-    changeMode(mode: 'view' | 'modify' | 'add' | 'edit'): void {
-        // Change the mode
-        this.mode = mode;
-    }
-
-    /**
-     * Prepare for a new shortcut
-     */
-    newShortcut(): void {
-        // Reset the form
-        this.shortcutForm.reset();
-
-        // Enter the add mode
-        this.mode = 'add';
-    }
-
-    /**
-     * Edit a shortcut
-     */
-    editShortcut(shortcut: Shortcut): void {
-        // Reset the form with the shortcut
-        this.shortcutForm.reset(shortcut);
-
-        // Enter the edit mode
-        this.mode = 'edit';
-    }
-
-    /**
-     * Save shortcut
-     */
-    save(): void {
-        // Get the data from the form
-        const shortcut = this.shortcutForm.value;
-
-        // If there is an id, update it...
-        if (shortcut.id) {
-            this._shortcutsService.update(shortcut.id, shortcut).subscribe();
-        }
-        // Otherwise, create a new shortcut...
-        else {
-            this._shortcutsService.create(shortcut).subscribe();
-        }
-
-        // Go back the modify mode
-        this.mode = 'modify';
-    }
-
-    /**
-     * Delete shortcut
-     */
-    delete(): void {
-        // Get the data from the form
-        const shortcut = this.shortcutForm.value;
-
-        // Delete
-        this._shortcutsService.delete(shortcut.id).subscribe();
-
-        // Go back the modify mode
-        this.mode = 'modify';
     }
 
     /**

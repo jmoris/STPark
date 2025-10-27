@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\ParkingSession;
-use App\Models\Sale;
 use App\Models\Payment;
 use App\Models\Debt;
 use App\Models\Operator;
@@ -22,7 +21,16 @@ class ReportController extends Controller
      */
     public function salesReport(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        // Limpiar valores undefined
+        $data = $request->all();
+        if (isset($data['sector_id']) && $data['sector_id'] === 'undefined') {
+            unset($data['sector_id']);
+        }
+        if (isset($data['operator_id']) && $data['operator_id'] === 'undefined') {
+            unset($data['operator_id']);
+        }
+
+        $validator = Validator::make($data, [
             'date_from' => 'required|date',
             'date_to' => 'required|date|after_or_equal:date_from',
             'sector_id' => 'nullable|exists:sectors,id',
@@ -33,51 +41,108 @@ class ReportController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $query = Sale::with(['parkingSession.sector', 'cashierOperator', 'payments'])
-                    ->whereBetween('created_at', [$request->date_from, $request->date_to]);
+        // Usar ParkingSession completadas en lugar de Sale
+        $query = ParkingSession::with(['sector', 'operator', 'payments'])
+                    ->where('status', 'COMPLETED')
+                    ->whereBetween('started_at', [$request->date_from, $request->date_to]);
 
         if ($request->filled('sector_id')) {
-            $query->whereHas('parkingSession', function($q) use ($request) {
-                $q->where('sector_id', $request->sector_id);
-            });
+            $query->where('sector_id', $request->sector_id);
         }
 
         if ($request->filled('operator_id')) {
-            $query->where('cashier_operator_id', $request->operator_id);
+            $query->where('operator_in_id', $request->operator_id);
         }
 
-        $sales = $query->orderBy('created_at', 'desc')->get();
+        $sessions = $query->orderBy('started_at', 'desc')->get();
+
+        // Calcular totales manualmente
+        $totalAmount = 0;
+        foreach ($sessions as $session) {
+            foreach ($session->payments as $payment) {
+                if ($payment->status === 'COMPLETED') {
+                    $totalAmount += (float) $payment->amount;
+                }
+            }
+        }
 
         $summary = [
             'period' => [
                 'from' => $request->date_from,
                 'to' => $request->date_to,
             ],
-            'total_sales' => $sales->count(),
-            'total_amount' => $sales->sum('total'),
-            'total_tax' => $sales->sum('tax'),
-            'total_net' => $sales->sum('net'),
-            'by_sector' => $sales->groupBy('parkingSession.sector.name')->map(function($group) {
+            'total_sales' => $sessions->count(),
+            'total_amount' => $totalAmount,
+            'by_sector' => $sessions->groupBy('sector.name')->map(function($group) {
+                $groupTotal = 0;
+                foreach ($group as $session) {
+                    foreach ($session->payments as $payment) {
+                        if ($payment->status === 'COMPLETED') {
+                            $groupTotal += (float) $payment->amount;
+                        }
+                    }
+                }
                 return [
                     'count' => $group->count(),
-                    'total' => $group->sum('total'),
+                    'total' => $groupTotal,
                 ];
             }),
-            'by_operator' => $sales->groupBy('cashierOperator.name')->map(function($group) {
+            'by_operator' => $sessions->groupBy('operator.name')->map(function($group) {
+                $groupTotal = 0;
+                foreach ($group as $session) {
+                    foreach ($session->payments as $payment) {
+                        if ($payment->status === 'COMPLETED') {
+                            $groupTotal += (float) $payment->amount;
+                        }
+                    }
+                }
                 return [
                     'count' => $group->count(),
-                    'total' => $group->sum('total'),
+                    'total' => $groupTotal,
                 ];
             }),
-            'daily_breakdown' => $sales->groupBy(function($sale) {
-                return $sale->created_at->format('Y-m-d');
+            'daily_breakdown' => $sessions->groupBy(function($session) {
+                return $session->started_at->format('Y-m-d');
             })->map(function($group) {
+                $groupTotal = 0;
+                foreach ($group as $session) {
+                    foreach ($session->payments as $payment) {
+                        if ($payment->status === 'COMPLETED') {
+                            $groupTotal += (float) $payment->amount;
+                        }
+                    }
+                }
                 return [
                     'count' => $group->count(),
-                    'total' => $group->sum('total'),
+                    'total' => $groupTotal,
                 ];
             }),
-            'sales' => $sales,
+            'sessions' => $sessions->map(function($session) {
+                $sessionTotal = 0;
+                foreach ($session->payments as $payment) {
+                    if ($payment->status === 'COMPLETED') {
+                        $sessionTotal += (float) $payment->amount;
+                    }
+                }
+                return [
+                    'id' => $session->id,
+                    'plate' => $session->plate,
+                    'sector' => $session->sector->name ?? null,
+                    'operator' => $session->operator->name ?? null,
+                    'started_at' => $session->started_at,
+                    'ended_at' => $session->ended_at,
+                    'duration_minutes' => $session->getDurationInMinutes(),
+                    'duration_formatted' => $session->getFormattedDuration(),
+                    'amount' => $sessionTotal,
+                    'payments' => $session->payments->map(function($payment) {
+                        return [
+                            'method' => $payment->method,
+                            'amount' => $payment->amount,
+                            'status' => $payment->status,
+                        ];
+                    }),
+                ];
+            }),
         ];
 
         return response()->json([
@@ -91,7 +156,13 @@ class ReportController extends Controller
      */
     public function paymentsReport(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        // Limpiar valores undefined
+        $data = $request->all();
+        if (isset($data['operator_id']) && $data['operator_id'] === 'undefined') {
+            unset($data['operator_id']);
+        }
+
+        $validator = Validator::make($data, [
             'date_from' => 'required|date',
             'date_to' => 'required|date|after_or_equal:date_from',
             'method' => 'nullable|in:CASH,CARD,WEBPAY,TRANSFER',
@@ -102,7 +173,7 @@ class ReportController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $query = Payment::with(['sale', 'parkingSession.sector'])
+        $query = Payment::with(['parkingSession.sector', 'parkingSession.operator'])
                        ->whereBetween('created_at', [$request->date_from, $request->date_to]);
 
         if ($request->filled('method')) {
@@ -110,8 +181,8 @@ class ReportController extends Controller
         }
 
         if ($request->filled('operator_id')) {
-            $query->whereHas('sale', function($q) use ($request) {
-                $q->where('cashier_operator_id', $request->operator_id);
+            $query->whereHas('parkingSession', function($q) use ($request) {
+                $q->where('operator_in_id', $request->operator_id);
             });
         }
 
@@ -158,38 +229,52 @@ class ReportController extends Controller
      */
     public function debtsReport(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'status' => 'nullable|in:PENDING,SETTLED,CANCELLED',
-            'origin' => 'nullable|in:SESSION,FINE,MANUAL',
-            'date_from' => 'nullable|date',
-            'date_to' => 'nullable|date|after_or_equal:date_from',
+        // Limpiar valores undefined
+        $data = $request->all();
+        if (isset($data['sector_id']) && $data['sector_id'] === 'undefined') {
+            unset($data['sector_id']);
+        }
+        if (isset($data['operator_id']) && $data['operator_id'] === 'undefined') {
+            unset($data['operator_id']);
+        }
+
+        $validator = Validator::make($data, [
+            'date_from' => 'required|date',
+            'date_to' => 'required|date|after_or_equal:date_from',
+            'sector_id' => 'nullable|exists:sectors,id',
+            'operator_id' => 'nullable|exists:operators,id',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $query = Debt::with(['parkingSession.sector', 'payments']);
+        $query = Debt::with(['parkingSession.sector', 'parkingSession.operator', 'payments']);
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+        if ($request->filled('sector_id')) {
+            $query->whereHas('parkingSession', function($q) use ($request) {
+                $q->where('sector_id', $request->sector_id);
+            });
         }
 
-        if ($request->filled('origin')) {
-            $query->where('origin', $request->origin);
+        if ($request->filled('operator_id')) {
+            $query->whereHas('parkingSession', function($q) use ($request) {
+                $q->where('operator_in_id', $request->operator_id);
+            });
         }
 
-        if ($request->filled('date_from')) {
-            $query->whereDate('created_at', '>=', $request->date_from);
-        }
-
-        if ($request->filled('date_to')) {
-            $query->whereDate('created_at', '<=', $request->date_to);
+        // Filtrar por fecha con whereBetween
+        if ($request->filled('date_from') && $request->filled('date_to')) {
+            $query->whereBetween('created_at', [$request->date_from, $request->date_to]);
         }
 
         $debts = $query->orderBy('created_at', 'desc')->get();
 
         $summary = [
+            'period' => [
+                'from' => $request->date_from,
+                'to' => $request->date_to,
+            ],
             'total_debts' => $debts->count(),
             'total_amount' => $debts->sum('principal_amount'),
             'by_status' => $debts->groupBy('status')->map(function($group) {
@@ -224,7 +309,10 @@ class ReportController extends Controller
      */
     public function operatorReport(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        // Limpiar valores undefined
+        $data = $request->all();
+        
+        $validator = Validator::make($data, [
             'operator_id' => 'required|exists:operators,id',
             'date_from' => 'required|date',
             'date_to' => 'required|date|after_or_equal:date_from',
@@ -242,17 +330,25 @@ class ReportController extends Controller
                                  ->with(['sector', 'street'])
                                  ->get();
 
-        // Ventas como cajero
-        $sales = Sale::where('cashier_operator_id', $request->operator_id)
-                    ->whereBetween('created_at', [$request->date_from, $request->date_to])
-                    ->with(['parkingSession'])
-                    ->get();
+        // Obtener sesiones con pagos para calcular ventas
+        $sessionsForSales = ParkingSession::where('operator_in_id', $request->operator_id)
+                                 ->whereBetween('started_at', [$request->date_from, $request->date_to])
+                                 ->where('status', 'COMPLETED')
+                                 ->with(['sector', 'payments'])
+                                 ->get();
+        
+        // Calcular total de ventas
+        $salesTotal = 0;
+        foreach ($sessionsForSales as $session) {
+            foreach ($session->payments as $payment) {
+                if ($payment->status === 'COMPLETED') {
+                    $salesTotal += (float) $payment->amount;
+                }
+            }
+        }
 
-        // Pagos procesados
-        $payments = Payment::whereHas('sale', function($q) use ($request) {
-                           $q->where('cashier_operator_id', $request->operator_id);
-                       })
-                       ->whereBetween('created_at', [$request->date_from, $request->date_to])
+        // Pagos del periodo
+        $payments = Payment::whereBetween('created_at', [$request->date_from, $request->date_to])
                        ->get();
 
         $summary = [
@@ -271,14 +367,9 @@ class ReportController extends Controller
                 }),
             ],
             'sales' => [
-                'total' => $sales->count(),
-                'total_amount' => $sales->sum('total'),
-                'by_doc_type' => $sales->groupBy('doc_type')->map(function($group) {
-                    return [
-                        'count' => $group->count(),
-                        'total' => $group->sum('total'),
-                    ];
-                }),
+                'total' => $sessionsForSales->count(),
+                'total_amount' => $salesTotal,
+                'by_doc_type' => ['NORMAL' => ['count' => $sessionsForSales->count(), 'total' => $salesTotal]],
             ],
             'payments' => [
                 'total' => $payments->count(),
@@ -299,6 +390,88 @@ class ReportController extends Controller
     }
 
     /**
+     * Reporte de sesiones - Todas las sesiones del período
+     */
+    public function sessionsReport(Request $request): JsonResponse
+    {
+        // Limpiar valores undefined
+        $data = $request->all();
+        if (isset($data['sector_id']) && $data['sector_id'] === 'undefined') {
+            unset($data['sector_id']);
+        }
+        if (isset($data['operator_id']) && $data['operator_id'] === 'undefined') {
+            unset($data['operator_id']);
+        }
+
+        $validator = Validator::make($data, [
+            'date_from' => 'required|date',
+            'date_to' => 'required|date|after_or_equal:date_from',
+            'sector_id' => 'nullable|exists:sectors,id',
+            'operator_id' => 'nullable|exists:operators,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Traer todas las sesiones independiente del estado
+        $query = ParkingSession::with(['sector', 'operator', 'payments'])
+                    ->whereBetween('started_at', [$request->date_from, $request->date_to]);
+
+        if ($request->filled('sector_id')) {
+            $query->where('sector_id', $request->sector_id);
+        }
+
+        if ($request->filled('operator_id')) {
+            $query->where('operator_in_id', $request->operator_id);
+        }
+
+        $sessions = $query->orderBy('started_at', 'desc')->get();
+
+        $summary = [
+            'period' => [
+                'from' => $request->date_from,
+                'to' => $request->date_to,
+            ],
+            'total_sessions' => $sessions->count(),
+            'by_status' => $sessions->groupBy('status')->map(function($group) {
+                return $group->count();
+            }),
+            'by_sector' => $sessions->groupBy('sector.name')->map(function($group) {
+                return $group->count();
+            }),
+            'by_operator' => $sessions->groupBy('operator.name')->map(function($group) {
+                return $group->count();
+            }),
+            'sessions' => $sessions->map(function($session) {
+                $sessionTotal = 0;
+                foreach ($session->payments as $payment) {
+                    if ($payment->status === 'COMPLETED') {
+                        $sessionTotal += (float) $payment->amount;
+                    }
+                }
+                return [
+                    'id' => $session->id,
+                    'plate' => $session->plate,
+                    'sector' => $session->sector->name ?? null,
+                    'operator' => $session->operator->name ?? null,
+                    'started_at' => $session->started_at,
+                    'ended_at' => $session->ended_at,
+                    'status' => $session->status,
+                    'duration_minutes' => $session->getDurationInMinutes(),
+                    'duration_formatted' => $session->getFormattedDuration(),
+                    'amount' => $sessionTotal,
+                ];
+            }),
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data' => $summary
+        ]);
+    }
+
+    /**
      * Dashboard con resumen general
      */
     public function dashboard(Request $request): JsonResponse
@@ -310,8 +483,34 @@ class ReportController extends Controller
                                       ->with(['sector', 'street'])
                                       ->get();
 
-        // Ventas del día
-        $todaySales = Sale::whereDate('created_at', $date)->get();
+        // Sesiones completadas del día con sus pagos
+        $todaySessions = ParkingSession::whereDate('started_at', $date)
+                                      ->where('status', 'COMPLETED')
+                                      ->with(['sector', 'payments'])
+                                      ->get();
+
+        // Calcular total de ventas del día (suma de payments completados)
+        $todaySalesTotal = 0;
+        $todaySalesBySector = [];
+        
+        foreach ($todaySessions as $session) {
+            $sessionTotal = 0;
+            foreach ($session->payments as $payment) {
+                if ($payment->status === 'COMPLETED') {
+                    $sessionTotal += (float) $payment->amount;
+                    $todaySalesTotal += (float) $payment->amount;
+                }
+            }
+            
+            if ($sessionTotal > 0 && $session->sector) {
+                $sectorName = $session->sector->name;
+                if (!isset($todaySalesBySector[$sectorName])) {
+                    $todaySalesBySector[$sectorName] = ['count' => 0, 'total' => 0];
+                }
+                $todaySalesBySector[$sectorName]['count']++;
+                $todaySalesBySector[$sectorName]['total'] += $sessionTotal;
+            }
+        }
 
         // Pagos del día
         $todayPayments = Payment::whereDate('created_at', $date)->get();
@@ -348,14 +547,9 @@ class ReportController extends Controller
             ],
             'sessions_by_hour' => $hourlyData,
             'today_sales' => [
-                'count' => $todaySales->count(),
-                'total_amount' => $todaySales->sum('total'),
-                'by_sector' => $todaySales->groupBy('parkingSession.sector.name')->map(function($group) {
-                    return [
-                        'count' => $group->count(),
-                        'total' => $group->sum('total'),
-                    ];
-                }),
+                'count' => $todaySessions->count(),
+                'total_amount' => $todaySalesTotal,
+                'by_sector' => $todaySalesBySector,
             ],
             'today_payments' => [
                 'count' => $todayPayments->count(),

@@ -52,6 +52,13 @@ export class ReportService {
   }
 
   /**
+   * Obtener reporte de sesiones
+   */
+  getSessionsReport(filters: any = {}): Observable<ApiResponse<any>> {
+    return this.http.get<ApiResponse<any>>(`${this.baseUrl}/sessions`, { params: filters });
+  }
+
+  /**
    * Formatear cantidad de dinero
    */
   formatAmount(amount: number): string {
@@ -75,7 +82,7 @@ export class ReportService {
   }
 
   /**
-   * Exportar datos a CSV
+   * Exportar datos a CSV con formato mejorado
    */
   exportToCSV(data: any[], filename: string): void {
     if (!data || data.length === 0) {
@@ -83,20 +90,49 @@ export class ReportService {
       return;
     }
 
-    const headers = Object.keys(data[0]);
+    // Convertir datos complejos a formato CSV
+    const headers = ['ID', 'Placa', 'Sector', 'Operador', 'Fecha Inicio', 'Fecha Fin', 'Duración', 'Monto Total', 'Método de Pago'];
+    const rows = data.map((item: any) => {
+      const paymentMethod = item.payments && item.payments.length > 0 
+        ? item.payments.map((p: any) => `${p.method}: $${p.amount}`).join(', ')
+        : 'Sin pago';
+      
+      return [
+        item.id || '',
+        item.plate || '',
+        item.sector || 'N/A',
+        item.operator || 'N/A',
+        item.started_at ? new Date(item.started_at).toLocaleString('es-CL') : '',
+        item.ended_at ? new Date(item.ended_at).toLocaleString('es-CL') : '',
+        item.duration_formatted || `${item.duration_minutes}m`,
+        `$${this.formatNumber(item.amount || 0)}`,
+        paymentMethod
+      ];
+    });
+
     const csvContent = [
       headers.join(','),
-      ...data.map(row => headers.map(header => `"${row[header] || ''}"`).join(','))
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `${filename}.csv`);
+    link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+
+  /**
+   * Formatear número sin decimales
+   */
+  formatNumber(num: number): string {
+    return new Intl.NumberFormat('es-CL', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(num);
   }
 }

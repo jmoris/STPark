@@ -1,9 +1,10 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { tap, switchMap } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { environment } from 'environments/environment';
+import { ConfigService } from './config.service';
 
 export interface Tenant {
   id: string;
@@ -52,7 +53,8 @@ export class AuthService {
 
   constructor(
     private http: HttpClient,
-    private router: Router
+    private router: Router,
+    private configService: ConfigService
   ) {
     // Verificar si hay token guardado al inicializar
     this.loadStoredAuth();
@@ -72,9 +74,26 @@ export class AuthService {
               response.data.tenants
             );
             console.log('Auth set successfully. Current tenant:', this.getCurrentTenant());
+            
+            // Cargar configuración del sistema después de iniciar sesión
+            this.loadSystemConfig();
           }
         })
       );
+  }
+
+  /**
+   * Load system configuration
+   */
+  private loadSystemConfig(): void {
+    this.configService.loadConfig().subscribe({
+      next: (config) => {
+        console.log('Configuración del sistema cargada exitosamente:', config);
+      },
+      error: (error) => {
+        console.error('Error al cargar configuración del sistema:', error);
+      }
+    });
   }
 
   logout(): void {

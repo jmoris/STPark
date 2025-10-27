@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiService, Operator } from '../services/api';
 import { tenantConfigService } from '../services/tenantConfig';
+import { systemConfigService } from '../services/systemConfig';
 
 interface AuthContextType {
   operator: Operator | null;
@@ -83,6 +84,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await apiService.login(operatorId, pin);
       if (response.success && response.data) {
         console.log('AuthContext: Login exitoso, operador:', response.data.operator.name);
+        
+        // Cargar configuración del sistema después del login exitoso
+        console.log('AuthContext: Cargando configuración del sistema...');
+        try {
+          await systemConfigService.loadFromServer();
+          console.log('AuthContext: Configuración del sistema cargada exitosamente');
+        } catch (error) {
+          console.error('AuthContext: Error cargando configuración del sistema:', error);
+        }
         
         // Cargar datos adicionales del operador
         const operatorWithData = await loadOperatorAdditionalData(response.data.operator);

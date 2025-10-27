@@ -2,7 +2,7 @@
     header="DETALLES DEL PAGO" 
     [(visible)]="visible" 
     [modal]="true" 
-    [style]="{width: '45rem'}"
+    [style]="{width: '45rem', margin: 'auto'}"
     [breakpoints]="{'1199px': '70vw', '575px': '90vw'}"
     [draggable]="false" 
     [resizable]="false"
@@ -126,7 +126,7 @@
                 <div class="detail-item">
                     <label>Estado:</label>
                     <span class="status" [ngClass]="'status-' + payment.sale.status.toLowerCase()">
-                        {{ payment.sale.status }}
+                        {{ getSaleStatusText(payment.sale.status) }}
                     </span>
                 </div>
             </div>

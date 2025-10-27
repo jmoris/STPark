@@ -108,8 +108,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     totalSessions: 0,
     averageTicket: 0,
     pendingDebts: 0,
-    activeSessions: 0,
-    todayPayments: 0
+    activeSessions: 0
   };
 
   constructor(
@@ -166,8 +165,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         ? this.dashboardData.today_sales.total_amount / this.dashboardData.today_sales.count 
         : 0,
       pendingDebts: this.dashboardData.pending_debts.total_amount,
-      activeSessions: this.dashboardData.active_sessions.count,
-      todayPayments: this.dashboardData.today_payments.total_amount
+      activeSessions: this.dashboardData.active_sessions.count
     };
   }
 
@@ -316,8 +314,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       { Métrica: 'Sesiones Total', Valor: this.stats.totalSessions },
       { Métrica: 'Ticket Promedio', Valor: this.stats.averageTicket },
       { Métrica: 'Deudas Pendientes', Valor: this.stats.pendingDebts },
-      { Métrica: 'Sesiones Activas', Valor: this.stats.activeSessions },
-      { Métrica: 'Pagos Hoy', Valor: this.stats.todayPayments }
+      { Métrica: 'Sesiones Activas', Valor: this.stats.activeSessions }
     ];
 
     this.reportService.exportToCSV(data, `dashboard-${this.selectedDate.toISOString().split('T')[0]}`);

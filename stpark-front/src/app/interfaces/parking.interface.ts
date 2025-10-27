@@ -255,7 +255,7 @@ export interface PricingProfileFilters {
 export interface CreateSessionRequest {
   plate: string;
   sector_id: number;
-  street_id?: number;
+  street_id: number;
   operator_id: number;
 }
 

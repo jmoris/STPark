@@ -23,7 +23,7 @@ class ParkingSessionService
     /**
      * Crear nueva sesión de estacionamiento
      */
-    public function createSession(string $plate, int $sectorId, ?int $streetId, int $operatorId): ParkingSession
+    public function createSession(string $plate, int $sectorId, int $streetId, int $operatorId): ParkingSession
     {
         // Verificar si ya existe una sesión activa para esta placa en el mismo sector
         $activeSession = ParkingSession::where('plate', $plate)
@@ -51,7 +51,7 @@ class ParkingSessionService
     /**
      * Crear sesión con verificación de deudas
      */
-    public function createSessionWithDebtCheck(string $plate, int $sectorId, ?int $streetId, int $operatorId): array
+    public function createSessionWithDebtCheck(string $plate, int $sectorId, int $streetId, int $operatorId): array
     {
         // Verificar deudas pendientes
         $pendingDebts = Debt::where('plate', strtoupper($plate))

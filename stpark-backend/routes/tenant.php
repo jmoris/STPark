@@ -14,6 +14,7 @@ use App\Http\Controllers\PricingProfileController;
 use App\Http\Controllers\PricingRuleController;
 use App\Http\Controllers\StreetController;
 use App\Http\Controllers\StatsController;
+use App\Http\Controllers\SettingsController;
 use Stancl\Tenancy\Middleware\InitializeTenancyByRequestData;
 
 /*
@@ -111,8 +112,9 @@ Route::middleware([
     // Rutas de reportes
     Route::prefix('reports')->group(function () {
         Route::get('/sales', [ReportController::class, 'salesReport']); // Reporte de ventas
-        Route::get('/payments', [ReportController::class, 'paymentsReport']); // Reporte de pagos
+        Route::get("/payments", [ReportController::class, "paymentsReport"]); // Reporte de pagos
         Route::get('/debts', [ReportController::class, 'debtsReport']); // Reporte de deudas
+        Route::get('/sessions', [ReportController::class, 'sessionsReport']); // Reporte de sesiones
         Route::get('/operator', [ReportController::class, 'operatorReport']); // Reporte por operador
         Route::get('/dashboard', [ReportController::class, 'dashboard']); // Dashboard general
     });
@@ -142,6 +144,14 @@ Route::middleware([
     Route::prefix('stats')->group(function () {
         Route::get('/daily', [StatsController::class, 'getDailyStats']); // Estadísticas del día
         Route::get('/date-range', [StatsController::class, 'getStatsByDateRange']); // Estadísticas por rango de fechas
+    });
+
+    // Rutas de configuración
+    Route::prefix('settings')->group(function () {
+        Route::get('/general', [SettingsController::class, 'getGeneral']); // Obtener configuración general
+        Route::post('/general', [SettingsController::class, 'saveGeneral']); // Guardar configuración general
+        Route::get('/default-pricing', [SettingsController::class, 'getDefaultPricing']); // Obtener configuración de precios por defecto
+        Route::post('/default-pricing', [SettingsController::class, 'saveDefaultPricing']); // Guardar configuración de precios por defecto
     });
 
 });

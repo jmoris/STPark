@@ -594,6 +594,38 @@ class ApiService {
       };
     }
   }
+
+  // Obtener configuración general del sistema
+  async getSystemConfig(): Promise<ApiResponse<{
+    name: string;
+    currency: string;
+    timezone: string;
+    language: string;
+  }>> {
+    try {
+      const response = await makeRequest('/settings/general', {
+        method: 'GET',
+        headers: await this.getHeaders(),
+      });
+
+      const result = await response.json();
+      console.log('API: Configuración del sistema obtenida:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('API: Error obteniendo configuración del sistema:', error);
+      return {
+        success: false,
+        message: 'Error al obtener configuración del sistema',
+        data: {
+          name: 'STPark - Sistema de Gestión de Estacionamientos',
+          currency: 'CLP',
+          timezone: 'America/Santiago',
+          language: 'es'
+        }
+      };
+    }
+  }
 }
 
 export const apiService = new ApiService();

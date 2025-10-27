@@ -7,6 +7,7 @@
 import { 
     heroBars3,
     heroBell,
+    heroBookOpen,
     heroBookmark,
     heroBuildingOffice,
     heroBuildingStorefront,
@@ -74,7 +75,8 @@ import {
     heroTruckSolid,
     heroUserCircleSolid,
     heroXCircleSolid,
-    heroXMarkSolid
+    heroXMarkSolid,
+    heroBookmarkSolid
 } from '@ng-icons/heroicons/solid';
 
 // Mini icons
@@ -87,6 +89,7 @@ export const heroiconsConfig = {
     // Outline icons
     heroBars3,
     heroBell,
+    heroBookOpen,
     heroBookmark,
     heroBuildingOffice,
     heroBuildingStorefront,
@@ -153,6 +156,7 @@ export const heroiconsConfig = {
     heroUserCircleSolid,
     heroXCircleSolid,
     heroXMarkSolid,
+    heroBookmarkSolid,
     
     // Mini icons
     heroArrowLongRightMini,

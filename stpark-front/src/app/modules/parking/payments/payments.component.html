@@ -1,14 +1,8 @@
-<div class="p-6">
+<div class="p-6 w-full">
   <!-- Header -->
-  <div class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold text-gray-900">Pagos</h1>
-      <p class="text-gray-600">Gestiona los pagos del sistema de estacionamientos</p>
-    </div>
-    <button mat-raised-button color="primary" class="rounded-sm">
-      <mat-icon>add</mat-icon>
-      Nuevo Pago
-    </button>
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900">Pagos</h1>
+    <p class="text-gray-600">Gestiona los pagos del sistema de estacionamientos</p>
   </div>
 
   <!-- Filters -->
@@ -90,7 +84,7 @@
             <td mat-cell *matCellDef="let payment">
               <div class="flex items-center gap-2">
                 <mat-icon [class]="'text-' + getMethodIcon(payment.method)">{{ getMethodIcon(payment.method) }}</mat-icon>
-                <span>{{ payment.method }}</span>
+                <span>{{ getMethodText(payment.method) }}</span>
               </div>
             </td>
           </ng-container>
@@ -101,7 +95,7 @@
             <td mat-cell *matCellDef="let payment">
               <span class="px-2 py-1 rounded-full text-xs font-medium"
                     [class]="'bg-' + getStatusColor(payment.status) + '-100 text-' + getStatusColor(payment.status) + '-800'">
-                {{ payment.status }}
+                {{ getStatusText(payment.status) }}
               </span>
             </td>
           </ng-container>
