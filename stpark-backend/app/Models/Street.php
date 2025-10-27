@@ -27,6 +27,10 @@ class Street extends Model
         'is_active' => 'boolean',
     ];
 
+    protected $appends = [
+        'full_address',
+    ];
+
     /**
      * Relación con el sector
      */
