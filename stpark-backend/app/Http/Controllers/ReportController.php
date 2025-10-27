@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ReportController extends Controller
 {
@@ -337,19 +338,90 @@ class ReportController extends Controller
                                  ->with(['sector', 'payments'])
                                  ->get();
         
-        // Calcular total de ventas
-        $salesTotal = 0;
+        // Calcular totales de ventas
+        $totalAmount = 0;
+        $cashAmount = 0;
+        $cardAmount = 0;
+        
         foreach ($sessionsForSales as $session) {
             foreach ($session->payments as $payment) {
                 if ($payment->status === 'COMPLETED') {
-                    $salesTotal += (float) $payment->amount;
+                    $totalAmount += (float) $payment->amount;
+                    
+                    if ($payment->method === 'CASH') {
+                        $cashAmount += (float) $payment->amount;
+                    } else {
+                        $cardAmount += (float) $payment->amount;
+                    }
                 }
             }
         }
 
-        // Pagos del periodo
-        $payments = Payment::whereBetween('created_at', [$request->date_from, $request->date_to])
-                       ->get();
+        // Obtener deudas liquidadas del operador
+        $settledDebtsQuery = Debt::with(['parkingSession.sector', 'parkingSession.operator', 'payments'])
+                                 ->whereHas('parkingSession', function($q) use ($request) {
+                                     $q->where('operator_in_id', $request->operator_id);
+                                 })
+                                 ->where('status', 'SETTLED');
+
+        if ($request->filled('date_from') && $request->filled('date_to')) {
+            $settledDebtsQuery->whereBetween('updated_at', [$request->date_from, $request->date_to]);
+        }
+
+        $settledDebts = $settledDebtsQuery->orderBy('updated_at', 'desc')->get();
+
+        $debtsDetail = [];
+        foreach ($settledDebts as $debt) {
+            $debtsDetail[] = [
+                'id' => $debt->id,
+                'plate' => $debt->parkingSession ? $debt->parkingSession->plate : 'N/A',
+                'sector' => $debt->parkingSession && $debt->parkingSession->sector ? $debt->parkingSession->sector->name : 'N/A',
+                'principal_amount' => $debt->principal_amount,
+                'status' => $debt->status,
+                'created_at' => $debt->created_at,
+                'settled_at' => $debt->updated_at,
+            ];
+        }
+
+        // Detalle de sesiones de venta
+        $sessionDetails = [];
+        foreach ($sessionsForSales as $session) {
+            $sessionTotal = 0;
+            $sessionCash = 0;
+            $sessionCard = 0;
+            
+            foreach ($session->payments as $payment) {
+                if ($payment->status === 'COMPLETED') {
+                    $sessionTotal += (float) $payment->amount;
+                    
+                    if ($payment->method === 'CASH') {
+                        $sessionCash += (float) $payment->amount;
+                    } else {
+                        $sessionCard += (float) $payment->amount;
+                    }
+                }
+            }
+            
+            if ($sessionTotal > 0) {
+                $durationMinutes = $session->started_at && $session->ended_at 
+                    ? \Carbon\Carbon::parse($session->started_at)->diffInMinutes(\Carbon\Carbon::parse($session->ended_at))
+                    : 0;
+                
+                $hours = floor((int)$durationMinutes / 60);
+                $minutes = (int)$durationMinutes % 60;
+                $durationFormatted = $hours > 0 ? "{$hours}h {$minutes}m" : "{$minutes}m";
+                
+                $sessionDetails[] = [
+                    'operator' => $session->operator ? $session->operator->name : 'N/A',
+                    'started_at' => $session->started_at,
+                    'ended_at' => $session->ended_at,
+                    'duration' => $durationFormatted,
+                    'amount' => $sessionTotal,
+                    'cash' => $sessionCash,
+                    'card' => $sessionCard,
+                ];
+            }
+        }
 
         $summary = [
             'operator' => $operator,
@@ -357,30 +429,41 @@ class ReportController extends Controller
                 'from' => $request->date_from,
                 'to' => $request->date_to,
             ],
-            'sessions' => [
-                'total' => $sessions->count(),
-                'active' => $sessions->where('status', 'ACTIVE')->count(),
-                'completed' => $sessions->where('status', 'COMPLETED')->count(),
-                'canceled' => $sessions->where('status', 'CANCELLED')->count(),
-                'by_sector' => $sessions->groupBy('sector.name')->map(function($group) {
-                    return $group->count();
-                }),
-            ],
-            'sales' => [
-                'total' => $sessionsForSales->count(),
-                'total_amount' => $salesTotal,
-                'by_doc_type' => ['NORMAL' => ['count' => $sessionsForSales->count(), 'total' => $salesTotal]],
-            ],
-            'payments' => [
-                'total' => $payments->count(),
-                'total_amount' => $payments->sum('amount'),
-                'by_method' => $payments->groupBy('method')->map(function($group) {
-                    return [
-                        'count' => $group->count(),
-                        'total' => $group->sum('amount'),
-                    ];
-                }),
-            ],
+            'total_sales' => $sessionsForSales->count(),
+            'total_amount' => $totalAmount,
+            'cash_amount' => $cashAmount,
+            'card_amount' => $cardAmount,
+            'sessions_detail' => $sessionDetails,
+            'by_sector' => $sessionsForSales->groupBy('sector.name')->map(function($group) {
+                $groupTotal = 0;
+                foreach ($group as $session) {
+                    foreach ($session->payments as $payment) {
+                        if ($payment->status === 'COMPLETED') {
+                            $groupTotal += (float) $payment->amount;
+                        }
+                    }
+                }
+                return [
+                    'count' => $group->count(),
+                    'total' => $groupTotal,
+                ];
+            }),
+            // Deudas liquidadas
+            'total_debts' => $settledDebts->count(),
+            'debts_total_amount' => $settledDebts->sum('principal_amount'),
+            'debts_detail' => $debtsDetail,
+            'debts_by_status' => $settledDebts->groupBy('status')->map(function($group) {
+                return [
+                    'count' => $group->count(),
+                    'total' => $group->sum('principal_amount'),
+                ];
+            }),
+            'debts_by_sector' => $settledDebts->groupBy('parkingSession.sector.name')->map(function($group) {
+                return [
+                    'count' => $group->count(),
+                    'total' => $group->sum('principal_amount'),
+                ];
+            }),
         ];
 
         return response()->json([
@@ -571,5 +654,289 @@ class ReportController extends Controller
             'success' => true,
             'data' => $dashboard
         ]);
+    }
+
+    /**
+     * Generar PDF de Reporte de Ventas
+     */
+    public function salesReportPdf(Request $request)
+    {
+        $data = $request->all();
+        if (isset($data['sector_id']) && $data['sector_id'] === 'undefined') {
+            unset($data['sector_id']);
+        }
+        if (isset($data['operator_id']) && $data['operator_id'] === 'undefined') {
+            unset($data['operator_id']);
+        }
+
+        $validator = Validator::make($data, [
+            'date_from' => 'required|date',
+            'date_to' => 'required|date|after_or_equal:date_from',
+            'sector_id' => 'nullable|exists:sectors,id',
+            'operator_id' => 'nullable|exists:operators,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $query = ParkingSession::with(['sector', 'operator', 'payments'])
+                    ->where('status', 'COMPLETED')
+                    ->whereBetween('started_at', [$request->date_from, $request->date_to]);
+
+        if ($request->filled('sector_id')) {
+            $query->where('sector_id', $request->sector_id);
+        }
+
+        if ($request->filled('operator_id')) {
+            $query->where('operator_in_id', $request->operator_id);
+        }
+
+        $sessions = $query->orderBy('started_at', 'desc')->get();
+
+        $totalAmount = 0;
+        $cashAmount = 0;
+        $cardAmount = 0;
+        
+        $sessionDetails = [];
+        
+        foreach ($sessions as $session) {
+            $sessionTotal = 0;
+            $sessionCash = 0;
+            $sessionCard = 0;
+            
+            foreach ($session->payments as $payment) {
+                if ($payment->status === 'COMPLETED') {
+                    $sessionTotal += (float) $payment->amount;
+                    $totalAmount += (float) $payment->amount;
+                    
+                    if ($payment->method === 'CASH') {
+                        $sessionCash += (float) $payment->amount;
+                        $cashAmount += (float) $payment->amount;
+                    } else {
+                        $sessionCard += (float) $payment->amount;
+                        $cardAmount += (float) $payment->amount;
+                    }
+                }
+            }
+            
+            if ($sessionTotal > 0) {
+                $durationMinutes = $session->started_at && $session->ended_at 
+                    ? \Carbon\Carbon::parse($session->started_at)->diffInMinutes(\Carbon\Carbon::parse($session->ended_at))
+                    : 0;
+                
+                $hours = floor((int)$durationMinutes / 60);
+                $minutes = (int)$durationMinutes % 60;
+                $durationFormatted = $hours > 0 ? "{$hours}h {$minutes}m" : "{$minutes}m";
+                
+                $sessionDetails[] = [
+                    'operator' => $session->operator ? $session->operator->name : 'N/A',
+                    'started_at' => $session->started_at,
+                    'ended_at' => $session->ended_at,
+                    'duration' => $durationFormatted,
+                    'amount' => $sessionTotal,
+                ];
+            }
+        }
+
+        $summary = [
+            'period' => [
+                'from' => $request->date_from,
+                'to' => $request->date_to,
+            ],
+            'total_sales' => $sessions->count(),
+            'total_amount' => $totalAmount,
+            'cash_amount' => $cashAmount,
+            'card_amount' => $cardAmount,
+            'sessions_detail' => $sessionDetails,
+            'by_sector' => $sessions->groupBy('sector.name')->map(function($group) {
+                $groupTotal = 0;
+                foreach ($group as $session) {
+                    foreach ($session->payments as $payment) {
+                        if ($payment->status === 'COMPLETED') {
+                            $groupTotal += (float) $payment->amount;
+                        }
+                    }
+                }
+                return [
+                    'count' => $group->count(),
+                    'total' => $groupTotal,
+                ];
+            }),
+            'by_operator' => $sessions->groupBy('operator.name')->map(function($group) {
+                $groupTotal = 0;
+                foreach ($group as $session) {
+                    foreach ($session->payments as $payment) {
+                        if ($payment->status === 'COMPLETED') {
+                            $groupTotal += (float) $payment->amount;
+                        }
+                    }
+                }
+                return [
+                    'count' => $group->count(),
+                    'total' => $groupTotal,
+                ];
+            }),
+        ];
+
+        $pdf = Pdf::loadView('reports.sales', ['data' => $summary]);
+        return $pdf->download('reporte-ventas-' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    /**
+     * Generar PDF de Reporte de Deudas
+     */
+    public function debtsReportPdf(Request $request)
+    {
+        $data = $request->all();
+        if (isset($data['sector_id']) && $data['sector_id'] === 'undefined') {
+            unset($data['sector_id']);
+        }
+        if (isset($data['operator_id']) && $data['operator_id'] === 'undefined') {
+            unset($data['operator_id']);
+        }
+
+        $validator = Validator::make($data, [
+            'date_from' => 'required|date',
+            'date_to' => 'required|date|after_or_equal:date_from',
+            'sector_id' => 'nullable|exists:sectors,id',
+            'operator_id' => 'nullable|exists:operators,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $query = Debt::with(['parkingSession.sector', 'parkingSession.operator', 'payments']);
+
+        if ($request->filled('sector_id')) {
+            $query->whereHas('parkingSession', function($q) use ($request) {
+                $q->where('sector_id', $request->sector_id);
+            });
+        }
+
+        if ($request->filled('operator_id')) {
+            $query->whereHas('parkingSession', function($q) use ($request) {
+                $q->where('operator_in_id', $request->operator_id);
+            });
+        }
+
+        if ($request->filled('date_from') && $request->filled('date_to')) {
+            $query->whereBetween('created_at', [$request->date_from, $request->date_to]);
+        }
+
+        $debts = $query->orderBy('created_at', 'desc')->get();
+
+        $debtsDetail = [];
+        foreach ($debts as $debt) {
+            $debtsDetail[] = [
+                'id' => $debt->id,
+                'plate' => $debt->parkingSession ? $debt->parkingSession->plate : 'N/A',
+                'sector' => $debt->parkingSession && $debt->parkingSession->sector ? $debt->parkingSession->sector->name : 'N/A',
+                'principal_amount' => $debt->principal_amount,
+                'status' => $debt->status,
+                'created_at' => $debt->created_at,
+            ];
+        }
+
+        $summary = [
+            'period' => [
+                'from' => $request->date_from,
+                'to' => $request->date_to,
+            ],
+            'total_debts' => $debts->count(),
+            'total_amount' => $debts->sum('principal_amount'),
+            'debts_detail' => $debtsDetail,
+            'by_status' => $debts->groupBy('status')->map(function($group) {
+                return [
+                    'count' => $group->count(),
+                    'total' => $group->sum('principal_amount'),
+                ];
+            }),
+            'by_sector' => $debts->groupBy('parkingSession.sector.name')->map(function($group) {
+                return [
+                    'count' => $group->count(),
+                    'total' => $group->sum('principal_amount'),
+                ];
+            }),
+        ];
+
+        $pdf = Pdf::loadView('reports.debts', ['data' => $summary]);
+        return $pdf->download('reporte-deudas-' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    /**
+     * Generar PDF de Reporte por Operador
+     */
+    public function operatorReportPdf(Request $request)
+    {
+        // Reutilizar el mismo método que genera el JSON
+        $response = $this->operatorReport($request);
+        $responseData = json_decode($response->getContent(), true);
+        
+        if (!$responseData['success']) {
+            return response()->json(['errors' => 'Error generating report'], 422);
+        }
+
+        $pdf = Pdf::loadView('reports.operator', ['data' => $responseData['data']]);
+        return $pdf->download('reporte-operador-' . $responseData['data']['operator']['name'] . '-' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    /**
+     * Generar PDF de Reporte de Sesiones
+     */
+    public function sessionsReportPdf(Request $request)
+    {
+        $data = $request->all();
+        if (isset($data['sector_id']) && $data['sector_id'] === 'undefined') {
+            unset($data['sector_id']);
+        }
+        if (isset($data['operator_id']) && $data['operator_id'] === 'undefined') {
+            unset($data['operator_id']);
+        }
+
+        $validator = Validator::make($data, [
+            'date_from' => 'required|date',
+            'date_to' => 'required|date|after_or_equal:date_from',
+            'sector_id' => 'nullable|exists:sectors,id',
+            'operator_id' => 'nullable|exists:operators,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $query = ParkingSession::with(['sector', 'operator', 'payments'])
+                    ->whereBetween('started_at', [$request->date_from, $request->date_to]);
+
+        if ($request->filled('sector_id')) {
+            $query->where('sector_id', $request->sector_id);
+        }
+
+        if ($request->filled('operator_id')) {
+            $query->where('operator_in_id', $request->operator_id);
+        }
+
+        $sessions = $query->orderBy('started_at', 'desc')->get();
+
+        $summary = [
+            'period' => [
+                'from' => $request->date_from,
+                'to' => $request->date_to,
+            ],
+            'total_sessions' => $sessions->count(),
+            'by_status' => $sessions->groupBy('status')->map(function($group) {
+                return $group->count();
+            }),
+            'by_sector' => $sessions->groupBy('sector.name')->map(function($group) {
+                return $group->count();
+            }),
+            'by_operator' => $sessions->groupBy('operator.name')->map(function($group) {
+                return $group->count();
+            }),
+        ];
+
+        $pdf = Pdf::loadView('reports.sessions', ['data' => $summary]);
+        return $pdf->download('reporte-sesiones-' . now()->format('Y-m-d') . '.pdf');
     }
 }

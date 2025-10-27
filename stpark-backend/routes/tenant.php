@@ -117,6 +117,12 @@ Route::middleware([
         Route::get('/sessions', [ReportController::class, 'sessionsReport']); // Reporte de sesiones
         Route::get('/operator', [ReportController::class, 'operatorReport']); // Reporte por operador
         Route::get('/dashboard', [ReportController::class, 'dashboard']); // Dashboard general
+        
+        // Rutas de reportes PDF
+        Route::get('/sales/pdf', [ReportController::class, 'salesReportPdf']); // PDF reporte de ventas
+        Route::get('/debts/pdf', [ReportController::class, 'debtsReportPdf']); // PDF reporte de deudas
+        Route::get('/sessions/pdf', [ReportController::class, 'sessionsReportPdf']); // PDF reporte de sesiones
+        Route::get('/operator/pdf', [ReportController::class, 'operatorReportPdf']); // PDF reporte por operador
     });
 
     // Rutas de perfiles de precios

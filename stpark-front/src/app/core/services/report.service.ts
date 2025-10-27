@@ -82,6 +82,42 @@ export class ReportService {
   }
 
   /**
+   * Exportar reporte a PDF
+   */
+  exportToPdf(reportType: string, filters: any = {}): void {
+    const url = `${this.baseUrl}/${reportType}/pdf`;
+    
+    // Construir los parámetros de la URL
+    const params: any = {};
+    Object.keys(filters).forEach(key => {
+      if (filters[key] !== undefined && filters[key] !== null && filters[key] !== '') {
+        params[key] = filters[key];
+      }
+    });
+
+    // Solicitar el PDF como blob para incluir los headers (X-Tenant)
+    this.http.get(url, { 
+      params,
+      responseType: 'blob'
+    }).subscribe({
+      next: (blob: Blob) => {
+        // Crear un enlace temporal para descargar el archivo
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `reporte-${reportType}-${new Date().toISOString().split('T')[0]}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+      },
+      error: (error) => {
+        console.error('Error al descargar el PDF:', error);
+      }
+    });
+  }
+
+  /**
    * Exportar datos a CSV con formato mejorado
    */
   exportToCSV(data: any[], filename: string): void {

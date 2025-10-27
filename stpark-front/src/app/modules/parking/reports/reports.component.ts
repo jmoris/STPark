@@ -159,9 +159,6 @@ export class ReportsComponent implements OnInit, OnDestroy {
       case 'debts':
         reportObservable = this.reportService.getDebtsReport(filters);
         break;
-      case 'sessions':
-        reportObservable = this.reportService.getSessionsReport(filters);
-        break;
       case 'operator':
         if (!filters.operator_id) {
           alert('Debe seleccionar un operador');
@@ -220,9 +217,6 @@ export class ReportsComponent implements OnInit, OnDestroy {
       case 'debts':
         reportObservable = this.reportService.getDebtsReport(filters);
         break;
-      case 'sessions':
-        reportObservable = this.reportService.getSessionsReport(filters);
-        break;
       case 'operator':
         if (!filters.operator_id) {
           alert('Debe seleccionar un operador');
@@ -254,29 +248,22 @@ export class ReportsComponent implements OnInit, OnDestroy {
   exportCurrentReport(): void {
     if (!this.currentReport) return;
 
-    let dataToExport: any[] = [];
-    let filename = 'reporte';
+    // Construir filtros para enviar al backend
+    const filters: any = {
+      date_from: this.filters.date_from,
+      date_to: this.filters.date_to
+    };
 
-    switch(this.currentReportType) {
-      case 'sales':
-        dataToExport = this.currentReport.sessions || [];
-        filename = 'reporte-ventas';
-        break;
-      case 'sessions':
-        dataToExport = this.currentReport.sessions || [];
-        filename = 'reporte-sesiones';
-        break;
-      case 'debts':
-        dataToExport = this.currentReport.debts || [];
-        filename = 'reporte-deudas';
-        break;
-      case 'operator':
-        dataToExport = this.currentReport.sessions || [];
-        filename = 'reporte-operador';
-        break;
+    // Solo agregar filtros opcionales si tienen valores
+    if (this.filters.sector_id) {
+      filters.sector_id = this.filters.sector_id;
+    }
+    if (this.filters.operator_id) {
+      filters.operator_id = this.filters.operator_id;
     }
 
-    this.reportService.exportToCSV(dataToExport, filename);
+    // Enviar la petición al backend para generar el PDF
+    this.reportService.exportToPdf(this.currentReportType, filters);
   }
 
   clearFilters(): void {

@@ -307,17 +307,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   exportReport(): void {
-    if (!this.dashboardData) return;
-
-    const data = [
-      { Métrica: 'Ventas Total', Valor: this.stats.totalRevenue },
-      { Métrica: 'Sesiones Total', Valor: this.stats.totalSessions },
-      { Métrica: 'Ticket Promedio', Valor: this.stats.averageTicket },
-      { Métrica: 'Deudas Pendientes', Valor: this.stats.pendingDebts },
-      { Métrica: 'Sesiones Activas', Valor: this.stats.activeSessions }
-    ];
-
-    this.reportService.exportToCSV(data, `dashboard-${this.selectedDate.toISOString().split('T')[0]}`);
+    // Exportar como PDF usando el dashboard de ventas del día seleccionado
+    const filters = {
+      date_from: this.selectedDate.toISOString().split('T')[0],
+      date_to: this.selectedDate.toISOString().split('T')[0]
+    };
+    
+    this.reportService.exportToPdf('sales', filters);
   }
 
   getStatusColor(status: string): string {
