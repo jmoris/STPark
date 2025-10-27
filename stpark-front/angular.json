@@ -39,6 +39,11 @@
                                 "glob": "_redirects",
                                 "input": "src",
                                 "output": "/"
+                            },
+                            { 
+                                "glob": "**/*", 
+                                "input": "src/assets/icons",
+                                "output": "/icons/" 
                             }
                         ],
                         "stylePreprocessorOptions": {
@@ -90,10 +95,10 @@
                     "builder": "@angular-devkit/build-angular:dev-server",
                     "configurations": {
                         "production": {
-                            "buildTarget": "fuse:build:production"
+                            "buildTarget": "stpark:build:production"
                         },
                         "development": {
-                            "buildTarget": "fuse:build:development"
+                            "buildTarget": "stpark:build:development"
                         }
                     },
                     "defaultConfiguration": "development"
