@@ -150,15 +150,13 @@ class TicketPrinterService {
 
   // Determinar qué información de ubicación mostrar
   private getLocationInfo(data: TicketData): string {
-    if (data.sectorIsPrivate && data.streetAddress) {
-      // Para sectores privados, mostrar la dirección de la calle
+    // Siempre mostrar solo la dirección de la calle (sin sector)
+    if (data.streetAddress) {
+      // Si hay dirección completa de la calle, usarla
       return `Estacionamiento: ${data.streetAddress}`;
     } else if (data.street) {
-      // Para sectores públicos, mostrar solo el nombre de la calle
-      return `Calle: ${data.street}`;
-    } else if (data.sector) {
-      // Fallback al sector si no hay información de calle
-      return `Sector: ${data.sector}`;
+      // Si solo hay nombre de calle, usarlo
+      return `Estacionamiento: ${data.street}`;
     }
     return 'Ubicación: N/A';
   }
