@@ -17,8 +17,10 @@ import { KeyboardAwareScrollView } from '@/components/KeyboardAwareScrollView';
 import { router } from 'expo-router';
 import { apiService } from '../services/api';
 import { PaymentModal } from '@/components/PaymentModal';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ConsultasScreen() {
+  const { operator } = useAuth();
   const [patente, setPatente] = useState('');
   const [loading, setLoading] = useState(false);
   const [resultados, setResultados] = useState<any>(null);
@@ -697,6 +699,7 @@ export default function ConsultasScreen() {
         data={selectedDebt}
         onSuccess={handlePaymentSuccess}
         type="debt"
+        operator={operator}
       />
         </SafeAreaView>
       );

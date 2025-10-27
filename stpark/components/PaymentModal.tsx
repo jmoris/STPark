@@ -171,6 +171,49 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             console.error('Error imprimiendo ticket:', printError);
           }
         }
+        
+        // Imprimir ticket de checkout para deuda
+        if (type === 'debt' && response.data) {
+          try {
+            const paymentTime = new Date().toISOString();
+            const parkingSession = data.parking_session || response.data.parking_session;
+            
+            console.log('PaymentModal - parkingSession:', parkingSession);
+            console.log('PaymentModal - sector:', parkingSession?.sector);
+            console.log('PaymentModal - street:', parkingSession?.street);
+            
+            if (parkingSession) {
+              const startTime = parkingSession.started_at;
+              const endTime = paymentTime;
+              const duration = calculateElapsedTime(startTime);
+              
+              const ticketData: CheckoutTicketData = {
+                type: 'CHECKOUT',
+                plate: data.plate,
+                sector: parkingSession?.sector?.name,
+                street: parkingSession?.street?.name,
+                sectorIsPrivate: parkingSession?.sector?.is_private || false,
+                streetAddress: parkingSession?.street?.full_address || parkingSession?.street?.name,
+                startTime: startTime,
+                endTime: endTime,
+                duration: duration,
+                amount: estimatedAmount || 0,
+                paymentMethod: selectedPaymentMethod,
+                operatorName: operator?.name,
+                approvalCode: approvalCode,
+                change: selectedPaymentMethod === 'CASH' && amountPaid ? 
+                  parseFloat(amountPaid) - (estimatedAmount || 0) : undefined
+              };
+              
+              const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
+              if (printed) {
+                console.log('Ticket de checkout impreso exitosamente');
+              }
+            }
+          } catch (printError) {
+            console.error('Error imprimiendo ticket:', printError);
+          }
+        }
 
         // Manejar vuelto para pagos en efectivo
         if (selectedPaymentMethod === 'CASH' && amountPaid) {

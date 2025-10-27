@@ -23,7 +23,7 @@ class DebtController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Debt::with(['parkingSession', 'payments']);
+        $query = Debt::with(['parkingSession.sector', 'parkingSession.street', 'payments']);
 
         // Filtros
         if ($request->filled('plate')) {
@@ -61,7 +61,7 @@ class DebtController extends Controller
     public function show(int $id): JsonResponse
     {
         try {
-            $debt = Debt::with(['parkingSession', 'payments'])
+            $debt = Debt::with(['parkingSession.sector', 'parkingSession.street', 'payments'])
                        ->findOrFail($id);
 
             return response()->json([
@@ -91,7 +91,7 @@ class DebtController extends Controller
         }
 
         $debts = Debt::byPlate($request->plate)
-                    ->with(['parkingSession', 'payments'])
+                    ->with(['parkingSession.sector', 'parkingSession.street', 'payments'])
                     ->orderBy('created_at', 'desc')
                     ->get();
 
@@ -132,7 +132,7 @@ class DebtController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $debt->load(['parkingSession', 'payments']),
+                'data' => $debt->load(['parkingSession.sector', 'parkingSession.street', 'payments']),
                 'message' => 'Deuda liquidada exitosamente'
             ]);
 
