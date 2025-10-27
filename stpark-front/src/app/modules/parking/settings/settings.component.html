@@ -68,192 +68,78 @@
       <div class="p-6">
         <mat-card>
           <mat-card-header>
-            <mat-card-title>Configuración de Precios</mat-card-title>
-            <mat-card-subtitle>Establece las tarifas por defecto</mat-card-subtitle>
+            <mat-card-title>Configuración de Precios por Defecto</mat-card-title>
+            <mat-card-subtitle>Establece las tarifas por defecto del sistema</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <mat-form-field appearance="outline">
-                <mat-label>Tarifa por hora (CLP)</mat-label>
-                <input matInput type="number" value="1000">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Tarifa por fracción (15 min)</mat-label>
-                <input matInput type="number" value="250">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Tarifa máxima diaria</mat-label>
-                <input matInput type="number" value="5000">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Multa por exceso de tiempo</mat-label>
-                <input matInput type="number" value="2000">
-              </mat-form-field>
-            </div>
-
-            <mat-divider class="my-6"></mat-divider>
-
-            <h3 class="text-lg font-semibold mb-4">Descuentos</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <mat-checkbox>Descuento por pago anticipado</mat-checkbox>
-              <mat-form-field appearance="outline">
-                <mat-label>Porcentaje de descuento</mat-label>
-                <input matInput type="number" value="10">
-              </mat-form-field>
-
-              <mat-checkbox>Descuento por vehículos eléctricos</mat-checkbox>
-              <mat-form-field appearance="outline">
-                <mat-label>Porcentaje de descuento</mat-label>
-                <input matInput type="number" value="20">
-              </mat-form-field>
-            </div>
-          </mat-card-content>
-        </mat-card>
-      </div>
-    </mat-tab>
-
-    <!-- Payment Settings -->
-    <mat-tab label="Pagos">
-      <div class="p-6">
-        <mat-card>
-          <mat-card-header>
-            <mat-card-title>Configuración de Pagos</mat-card-title>
-            <mat-card-subtitle>Configura los métodos de pago disponibles</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="space-y-6">
-              <div class="flex items-center justify-between p-4 border rounded-lg">
-                <div class="flex items-center gap-3">
-                  <mat-icon>payments</mat-icon>
-                  <div>
-                    <h4 class="font-semibold">Pago en Efectivo</h4>
-                    <p class="text-sm text-gray-600">Permitir pagos en efectivo</p>
+            <div class="space-y-4">
+              <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <div class="flex items-start gap-3">
+                  <mat-icon class="text-blue-600 dark:text-blue-400">info</mat-icon>
+                  <div class="text-sm text-blue-800 dark:text-blue-200">
+                    <strong>Nota:</strong> Estos precios se utilizarán como regla de precio por defecto si no existen otras reglas específicas para el sector.
                   </div>
                 </div>
-                <mat-checkbox checked></mat-checkbox>
               </div>
 
-              <div class="flex items-center justify-between p-4 border rounded-lg">
-                <div class="flex items-center gap-3">
-                  <mat-icon>credit_card</mat-icon>
-                  <div>
-                    <h4 class="font-semibold">Tarjetas de Crédito/Débito</h4>
-                    <p class="text-sm text-gray-600">Permitir pagos con tarjeta</p>
-                  </div>
+              <form [formGroup]="pricingForm">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Costo por Minuto (CLP)</mat-label>
+                    <input matInput type="number" formControlName="price_per_min" placeholder="0" min="0">
+                    <mat-hint>Precio por cada minuto de estacionamiento</mat-hint>
+                    <mat-error *ngIf="pricingForm.get('price_per_min')?.hasError('required')">
+                      Este campo es requerido
+                    </mat-error>
+                    <mat-error *ngIf="pricingForm.get('price_per_min')?.hasError('min')">
+                      El valor debe ser mayor o igual a 0
+                    </mat-error>
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline">
+                    <mat-label>Tarifa Mínima (CLP)</mat-label>
+                    <input matInput type="number" formControlName="min_amount" placeholder="0" min="0">
+                    <mat-hint>Cantidad mínima a cobrar</mat-hint>
+                    <mat-error *ngIf="pricingForm.get('min_amount')?.hasError('required')">
+                      Este campo es requerido
+                    </mat-error>
+                    <mat-error *ngIf="pricingForm.get('min_amount')?.hasError('min')">
+                      El valor debe ser mayor o igual a 0
+                    </mat-error>
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline">
+                    <mat-label>Tarifa Máxima (CLP)</mat-label>
+                    <input matInput type="number" formControlName="daily_max_amount" placeholder="0" min="0">
+                    <mat-hint>Límite máximo a cobrar por día</mat-hint>
+                    <mat-error *ngIf="pricingForm.get('daily_max_amount')?.hasError('required')">
+                      Este campo es requerido
+                    </mat-error>
+                    <mat-error *ngIf="pricingForm.get('daily_max_amount')?.hasError('min')">
+                      El valor debe ser mayor o igual a 0
+                    </mat-error>
+                  </mat-form-field>
                 </div>
-                <mat-checkbox checked></mat-checkbox>
-              </div>
 
-              <div class="flex items-center justify-between p-4 border rounded-lg">
-                <div class="flex items-center gap-3">
-                  <mat-icon>account_balance</mat-icon>
-                  <div>
-                    <h4 class="font-semibold">Webpay Plus</h4>
-                    <p class="text-sm text-gray-600">Integración con Transbank</p>
-                  </div>
+                <mat-divider class="my-6"></mat-divider>
+
+                <h3 class="text-lg font-semibold mb-4">Configuración de Horarios</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Hora de Inicio</mat-label>
+                    <input matInput type="time" formControlName="start_time">
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline">
+                    <mat-label>Hora de Fin</mat-label>
+                    <input matInput type="time" formControlName="end_time">
+                  </mat-form-field>
                 </div>
-                <mat-checkbox></mat-checkbox>
-              </div>
 
-              <div class="flex items-center justify-between p-4 border rounded-lg">
-                <div class="flex items-center gap-3">
-                  <mat-icon>qr_code</mat-icon>
-                  <div>
-                    <h4 class="font-semibold">Pago QR</h4>
-                    <p class="text-sm text-gray-600">Pagos mediante código QR</p>
-                  </div>
+                <div class="flex items-center gap-2 mb-4">
+                  <mat-checkbox formControlName="is_active">Regla activa</mat-checkbox>
                 </div>
-                <mat-checkbox></mat-checkbox>
-              </div>
-            </div>
-
-            <mat-divider class="my-6"></mat-divider>
-
-            <h3 class="text-lg font-semibold mb-4">Configuración Webpay</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <mat-form-field appearance="outline">
-                <mat-label>Commerce Code</mat-label>
-                <input matInput placeholder="597055555532">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>API Key</mat-label>
-                <input matInput type="password" placeholder="••••••••••••••••">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Ambiente</mat-label>
-                <mat-select value="integration">
-                  <mat-option value="integration">Integración</mat-option>
-                  <mat-option value="production">Producción</mat-option>
-                </mat-select>
-              </mat-form-field>
-            </div>
-          </mat-card-content>
-        </mat-card>
-      </div>
-    </mat-tab>
-
-    <!-- Notifications -->
-    <mat-tab label="Notificaciones">
-      <div class="p-6">
-        <mat-card>
-          <mat-card-header>
-            <mat-card-title>Configuración de Notificaciones</mat-card-title>
-            <mat-card-subtitle>Configura las alertas y notificaciones del sistema</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="space-y-6">
-              <div class="flex items-center justify-between p-4 border rounded-lg">
-                <div class="flex items-center gap-3">
-                  <mat-icon>email</mat-icon>
-                  <div>
-                    <h4 class="font-semibold">Notificaciones por Email</h4>
-                    <p class="text-sm text-gray-600">Enviar reportes por correo electrónico</p>
-                  </div>
-                </div>
-                <mat-checkbox checked></mat-checkbox>
-              </div>
-
-              <div class="flex items-center justify-between p-4 border rounded-lg">
-                <div class="flex items-center gap-3">
-                  <mat-icon>sms</mat-icon>
-                  <div>
-                    <h4 class="font-semibold">Notificaciones SMS</h4>
-                    <p class="text-sm text-gray-600">Enviar alertas por mensaje de texto</p>
-                  </div>
-                </div>
-                <mat-checkbox></mat-checkbox>
-              </div>
-
-              <div class="flex items-center justify-between p-4 border rounded-lg">
-                <div class="flex items-center gap-3">
-                  <mat-icon>notifications</mat-icon>
-                  <div>
-                    <h4 class="font-semibold">Notificaciones Push</h4>
-                    <p class="text-sm text-gray-600">Notificaciones en tiempo real</p>
-                  </div>
-                </div>
-                <mat-checkbox checked></mat-checkbox>
-              </div>
-            </div>
-
-            <mat-divider class="my-6"></mat-divider>
-
-            <h3 class="text-lg font-semibold mb-4">Alertas Automáticas</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <mat-form-field appearance="outline">
-                <mat-label>Umbral de deudas pendientes</mat-label>
-                <input matInput type="number" value="10">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Horario de reportes diarios</mat-label>
-                <input matInput type="time" value="08:00">
-              </mat-form-field>
+              </form>
             </div>
           </mat-card-content>
         </mat-card>
