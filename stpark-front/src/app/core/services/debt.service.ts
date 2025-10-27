@@ -262,13 +262,14 @@ export class DebtService {
    * Obtener icono para origen de deuda
    */
   getOriginIcon(origin: string): string {
+    // Retornar el nombre mapeado del icono para ng-icons
     const originIcons: Record<string, string> = {
-      'SESSION': 'heroicons_solid:car',
-      'FINE': 'heroicons_solid:exclamation-triangle',
-      'MANUAL': 'heroicons_solid:pencil'
+      'SESSION': 'truck',
+      'FINE': 'exclamation-triangle-solid',
+      'MANUAL': 'pencil'
     };
     
-    return originIcons[origin] || 'heroicons_solid:question-mark-circle';
+    return originIcons[origin] || 'question-mark-circle';
   }
 
   /**

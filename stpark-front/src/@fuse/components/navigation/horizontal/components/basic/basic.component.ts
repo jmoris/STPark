@@ -8,7 +8,6 @@ import {
     OnInit,
     inject,
 } from '@angular/core';
-import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
@@ -16,10 +15,12 @@ import {
     RouterLink,
     RouterLinkActive,
 } from '@angular/router';
+import { NgIconsModule } from '@ng-icons/core';
 import { FuseHorizontalNavigationComponent } from '@fuse/components/navigation/horizontal/horizontal.component';
 import { FuseNavigationService } from '@fuse/components/navigation/navigation.service';
 import { FuseNavigationItem } from '@fuse/components/navigation/navigation.types';
 import { FuseUtilsService } from '@fuse/services/utils/utils.service';
+import { IconNamePipe } from 'app/core/icons/icon-name.pipe';
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
@@ -33,7 +34,8 @@ import { Subject, takeUntil } from 'rxjs';
         MatTooltipModule,
         NgTemplateOutlet,
         MatMenuModule,
-        MatIconModule,
+        NgIconsModule,
+        IconNamePipe,
     ],
 })
 export class FuseHorizontalNavigationBasicItemComponent

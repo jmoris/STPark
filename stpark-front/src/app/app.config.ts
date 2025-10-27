@@ -15,6 +15,8 @@ import { MockApiService } from 'app/mock-api';
 import { of } from 'rxjs';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { providePrimeNG } from 'primeng/config';
+import { provideNgIconsConfig, provideIcons as provideNgIcons } from '@ng-icons/core';
+import { heroiconsConfig } from './core/icons/icons.config';
 import STParkPreset from './presets/stpark';
 import { ApiInterceptor } from './core/interceptors/api.interceptor';
 export const appConfig: ApplicationConfig = {
@@ -52,6 +54,12 @@ export const appConfig: ApplicationConfig = {
             return of(true);
         }),
 
+        // Icons - @ng-icons
+        provideNgIconsConfig({
+            size: '1.5rem',
+        }),
+        provideNgIcons(heroiconsConfig),
+        
         // Fuse
         provideAuth(),
         provideIcons(),

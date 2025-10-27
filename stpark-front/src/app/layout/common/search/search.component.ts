@@ -30,9 +30,10 @@ import {
 import { MatButtonModule } from '@angular/material/button';
 import { MatOptionModule } from '@angular/material/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { NgIconsModule } from '@ng-icons/core';
 import { RouterLink } from '@angular/router';
+import { IconNamePipe } from 'app/core/icons/icon-name.pipe';
 import { fuseAnimations } from '@fuse/animations/public-api';
 import { Subject, debounceTime, filter, map, takeUntil } from 'rxjs';
 
@@ -44,7 +45,6 @@ import { Subject, debounceTime, filter, map, takeUntil } from 'rxjs';
     animations: fuseAnimations,
     imports: [
         MatButtonModule,
-        MatIconModule,
         FormsModule,
         MatAutocompleteModule,
         ReactiveFormsModule,
@@ -54,6 +54,8 @@ import { Subject, debounceTime, filter, map, takeUntil } from 'rxjs';
         MatFormFieldModule,
         MatInputModule,
         NgClass,
+        NgIconsModule,
+        IconNamePipe,
     ],
     providers: [
         {

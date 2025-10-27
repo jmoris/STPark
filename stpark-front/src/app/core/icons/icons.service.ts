@@ -6,12 +6,15 @@ import { DomSanitizer } from '@angular/platform-browser';
 export class IconsService {
     /**
      * Constructor
+     * 
+     * NOTA: Heroicons ahora se manejan con @ng-icons/heroicons.
+     * Solo se registran los iconos de Material y Feather que aún usan SVG.
      */
     constructor() {
         const domSanitizer = inject(DomSanitizer);
         const matIconRegistry = inject(MatIconRegistry);
 
-        // Register icon sets
+        // Register Material and Feather icon sets (Heroicons se manejan con ng-icons)
         matIconRegistry.addSvgIconSet(
             domSanitizer.bypassSecurityTrustResourceUrl(
                 'icons/material-twotone.svg'
@@ -33,23 +36,7 @@ export class IconsService {
             'feather',
             domSanitizer.bypassSecurityTrustResourceUrl('icons/feather.svg')
         );
-        matIconRegistry.addSvgIconSetInNamespace(
-            'heroicons_outline',
-            domSanitizer.bypassSecurityTrustResourceUrl(
-                'icons/heroicons-outline.svg'
-            )
-        );
-        matIconRegistry.addSvgIconSetInNamespace(
-            'heroicons_solid',
-            domSanitizer.bypassSecurityTrustResourceUrl(
-                'icons/heroicons-solid.svg'
-            )
-        );
-        matIconRegistry.addSvgIconSetInNamespace(
-            'heroicons_mini',
-            domSanitizer.bypassSecurityTrustResourceUrl(
-                'icons/heroicons-mini.svg'
-            )
-        );
+        
+        // Heroicons removidos - ahora se usan con @ng-icons/heroicons
     }
 }

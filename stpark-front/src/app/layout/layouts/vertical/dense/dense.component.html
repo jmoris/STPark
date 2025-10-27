@@ -31,7 +31,7 @@
                 mat-icon-button
                 (click)="toggleNavigation('mainNavigation')"
             >
-                <mat-icon [svgIcon]="'heroicons_outline:bars-3'"></mat-icon>
+                <ng-icon [name]="'heroicons_outline:bars-3' | iconName"></ng-icon>
             </button>
             <!-- Navigation appearance toggle button -->
             <button
@@ -39,9 +39,7 @@
                 mat-icon-button
                 (click)="toggleNavigationAppearance()"
             >
-                <mat-icon
-                    [svgIcon]="'heroicons_outline:arrows-right-left'"
-                ></mat-icon>
+                <ng-icon [name]="'heroicons_outline:arrows-right-left' | iconName"></ng-icon>
             </button>
         </div>
         <!-- Components -->

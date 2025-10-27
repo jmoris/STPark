@@ -53,9 +53,7 @@
                         mat-icon-button
                         (click)="toggleNavigation('mainNavigation')"
                     >
-                        <mat-icon
-                            [svgIcon]="'heroicons_outline:bars-3'"
-                        ></mat-icon>
+                        <ng-icon [name]="'heroicons_outline:bars-3' | iconName"></ng-icon>
                     </button>
                 }
                 <!-- Components -->
@@ -72,11 +70,9 @@
                         mat-icon-button
                         (click)="quickChat.toggle()"
                     >
-                        <mat-icon
-                            [svgIcon]="
-                                'heroicons_outline:chat-bubble-left-right'
-                            "
-                        ></mat-icon>
+                        <ng-icon
+                            [name]="'heroicons_outline:chat-bubble-left-right' | iconName"
+                        ></ng-icon>
                     </button>
                     <user></user>
                 </div>

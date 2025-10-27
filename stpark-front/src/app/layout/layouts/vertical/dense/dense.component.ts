@@ -1,7 +1,8 @@
 import { Component, OnDestroy, OnInit, ViewEncapsulation } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { ActivatedRoute, Router, RouterOutlet } from '@angular/router';
+import { NgIconsModule } from '@ng-icons/core';
+import { IconNamePipe } from 'app/core/icons/icon-name.pipe';
 import { FuseFullscreenComponent } from '@fuse/components/fullscreen';
 import { FuseLoadingBarComponent } from '@fuse/components/loading-bar';
 import {
@@ -27,7 +28,7 @@ import { Subject, takeUntil } from 'rxjs';
         FuseLoadingBarComponent,
         FuseVerticalNavigationComponent,
         MatButtonModule,
-        MatIconModule,
+        NgIconsModule, IconNamePipe,
         FuseFullscreenComponent,
         SearchComponent,
         ShortcutsComponent,

@@ -6,7 +6,7 @@
             <img class="h-7 w-7 rounded-full" [src]="user.avatar" />
         }
         @if (!showAvatar || !user.avatar) {
-            <mat-icon [svgIcon]="'heroicons_outline:user-circle'"></mat-icon>
+            <ng-icon [name]="'heroicons_outline:user-circle' | iconName" class="icon-size-7"></ng-icon>
         }
         <span
             class="absolute bottom-0 right-0 h-2 w-2 rounded-full"
@@ -33,31 +33,31 @@
     @if (tenants.length > 0) {
         <mat-divider class="my-2"></mat-divider>
         <button mat-menu-item [matMenuTriggerFor]="tenantMenu">
-            <mat-icon [svgIcon]="'heroicons_outline:building-office'"></mat-icon>
+            <ng-icon [name]="'heroicons_outline:building-office' | iconName" class="icon-size-7"></ng-icon>
             <span>{{ currentTenant?.name || 'No seleccionado' }}</span>
         </button>
     }
     
     <mat-divider class="my-2"></mat-divider>
     <button mat-menu-item>
-        <mat-icon [svgIcon]="'heroicons_outline:user-circle'"></mat-icon>
+        <ng-icon [name]="'heroicons_outline:user-circle' | iconName" class="icon-size-7"></ng-icon>
         <span>Profile</span>
     </button>
     <button mat-menu-item>
-        <mat-icon [svgIcon]="'heroicons_outline:cog-8-tooth'"></mat-icon>
+        <ng-icon [name]="'heroicons_outline:cog-8-tooth' | iconName" class="icon-size-7"></ng-icon>
         <span>Settings</span>
     </button>
     <button mat-menu-item [matMenuTriggerFor]="userStatus">
-        <mat-icon
-            [svgIcon]="'heroicons_outline:ellipsis-horizontal-circle'"
-        ></mat-icon>
+        <ng-icon
+            [name]="'heroicons_outline:ellipsis-horizontal-circle' | iconName" class="icon-size-7"
+        ></ng-icon>
         <span>Status</span>
     </button>
     <mat-divider class="my-2"></mat-divider>
     <button mat-menu-item (click)="signOut()">
-        <mat-icon
-            [svgIcon]="'heroicons_outline:arrow-right-on-rectangle'"
-        ></mat-icon>
+        <ng-icon
+            [name]="'heroicons_outline:arrow-right-on-rectangle' | iconName" class="icon-size-7"
+        ></ng-icon>
         <span>Sign out</span>
     </button>
 </mat-menu>
@@ -66,9 +66,9 @@
 <mat-menu #tenantMenu="matMenu">
     @for (tenant of tenants; track tenant.id) {
         <button mat-menu-item (click)="changeTenant(tenant)">
-            <mat-icon [svgIcon]="'heroicons_outline:check-circle'"></mat-icon>
+            <ng-icon [name]="'heroicons_outline:check-circle' | iconName" class="icon-size-7"></ng-icon>
             @if (currentTenant?.id === tenant.id) {
-                <mat-icon class="ml-2" [svgIcon]="'heroicons_outline:check'"></mat-icon>
+                <ng-icon class="ml-2 icon-size-7" [name]="'heroicons_outline:check' | iconName"></ng-icon>
             }
             <span class="ml-2">{{ tenant.name }}</span>
         </button>

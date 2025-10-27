@@ -16,8 +16,9 @@ import {
     inject,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
+import { NgIconsModule } from '@ng-icons/core';
 import { fuseAnimations } from '@fuse/animations';
+import { IconNamePipe } from 'app/core/icons/icon-name.pipe';
 import { FuseAlertService } from '@fuse/components/alert/alert.service';
 import {
     FuseAlertAppearance,
@@ -34,7 +35,7 @@ import { Subject, filter, takeUntil } from 'rxjs';
     changeDetection: ChangeDetectionStrategy.OnPush,
     animations: fuseAnimations,
     exportAs: 'fuseAlert',
-    imports: [MatIconModule, MatButtonModule],
+    imports: [NgIconsModule, MatButtonModule, IconNamePipe],
 })
 export class FuseAlertComponent implements OnChanges, OnInit, OnDestroy {
     /* eslint-disable @typescript-eslint/naming-convention */

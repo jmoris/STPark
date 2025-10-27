@@ -14,8 +14,10 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { Router } from '@angular/router';
+import { NgIconsModule } from '@ng-icons/core';
 import { Subject, takeUntil } from 'rxjs';
 import { AuthService, Tenant, User } from 'app/core/services/auth.service';
+import { IconNamePipe } from 'app/core/icons/icon-name.pipe';
 
 @Component({
     selector: 'user',
@@ -29,6 +31,8 @@ import { AuthService, Tenant, User } from 'app/core/services/auth.service';
         MatIconModule,
         NgClass,
         MatDividerModule,
+        NgIconsModule,
+        IconNamePipe,
     ],
 })
 export class UserComponent implements OnInit, OnDestroy {

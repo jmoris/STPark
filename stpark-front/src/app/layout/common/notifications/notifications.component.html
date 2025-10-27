@@ -11,7 +11,7 @@
             </span>
         </span>
     }
-    <mat-icon [svgIcon]="'heroicons_outline:bell'"></mat-icon>
+    <ng-icon [name]="'heroicons_outline:bell' | iconName"></ng-icon>
 </button>
 
 <!-- Notifications panel -->
@@ -25,10 +25,10 @@
         >
             <div class="-ml-1 mr-3 sm:hidden">
                 <button mat-icon-button (click)="closePanel()">
-                    <mat-icon
+                    <ng-icon
                         class="text-current icon-size-5"
-                        [svgIcon]="'heroicons_solid:x-mark'"
-                    ></mat-icon>
+                        [name]="'heroicons_solid:x-mark' | iconName"
+                    ></ng-icon>
                 </button>
             </div>
             <div class="text-lg font-medium leading-10">Notifications</div>
@@ -40,10 +40,10 @@
                     [disabled]="unreadCount === 0"
                     (click)="markAllAsRead()"
                 >
-                    <mat-icon
+                    <ng-icon
                         class="text-current icon-size-5"
-                        [svgIcon]="'heroicons_solid:envelope-open'"
-                    ></mat-icon>
+                        [name]="'heroicons_solid:envelope-open' | iconName"
+                    ></ng-icon>
                 </button>
             </div>
         </div>
@@ -125,10 +125,10 @@
                             (click)="delete(notification)"
                             [matTooltip]="'Remove'"
                         >
-                            <mat-icon
+                            <ng-icon
                                 class="icon-size-4"
-                                [svgIcon]="'heroicons_solid:x-mark'"
-                            ></mat-icon>
+                                [name]="'heroicons_solid:x-mark' | iconName"
+                            ></ng-icon>
                         </button>
                     </div>
                 </div>
@@ -140,11 +140,11 @@
                         <div
                             class="mr-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700"
                         >
-                            <mat-icon
+                            <ng-icon
                                 class="icon-size-5"
-                                [svgIcon]="notification.icon"
+                                [name]="notification.icon | iconName"
                             >
-                            </mat-icon>
+                            </ng-icon>
                         </div>
                     }
                     <!-- Image -->
@@ -184,10 +184,10 @@
                     <div
                         class="flex h-14 w-14 flex-0 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-600"
                     >
-                        <mat-icon
+                        <ng-icon
                             class="text-primary-700 dark:text-primary-50"
-                            [svgIcon]="'heroicons_outline:bell'"
-                        ></mat-icon>
+                            [name]="'heroicons_outline:bell' | iconName"
+                        ></ng-icon>
                     </div>
                     <div class="mt-5 text-2xl font-semibold tracking-tight">
                         No notifications

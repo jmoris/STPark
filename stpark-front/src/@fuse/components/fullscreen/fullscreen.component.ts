@@ -8,8 +8,9 @@ import {
     inject,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { NgIconsModule } from '@ng-icons/core';
+import { IconNamePipe } from 'app/core/icons/icon-name.pipe';
 
 @Component({
     selector: 'fuse-fullscreen',
@@ -21,7 +22,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
         MatButtonModule,
         MatTooltipModule,
         NgTemplateOutlet,
-        MatIconModule,
+        NgIconsModule,
+        IconNamePipe,
     ],
 })
 export class FuseFullscreenComponent {

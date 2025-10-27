@@ -10,8 +10,9 @@ import {
     forwardRef,
     inject,
 } from '@angular/core';
-import { MatIconModule } from '@angular/material/icon';
+import { NgIconsModule } from '@ng-icons/core';
 import { FuseNavigationService } from '@fuse/components/navigation/navigation.service';
+import { IconNamePipe } from 'app/core/icons/icon-name.pipe';
 import { FuseNavigationItem } from '@fuse/components/navigation/navigation.types';
 import { FuseVerticalNavigationBasicItemComponent } from '@fuse/components/navigation/vertical/components/basic/basic.component';
 import { FuseVerticalNavigationCollapsableItemComponent } from '@fuse/components/navigation/vertical/components/collapsable/collapsable.component';
@@ -26,7 +27,8 @@ import { Subject, takeUntil } from 'rxjs';
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
         NgClass,
-        MatIconModule,
+        NgIconsModule,
+        IconNamePipe,
         FuseVerticalNavigationBasicItemComponent,
         FuseVerticalNavigationCollapsableItemComponent,
         FuseVerticalNavigationDividerItemComponent,

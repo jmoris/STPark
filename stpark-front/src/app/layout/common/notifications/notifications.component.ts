@@ -13,9 +13,10 @@ import {
     ViewEncapsulation,
 } from '@angular/core';
 import { MatButton, MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
+import { NgIconsModule } from '@ng-icons/core';
+import { IconNamePipe } from 'app/core/icons/icon-name.pipe';
 import { NotificationsService } from 'app/layout/common/notifications/notifications.service';
 import { Notification } from 'app/layout/common/notifications/notifications.types';
 import { Subject, takeUntil } from 'rxjs';
@@ -28,12 +29,13 @@ import { Subject, takeUntil } from 'rxjs';
     exportAs: 'notifications',
     imports: [
         MatButtonModule,
-        MatIconModule,
         MatTooltipModule,
         NgClass,
         NgTemplateOutlet,
         RouterLink,
         DatePipe,
+        NgIconsModule,
+        IconNamePipe,
     ],
 })
 export class NotificationsComponent implements OnInit, OnDestroy {

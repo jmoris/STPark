@@ -8,17 +8,18 @@ import {
     OnInit,
     inject,
 } from '@angular/core';
-import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
     IsActiveMatchOptions,
     RouterLink,
     RouterLinkActive,
 } from '@angular/router';
+import { NgIconsModule } from '@ng-icons/core';
 import { FuseNavigationService } from '@fuse/components/navigation/navigation.service';
 import { FuseNavigationItem } from '@fuse/components/navigation/navigation.types';
 import { FuseVerticalNavigationComponent } from '@fuse/components/navigation/vertical/vertical.component';
 import { FuseUtilsService } from '@fuse/services/utils/utils.service';
+import { IconNamePipe } from 'app/core/icons/icon-name.pipe';
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
@@ -31,7 +32,8 @@ import { Subject, takeUntil } from 'rxjs';
         RouterLinkActive,
         MatTooltipModule,
         NgTemplateOutlet,
-        MatIconModule,
+        NgIconsModule,
+        IconNamePipe,
     ],
 })
 export class FuseVerticalNavigationBasicItemComponent

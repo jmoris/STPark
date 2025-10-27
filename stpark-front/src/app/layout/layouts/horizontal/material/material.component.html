@@ -62,9 +62,8 @@
                         mat-icon-button
                         (click)="toggleNavigation('mainNavigation')"
                     >
-                        <mat-icon
-                            [svgIcon]="'heroicons_outline:bars-3'"
-                        ></mat-icon>
+                        <ng-icon [name]="'heroicons_outline:bars-3' | iconName"
+></ng-icon>
                     </button>
                 }
                 <!-- Components -->
