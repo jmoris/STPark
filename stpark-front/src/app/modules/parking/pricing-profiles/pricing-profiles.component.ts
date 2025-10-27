@@ -18,7 +18,6 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialog } from '@angular/material/dialog';
 import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 
 import { FuseConfirmationService } from '@fuse/services/confirmation';
@@ -48,7 +47,6 @@ import { PricingProfile, PricingRule, Sector, PricingProfileFilters } from 'app/
     MatChipsModule,
     MatMenuModule,
     MatDatepickerModule,
-    MatNativeDateModule,
     MatCheckboxModule
   ],
   templateUrl: './pricing-profiles.component.html',

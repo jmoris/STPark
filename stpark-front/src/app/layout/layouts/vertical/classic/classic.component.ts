@@ -16,12 +16,15 @@ import { NotificationsComponent } from 'app/layout/common/notifications/notifica
 import { ShortcutsComponent } from 'app/layout/common/shortcuts/shortcuts.component';
 import { UserComponent } from 'app/layout/common/user/user.component';
 import { Subject, takeUntil } from 'rxjs';
+import { CommonModule } from '@angular/common';
+import { AuthService } from 'app/core/services/auth.service';
 
 @Component({
     selector: 'classic-layout',
     templateUrl: './classic.component.html',
     encapsulation: ViewEncapsulation.None,
     imports: [
+        CommonModule,
         FuseLoadingBarComponent,
         FuseVerticalNavigationComponent,
         MatButtonModule,
@@ -37,6 +40,7 @@ import { Subject, takeUntil } from 'rxjs';
 export class ClassicLayoutComponent implements OnInit, OnDestroy {
     isScreenSmall: boolean;
     navigation: Navigation;
+    tenantName: string;
     private _unsubscribeAll: Subject<any> = new Subject<any>();
 
     /**
@@ -47,7 +51,8 @@ export class ClassicLayoutComponent implements OnInit, OnDestroy {
         private _router: Router,
         private _navigationService: NavigationService,
         private _fuseMediaWatcherService: FuseMediaWatcherService,
-        private _fuseNavigationService: FuseNavigationService
+        private _fuseNavigationService: FuseNavigationService,
+        private _authService: AuthService
     ) {}
 
     // -----------------------------------------------------------------------------------------------------
@@ -82,6 +87,17 @@ export class ClassicLayoutComponent implements OnInit, OnDestroy {
             .subscribe(({ matchingAliases }) => {
                 // Check if the screen is small
                 this.isScreenSmall = !matchingAliases.includes('md');
+            });
+
+        // Subscribe to current tenant changes
+        this._authService.currentTenant$
+            .pipe(takeUntil(this._unsubscribeAll))
+            .subscribe((tenant) => {
+                if (tenant) {
+                    this.tenantName = tenant.name;
+                } else {
+                    this.tenantName = 'No Tenant';
+                }
             });
     }
 
