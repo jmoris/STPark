@@ -16,16 +16,22 @@ class SettingsController extends Controller
         
         if (!$setting) {
             return response()->json([
-                'price_per_min' => 0,
-                'min_amount' => 0,
-                'daily_max_amount' => 0,
-                'start_time' => '00:00',
-                'end_time' => '23:59',
-                'is_active' => true
+                'success' => true,
+                'data' => [
+                    'price_per_min' => 0,
+                    'min_amount' => 0,
+                    'daily_max_amount' => 0,
+                    'start_time' => '00:00',
+                    'end_time' => '23:59',
+                    'is_active' => true
+                ]
             ]);
         }
         
-        return response()->json($setting->value);
+        return response()->json([
+            'success' => true,
+            'data' => $setting->value
+        ]);
     }
 
     /**
@@ -63,14 +69,20 @@ class SettingsController extends Controller
         
         if (!$setting) {
             return response()->json([
-                'name' => 'STPark - Sistema de Estacionamientos',
-                'currency' => 'CLP',
-                'timezone' => 'America/Santiago',
-                'language' => 'es'
+                'success' => true,
+                'data' => [
+                    'name' => 'STPark - Sistema de Estacionamientos',
+                    'currency' => 'CLP',
+                    'timezone' => 'America/Santiago',
+                    'language' => 'es'
+                ]
             ]);
         }
         
-        return response()->json($setting->value);
+        return response()->json([
+            'success' => true,
+            'data' => $setting->value
+        ]);
     }
 
     /**

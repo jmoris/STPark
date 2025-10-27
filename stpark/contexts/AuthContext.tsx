@@ -56,6 +56,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.success && response.data) {
         console.log('AuthContext: Operador autenticado:', response.data.name);
         setOperator(response.data);
+        
+        // Cargar configuración del sistema si hay operador autenticado
+        console.log('AuthContext: Cargando configuración del sistema desde servidor...');
+        try {
+          await systemConfigService.loadFromServer();
+          console.log('AuthContext: Configuración del sistema cargada exitosamente');
+        } catch (error) {
+          console.error('AuthContext: Error cargando configuración del sistema:', error);
+        }
       } else {
         console.log('AuthContext: No hay sesión válida');
         setOperator(null);
