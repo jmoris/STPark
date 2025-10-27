@@ -26,7 +26,8 @@ class PricingRule extends Model
         'max_duration_minutes',
         'is_active',
         'daily_max_amount',
-        'min_amount'
+        'min_amount',
+        'min_amount_is_base'
     ];
 
     protected $casts = [
@@ -38,6 +39,7 @@ class PricingRule extends Model
         'daily_max_amount' => 'decimal:2',
         'min_amount' => 'decimal:2',
         'is_active' => 'boolean',
+        'min_amount_is_base' => 'boolean',
     ];
 
     /**

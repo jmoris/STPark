@@ -389,6 +389,7 @@ export class PricingProfilesComponent implements OnInit, OnDestroy {
       max_duration_minutes: [null],
       daily_max_amount: [null], // Monto máximo diario
       min_amount: [null], // Monto mínimo
+      min_amount_is_base: [false], // Monto mínimo como base
       price_per_minute: [0, Validators.required],
       fixed_price: [0],
       start_time: [''],
@@ -476,6 +477,7 @@ export class PricingProfilesComponent implements OnInit, OnDestroy {
       max_duration_minutes: rule.max_duration_minutes || null,
       daily_max_amount: rule.daily_max_amount || null,
       min_amount: rule.min_amount || null,
+      min_amount_is_base: rule.min_amount_is_base || false,
       price_per_minute: rule.price_per_minute || rule.price_per_min || 0,
       fixed_price: rule.fixed_price || 0,
       start_time: startTime,

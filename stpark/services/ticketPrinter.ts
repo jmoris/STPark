@@ -161,6 +161,62 @@ class TicketPrinterService {
     return 'Ubicación: N/A';
   }
 
+  // Generar ticket de ingreso
+  private async generateIngressTicket(data: SessionTicketData): Promise<string> {
+    const startTime = this.formatDateTime(data.startTime);
+    const locationInfo = this.getLocationInfo(data);
+    
+    // Obtener nombre del sistema
+    const systemName = await this.getSystemName();
+    
+    return `
+================================
+       TICKET DE INGRESO                
+================================
+
+${systemName}
+
+Patente: ${data.plate}
+${locationInfo}
+Hora Ingreso: ${startTime}
+
+================================
+   Gracias por su preferencia
+================================
+
+`;
+  }
+
+  // Generar ticket de checkout
+  private async generateCheckoutTicket(data: CheckoutTicketData): Promise<string> {
+    const startTime = this.formatDateTime(data.startTime);
+    const endTime = this.formatDateTime(data.endTime);
+    const locationInfo = this.getLocationInfo(data);
+    
+    // Obtener nombre del sistema
+    const systemName = await this.getSystemName();
+    
+    return `
+================================
+        TICKET DE SALIDA              
+================================
+
+${systemName}
+
+Patente: ${data.plate}
+
+${locationInfo}
+Ingreso: ${startTime}
+Salida: ${endTime}
+Duracion: ${data.duration || 'N/A'}
+
+Monto a pagar: ${this.formatAmount(data.amount)}
+
+================================
+   Gracias por su preferencia
+================================`
+  }
+
   // Imprimir ticket de ingreso
   async printIngressTicket(data: SessionTicketData): Promise<boolean> {
     try {
@@ -174,38 +230,11 @@ class TicketPrinterService {
       }
 
       console.log('Usando impresora Bluetooth para ticket de ingreso');
-      const startTime = this.formatDateTime(data.startTime);
-      const locationInfo = this.getLocationInfo(data);
-      
-      // Obtener nombre del sistema
-      const systemName = await this.getSystemName();
-      
-      const header = `
-      ================================
-              TICKET DE INGRESO                      
-      ================================`;
-      
-
-      const content = `
-      Patente: ${data.plate}
-      
-      ${locationInfo}
-      Hora Ingreso: ${startTime}`;
-
-      const footer = `
-      ================================
-         Gracias por su preferencia   
-      ================================
-
-
-      `
+      const ticketText = await this.generateIngressTicket(data);
+      console.log('Ticket generado:', ticketText);
       
       // Imprimir ticket principal
-      await this.selectedPrinter!.printText(header, {align: 'CENTER', size: 10});
-      await this.selectedPrinter!.printText(systemName, {align: 'CENTER', size: 10});
-      await this.selectedPrinter!.printText(content, {size: 10});
-      await this.selectedPrinter!.printText(footer, {align: 'CENTER', size: 10});
-
+      await this.selectedPrinter!.printText(ticketText);
       console.log('Ticket de ingreso impreso exitosamente con Bluetooth');
       return true;
     } catch (error) {
@@ -227,41 +256,11 @@ class TicketPrinterService {
       }
 
       console.log('Usando impresora Bluetooth para ticket de checkout');
-      const startTime = this.formatDateTime(data.startTime);
-    const endTime = this.formatDateTime(data.endTime);
-    const locationInfo = this.getLocationInfo(data);
-    
-    // Obtener nombre del sistema
-    const systemName = await this.getSystemName();
-    
-    const header = `
-    ================================
-            TICKET DE SALIDA                 
-    ================================`;
-
-    const content = `
-    Patente: ${data.plate}
-    ${locationInfo}
-
-    Ingreso: ${startTime}
-    Salida: ${endTime}
-    Duracion: ${data.duration || 'N/A'}
-
-    Monto a pagar: ${this.formatAmount(data.amount)}
-    `;
-
-    const footer = `
-    ================================
-       Gracias por su preferencia   
-    ================================
-    
-    `;
+      const ticketText = await this.generateCheckoutTicket(data);
+      console.log('Ticket generado:', ticketText);
       
       // Imprimir ticket principal
-      await this.selectedPrinter!.printText(header, {align: 'CENTER', size: 10});
-      await this.selectedPrinter!.printText(systemName, {align: 'CENTER', size: 10});
-      await this.selectedPrinter!.printText(content, {size: 10});
-      await this.selectedPrinter!.printText(footer, {align: 'CENTER', size: 10});
+      await this.selectedPrinter!.printText(ticketText);
       
       const noValido = `No valido como documento fiscal
       

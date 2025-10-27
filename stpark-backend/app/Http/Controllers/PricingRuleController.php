@@ -61,6 +61,7 @@ class PricingRuleController extends Controller
             'max_duration_minutes' => 'nullable|integer|min:0|gt:min_duration_minutes',
             'daily_max_amount' => 'nullable|numeric|min:0',
             'min_amount' => 'nullable|numeric|min:0',
+            'min_amount_is_base' => 'nullable|boolean',
             'price_per_minute' => 'nullable|numeric|min:0|required_if:rule_type,TIME_BASED',
             'price_per_min' => 'nullable|numeric|min:0', // Agregar validación para price_per_min
             'fixed_price' => 'nullable|numeric|min:0|required_if:rule_type,FIXED',
@@ -129,6 +130,7 @@ class PricingRuleController extends Controller
                 'max_duration_minutes' => 'nullable|integer|min:0|gt:min_duration_minutes',
                 'daily_max_amount' => 'nullable|numeric|min:0',
                 'min_amount' => 'nullable|numeric|min:0',
+                'min_amount_is_base' => 'nullable|boolean',
                 'price_per_minute' => 'nullable|numeric|min:0',
                 'price_per_min' => 'nullable|numeric|min:0', // Agregar validación para price_per_min
                 'fixed_price' => 'nullable|numeric|min:0',

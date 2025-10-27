@@ -621,6 +621,17 @@
             <mat-hint>Monto mínimo a cobrar independientemente del tiempo (ej: $500)</mat-hint>
           </mat-form-field>
 
+          <!-- Min Amount Is Base -->
+          <div class="col-span-full">
+            <mat-checkbox formControlName="min_amount_is_base">
+              Monto mínimo como base después del tiempo mínimo
+            </mat-checkbox>
+            <mat-hint class="block mt-1">
+              Si está activo, se cobrará el monto mínimo hasta el tiempo mínimo y luego se sumarán los minutos adicionales.
+              Ejemplo: $500 mínimo + 15 min mínimo → A 16 min = $525, A 17 min = $550
+            </mat-hint>
+          </div>
+
         <!-- Price per Minute -->
         <mat-form-field appearance="outline" *ngIf="ruleForm.get('rule_type')?.value === 'TIME_BASED' || ruleForm.get('rule_type')?.value === 'HOURLY'">
           <mat-label>Precio por Minuto</mat-label>

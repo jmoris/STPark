@@ -135,6 +135,7 @@ export interface PricingRule {
   max_duration_minutes?: number;
   daily_max_amount?: number; // Monto máximo diario
   min_amount?: number; // Monto mínimo
+  min_amount_is_base?: boolean; // Si el monto mínimo es base después del tiempo mínimo
   price_per_minute?: number; // Campo del frontend
   price_per_min?: number; // Campo del backend
   fixed_price?: number;

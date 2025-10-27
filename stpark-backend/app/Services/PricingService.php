@@ -52,7 +52,22 @@ class PricingService
         // Aplicar monto mínimo si existe
         $minAmount = $applicableRule->min_amount;
         $baseAmount = $baseAmountCalculated;
-        if ($minAmount && $baseAmount < $minAmount) {
+        
+        // Si min_amount_is_base está activo, aplicar lógica especial
+        if ($applicableRule->min_amount_is_base && $minAmount) {
+            $minDuration = $applicableRule->min_duration_minutes ?? 0;
+            
+            if ($roundedMinutes <= $minDuration) {
+                // Si no supera el tiempo mínimo, cobrar solo el monto mínimo
+                $baseAmount = $minAmount;
+            } else {
+                // Si supera el tiempo mínimo, cobrar monto mínimo + minutos adicionales
+                $extraMinutes = $roundedMinutes - $minDuration;
+                $pricePerMin = (float) $applicableRule->price_per_min;
+                $baseAmount = $minAmount + ($extraMinutes * $pricePerMin);
+            }
+        } elseif ($minAmount && $baseAmount < $minAmount) {
+            // Lógica tradicional: aplicar monto mínimo si el calculado es menor
             $baseAmount = $minAmount;
         }
         
