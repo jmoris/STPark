@@ -39,6 +39,14 @@
     }
     
     <mat-divider class="my-2"></mat-divider>
+    <button mat-menu-item (click)="openEditProfile()">
+        <ng-icon
+            [name]="'heroicons_outline:user-circle' | iconName" class="icon-size-7"
+        ></ng-icon>
+        <span>Editar Perfil</span>
+    </button>
+    
+    <mat-divider class="my-2"></mat-divider>
     <button mat-menu-item (click)="signOut()">
         <ng-icon
             [name]="'heroicons_outline:arrow-right-on-rectangle' | iconName" class="icon-size-7"

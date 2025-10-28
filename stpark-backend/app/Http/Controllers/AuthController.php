@@ -248,6 +248,65 @@ class AuthController extends Controller
     }
 
     /**
+     * Actualizar perfil del usuario
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Usuario no autenticado'
+            ], 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'nullable|string|max:255',
+            'password' => 'nullable|string|min:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $updateData = [];
+            
+            // Solo actualizar nombre si está presente
+            if ($request->filled('name')) {
+                $updateData['name'] = $request->name;
+            }
+            
+            // Solo actualizar contraseña si está presente (no vacía)
+            if ($request->filled('password') && $request->password !== '') {
+                $updateData['password'] = Hash::make($request->password);
+            }
+            
+            if (count($updateData) > 0) {
+                $user->update($updateData);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                ],
+                'message' => 'Perfil actualizado exitosamente'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error actualizando perfil: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar perfil'
+            ], 500);
+        }
+    }
+
+    /**
      * Obtener listado de tenants asociados al usuario autenticado
      */
     public function getTenants(Request $request): JsonResponse

@@ -1,0 +1,18 @@
+.full-width {
+  width: 100%;
+}
+
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 400px;
+}
+
+:host ::ng-deep {
+  .mat-mdc-dialog-content {
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+}
+

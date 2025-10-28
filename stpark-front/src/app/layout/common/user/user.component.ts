@@ -13,11 +13,13 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatDialog } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 import { NgIconsModule } from '@ng-icons/core';
 import { Subject, takeUntil } from 'rxjs';
 import { AuthService, Tenant, User } from 'app/core/services/auth.service';
 import { IconNamePipe } from 'app/core/icons/icon-name.pipe';
+import { EditProfileComponent } from './edit-profile/edit-profile.component';
 
 @Component({
     selector: 'user',
@@ -53,7 +55,8 @@ export class UserComponent implements OnInit, OnDestroy {
     constructor(
         private _changeDetectorRef: ChangeDetectorRef,
         private _router: Router,
-        private _authService: AuthService
+        private _authService: AuthService,
+        private _dialog: MatDialog
     ) {}
 
     // -----------------------------------------------------------------------------------------------------
@@ -149,5 +152,32 @@ export class UserComponent implements OnInit, OnDestroy {
      */
     signOut(): void {
         this._authService.logout();
+    }
+
+    /**
+     * Open edit profile dialog
+     */
+    openEditProfile(): void {
+        const currentTenant = this._authService.getCurrentTenant();
+        
+        const dialogRef = this._dialog.open(EditProfileComponent, {
+            width: '500px',
+            data: {
+                user: {
+                    id: this.user?.id || '',
+                    name: this.user?.name || '',
+                    email: this.user?.email || '',
+                    tenant: currentTenant?.name || ''
+                }
+            }
+        });
+
+        dialogRef.afterClosed().subscribe((result) => {
+            if (result) {
+                // Actualizar el usuario si se guardaron cambios
+                // El AuthService debe actualizar automáticamente
+                this._changeDetectorRef.markForCheck();
+            }
+        });
     }
 }

@@ -28,6 +28,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('tenants')->group(function () {
         Route::get('/', [AuthController::class, 'getTenants']); // Obtener lista de tenants
     });
+    
+    // Rutas de perfil de usuario
+    Route::put('/user/profile', [AuthController::class, 'updateProfile']); // Actualizar perfil del usuario
 });
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {

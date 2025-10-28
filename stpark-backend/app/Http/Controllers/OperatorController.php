@@ -318,4 +318,51 @@ class OperatorController extends Controller
             ], 404);
         }
     }
+
+    /**
+     * Actualizar perfil del operador
+     */
+    public function updateProfile(Request $request, int $id): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'nullable|string|max:255',
+            'pin' => 'nullable|string|size:6',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $operator = Operator::findOrFail($id);
+            
+            $updateData = [];
+            
+            // Solo actualizar nombre si está presente
+            if ($request->filled('name')) {
+                $updateData['name'] = $request->name;
+            }
+            
+            // Solo actualizar PIN si está presente (no vacío)
+            if ($request->filled('pin') && $request->pin !== '') {
+                $updateData['pin'] = $request->pin;
+            }
+            
+            if (count($updateData) > 0) {
+                $operator->update($updateData);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $operator,
+                'message' => 'Perfil actualizado exitosamente'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Operador no encontrado'
+            ], 404);
+        }
+    }
 }

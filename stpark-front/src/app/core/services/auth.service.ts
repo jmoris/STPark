@@ -113,6 +113,18 @@ export class AuthService {
     return this.currentUserSubject.value;
   }
 
+  /**
+   * Actualizar datos del usuario actual
+   */
+  updateCurrentUser(userData: Partial<User>): void {
+    const currentUser = this.currentUserSubject.value;
+    if (currentUser) {
+      const updatedUser = { ...currentUser, ...userData };
+      this.currentUserSubject.next(updatedUser);
+      localStorage.setItem('current_user', JSON.stringify(updatedUser));
+    }
+  }
+
   getToken(): string | null {
     return this.tokenSubject.value;
   }

@@ -1,0 +1,48 @@
+<h2 mat-dialog-title>Editar Perfil</h2>
+
+<mat-dialog-content class="mat-typography">
+  <form [formGroup]="profileForm" class="profile-form">
+    
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Nombre</mat-label>
+      <input matInput formControlName="name" placeholder="Nombre completo">
+      @if (profileForm.get('name')?.hasError('required') && profileForm.get('name')?.touched) {
+        <mat-error>{{ getErrorMessage('name') }}</mat-error>
+      }
+      @if (profileForm.get('name')?.hasError('minlength') && profileForm.get('name')?.touched) {
+        <mat-error>{{ getErrorMessage('name') }}</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Email</mat-label>
+      <input matInput formControlName="email" type="email" readonly>
+      <mat-hint>El email no se puede modificar</mat-hint>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Empresa (Tenant)</mat-label>
+      <input matInput formControlName="tenant" readonly>
+      <mat-hint>El tenant no se puede modificar</mat-hint>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Nueva Contraseña (dejar vacío para no cambiar)</mat-label>
+      <input matInput formControlName="password" type="password" placeholder="Ingrese nueva contraseña">
+      <mat-hint>Debe tener 6 dígitos</mat-hint>
+    </mat-form-field>
+
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="onCancel()" [disabled]="loading">Cancelar</button>
+  <button mat-raised-button color="primary" (click)="onSubmit()" [disabled]="loading || !profileForm.valid">
+    @if (loading) {
+      <mat-spinner diameter="20"></mat-spinner>
+    } @else {
+      Guardar
+    }
+  </button>
+</mat-dialog-actions>
+

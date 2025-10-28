@@ -104,6 +104,7 @@ Route::middleware([
         Route::get('/{id}', [OperatorController::class, 'show']); // Obtener operador por ID
         Route::put('/{id}', [OperatorController::class, 'update']); // Actualizar operador
         Route::put('/{id}/pin', [OperatorController::class, 'updatePin']); // Actualizar PIN del operador
+        Route::put('/{id}/profile', [OperatorController::class, 'updateProfile']); // Actualizar perfil del operador
         Route::post('/{id}/assign', [OperatorController::class, 'assign']); // Asignar operador a sector/calle
         Route::delete('/{id}/assignments', [OperatorController::class, 'removeAllAssignments']); // Eliminar todas las asignaciones del operador
         Route::get('/{id}/assignments', [OperatorController::class, 'assignments']); // Obtener asignaciones del operador
