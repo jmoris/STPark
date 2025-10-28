@@ -655,7 +655,7 @@ class ApiService {
   // Obtener deudas pendientes agrupadas por placa
   async getPendingDebtsGroupedByPlate(): Promise<ApiResponse<any[]>> {
     try {
-      const response = await makeRequest('/debts?status=PENDING', {
+      const response = await makeRequest('/debts?status=PENDING&per_page=9999', {
         method: 'GET',
         headers: await this.getHeaders(),
       });
@@ -664,7 +664,8 @@ class ApiService {
       console.log('API: Respuesta de deudas:', result);
       
       if (result.success && result.data) {
-        const debts = result.data.data || result.data; // Manejar paginación
+        // Si viene paginado, obtener los datos de la paginación
+        const debts = result.data.data ? result.data.data : result.data;
         const debtsByPlate: any = {};
         
         // Agrupar deudas por placa

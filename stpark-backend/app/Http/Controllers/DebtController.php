@@ -46,8 +46,18 @@ class DebtController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
+        // Si no hay paginación solicitada o es muy grande, devolver todas las deudas
+        $perPage = $request->get('per_page', 15);
+        if ($perPage > 1000) {
+            $debts = $query->orderBy('created_at', 'desc')->get();
+            return response()->json([
+                'success' => true,
+                'data' => $debts
+            ]);
+        }
+
         $debts = $query->orderBy('created_at', 'desc')
-                      ->paginate($request->get('per_page', 15));
+                      ->paginate($perPage);
 
         return response()->json([
             'success' => true,

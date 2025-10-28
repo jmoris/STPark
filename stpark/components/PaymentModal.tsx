@@ -211,13 +211,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         if (type === 'debt' && response.data) {
           try {
             const paymentTime = new Date().toISOString();
-            const parkingSession = data.parking_session || response.data.parking_session;
+            // Si hay múltiples deudas, tomar la primera para la información
+            const debt = data.debts && data.debts.length > 0 ? data.debts[0] : data;
+            const parkingSession = debt.parking_session || response.data.parking_session;
             
+            console.log('PaymentModal - debt:', debt);
             console.log('PaymentModal - parkingSession:', parkingSession);
             console.log('PaymentModal - sector:', parkingSession?.sector);
             console.log('PaymentModal - street:', parkingSession?.street);
             
-            if (parkingSession) {
+            if (parkingSession && parkingSession.started_at) {
               const startTime = parkingSession.started_at;
               const endTime = paymentTime;
               const duration = calculateElapsedTime(startTime);
@@ -225,10 +228,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               const ticketData: CheckoutTicketData = {
                 type: 'CHECKOUT',
                 plate: data.plate,
-                sector: parkingSession?.sector?.name,
-                street: parkingSession?.street?.name,
+                sector: parkingSession?.sector?.name || 'N/A',
+                street: parkingSession?.street?.name || 'N/A',
                 sectorIsPrivate: parkingSession?.sector?.is_private || false,
-                streetAddress: parkingSession?.street?.full_address || parkingSession?.street?.name,
+                streetAddress: parkingSession?.street?.full_address || parkingSession?.street?.name || 'N/A',
                 startTime: startTime,
                 endTime: endTime,
                 duration: duration,
