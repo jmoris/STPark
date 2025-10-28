@@ -356,9 +356,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // Función para obtener información específica según el tipo
   const getDataInfo = () => {
-    console.log('PaymentModal - Tipo:', type);
-    console.log('PaymentModal - Data:', data);
-    console.log('PaymentModal - Parking Session:', data?.parking_session);
     
     if (type === 'checkout') {
       return {
@@ -371,20 +368,36 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 '$0'
       };
     } else {
-      // Para deudas, obtener el nombre del sector usando el sector_id
+      // Para deudas, obtener la información de la primera deuda
+      const firstDebt = data.debts && data.debts.length > 0 ? data.debts[0] : data;
+      const parkingSession = firstDebt.parking_session;
+      
+      // Construir ubicación desde parking_session
       let sectorName = 'N/A';
-      if (data.parking_session?.sector_id && operator?.activeSector?.id === data.parking_session.sector_id) {
-        sectorName = operator.activeSector.name;
-      } else if (data.parking_session?.sector_id) {
-        // Si no coincide con el sector activo, usar un nombre genérico o hacer una consulta
-        sectorName = `Sector ${data.parking_session.sector_id}`;
+      let streetName = '';
+      
+      if (parkingSession) {
+        sectorName = parkingSession.sector?.name || 'N/A';
+        streetName = parkingSession.street?.name || '';
+      }
+      
+      const location = streetName ? `${sectorName} - ${streetName}` : sectorName;
+      
+      // Obtener fecha de creación de la deuda
+      let displayTime = 'N/A';
+      try {
+        if (firstDebt.created_at) {
+          displayTime = new Date(firstDebt.created_at).toLocaleDateString('es-CL');
+        }
+      } catch (e) {
+        console.error('Error formateando fecha:', e);
       }
       
       return {
         title: 'Resumen de Deuda',
         plate: data.plate,
-        location: sectorName,
-        time: new Date(data.created_at).toLocaleDateString('es-CL'),
+        location: location,
+        time: displayTime,
         amount: estimatedAmount ? `$${estimatedAmount.toLocaleString('es-CL')}` : '$0'
       };
     }
