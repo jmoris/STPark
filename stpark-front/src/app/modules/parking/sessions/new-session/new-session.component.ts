@@ -226,18 +226,48 @@ export class NewSessionComponent implements OnInit, OnDestroy {
       return;
     }
 
+    console.log('Filtrando operadores para sector:', sectorId, 'calle:', streetId);
+    
     // Filtrar operadores que tienen asignación al sector y calle específica
     this.operatorService.getOperators()
       .pipe(takeUntil(this._unsubscribeAll))
       .subscribe({
         next: (response) => {
-          this.operators = ((response.data as any)?.data || []).filter((operator: any) => 
-            operator.operator_assignments?.some((assignment: any) => {
-              const hasSectorAccess = assignment.sector_id === sectorId;
-              const hasStreetAccess = !streetId || !assignment.street_id || assignment.street_id === streetId;
-              return hasSectorAccess && hasStreetAccess && this.isAssignmentValid(assignment);
-            })
-          );
+          const allOperators = (response.data as any)?.data || [];
+          console.log('Todos los operadores cargados:', allOperators.length);
+          
+          this.operators = allOperators.filter((operator: any) => {
+            // Buscar en las asignaciones del operador
+            const hasValidAssignment = operator.operator_assignments?.some((assignment: any) => {
+              // Verificar que la asignación corresponda al sector seleccionado
+              if (assignment.sector_id === sectorId) {
+                // Validar fechas de asignación
+                const now = new Date();
+                const validFrom = new Date(assignment.valid_from);
+                const validTo = assignment.valid_to ? new Date(assignment.valid_to) : null;
+                
+                const isDateValid = validFrom <= now && (!validTo || validTo >= now);
+                
+                // Validar acceso a la calle
+                let hasStreetAccess = true;
+                if (streetId) {
+                  // Si hay street_id en la asignación, debe coincidir con el seleccionado
+                  // Si es null, el operador tiene acceso a todas las calles del sector
+                  hasStreetAccess = !assignment.street_id || assignment.street_id === streetId;
+                }
+                
+                console.log('Operador:', operator.name, 'Sector match:', assignment.sector_id === sectorId, 'Street access:', hasStreetAccess, 'Date valid:', isDateValid, 'Assignment:', assignment);
+                
+                return isDateValid && hasStreetAccess;
+              }
+              return false;
+            });
+            
+            console.log('Operador:', operator.name, 'Has valid assignment:', hasValidAssignment);
+            return hasValidAssignment;
+          });
+          
+          console.log('Operadores filtrados:', this.operators.length);
         },
         error: (error) => {
           console.error('Error filtering operators:', error);

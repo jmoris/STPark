@@ -627,31 +627,6 @@ class ApiService {
     }
   }
 
-  // Actualizar perfil del operador
-  async updateOperatorProfile(operatorId: number, data: {
-    name?: string;
-    pin?: string;
-  }): Promise<ApiResponse<Operator>> {
-    try {
-      const response = await makeRequest(`/operators/${operatorId}/profile`, {
-        method: 'PUT',
-        headers: await this.getHeaders(),
-        body: JSON.stringify(data),
-      });
-
-      const result = await response.json();
-      console.log('API: Perfil actualizado:', result);
-      
-      return result;
-    } catch (error) {
-      console.error('API: Error actualizando perfil:', error);
-      return {
-        success: false,
-        message: 'Error al actualizar perfil',
-      };
-    }
-  }
-
   // Obtener deudas pendientes agrupadas por placa
   async getPendingDebtsGroupedByPlate(): Promise<ApiResponse<any[]>> {
     try {

@@ -15,7 +15,7 @@ class OperatorController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Operator::with(['sectors', 'streets']);
+        $query = Operator::with(['operatorAssignments.sector', 'operatorAssignments.street']);
 
         // Aplicar filtros
         if ($request->filled('name')) {
@@ -27,8 +27,8 @@ class OperatorController extends Controller
         }
 
         if ($request->filled('sector') && $request->get('sector') !== 'undefined') {
-            $query->whereHas('sectors', function($q) use ($request) {
-                $q->where('sectors.id', $request->sector);
+            $query->whereHas('operatorAssignments', function($q) use ($request) {
+                $q->where('sector_id', $request->sector);
             });
         }
 
@@ -55,7 +55,7 @@ class OperatorController extends Controller
      */
     public function all(): JsonResponse
     {
-        $operators = Operator::with(['sectors', 'streets'])
+        $operators = Operator::with(['operatorAssignments.sector', 'operatorAssignments.street'])
             ->where('status', 'ACTIVE')
             ->orderBy('name')
             ->get();

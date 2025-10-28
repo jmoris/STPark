@@ -9,7 +9,6 @@ interface AuthContextType {
   isLoading: boolean;
   login: (operatorId: number, pin: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  updateOperator: (operatorId: number, name?: string, pin?: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -154,35 +153,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Ignorar errores de logout
     } finally {
       setOperator(null);
-    }
-  };
-
-  const updateOperator = async (operatorId: number, name?: string, pin?: string): Promise<boolean> => {
-    try {
-      console.log('AuthContext: Actualizando perfil del operador:', operatorId);
-      
-      const response = await apiService.updateOperatorProfile(operatorId, { name, pin });
-      
-      if (response.success && response.data) {
-        console.log('AuthContext: Perfil actualizado exitosamente');
-        
-        // Actualizar el operador en el contexto
-        setOperator(prev => {
-          if (!prev) return prev;
-          
-          const updated = { ...prev };
-          if (name) updated.name = name;
-          return updated;
-        });
-        
-        return true;
-      }
-      
-      console.log('AuthContext: Error actualizando perfil:', response.message);
-      return false;
-    } catch (error) {
-      console.error('AuthContext: Error en updateOperator:', error);
-      return false;
     }
   };
 

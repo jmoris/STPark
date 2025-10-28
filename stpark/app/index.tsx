@@ -42,11 +42,7 @@ export default function HomeScreen() {
   const [showTenantConfigModal, setShowTenantConfigModal] = useState(false);
   const [tenantInput, setTenantInput] = useState('');
   const [tenantConfigLoading, setTenantConfigLoading] = useState(false);
-  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
-  const [editProfileName, setEditProfileName] = useState('');
-  const [editProfilePin, setEditProfilePin] = useState('');
-  const [editProfileLoading, setEditProfileLoading] = useState(false);
-  const { operator, logout, updateOperator } = useAuth();
+  const { operator, logout } = useAuth();
   const { tenantConfig, isLoading: tenantLoading, setTenant, refreshTenantConfig } = useTenant();
 
   // Verificar si hay tenant configurado al cargar la pantalla
@@ -377,46 +373,6 @@ export default function HomeScreen() {
     router.replace('/login');
   };
 
-  const handleEditProfileOpen = () => {
-    if (!operator) return;
-    setEditProfileName(operator.name);
-    setEditProfilePin('');
-    setShowEditProfileModal(true);
-  };
-
-  const handleEditProfileClose = () => {
-    setShowEditProfileModal(false);
-    setEditProfileName('');
-    setEditProfilePin('');
-  };
-
-  const handleEditProfileSave = async () => {
-    if (!operator) return;
-
-    setEditProfileLoading(true);
-
-    try {
-      const pinToUpdate = editProfilePin.trim();
-      const result = await updateOperator(
-        operator.id,
-        editProfileName.trim(),
-        pinToUpdate !== '' ? pinToUpdate : undefined
-      );
-
-      if (result) {
-        Alert.alert('Éxito', 'Perfil actualizado correctamente');
-        handleEditProfileClose();
-      } else {
-        Alert.alert('Error', 'No se pudo actualizar el perfil');
-      }
-    } catch (error) {
-      console.error('Error actualizando perfil:', error);
-      Alert.alert('Error', 'Error al actualizar el perfil');
-    } finally {
-      setEditProfileLoading(false);
-    }
-  };
-
   const styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -564,15 +520,6 @@ export default function HomeScreen() {
       position: 'absolute',
       top: 20,
       left: 20,
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      borderRadius: 20,
-      padding: 10,
-      zIndex: 1,
-    },
-    editProfileButton: {
-      position: 'absolute',
-      top: 20,
-      right: 70,
       backgroundColor: 'rgba(255, 255, 255, 0.2)',
       borderRadius: 20,
       padding: 10,
@@ -907,13 +854,6 @@ export default function HomeScreen() {
         <IconSymbol size={24} name="power" color="#ffffff" />
       </TouchableOpacity>
       
-      <TouchableOpacity
-        style={styles.editProfileButton}
-        onPress={handleEditProfileOpen}
-      >
-        <IconSymbol size={24} name="person.circle" color="#ffffff" />
-      </TouchableOpacity>
-      
       <ScrollView 
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={true}
@@ -1209,98 +1149,6 @@ export default function HomeScreen() {
                   {tenantConfigLoading ? 'Configurando...' : 'Configurar Tenant'}
                 </Text>
               </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Modal de Edición de Perfil */}
-      <Modal
-        visible={showEditProfileModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={handleEditProfileClose}
-      >
-        <View style={styles.tenantModalOverlay}>
-          <View style={styles.tenantModalContainer}>
-            <View style={styles.tenantModalContent}>
-              <Text style={styles.tenantModalTitle}>Editar Perfil</Text>
-              
-              <View style={styles.tenantInputContainer}>
-                <Text style={styles.tenantInputLabel}>Nombre</Text>
-                <TextInput
-                  style={styles.tenantInput}
-                  value={editProfileName}
-                  onChangeText={setEditProfileName}
-                  placeholder="Nombre completo"
-                  editable={!editProfileLoading}
-                />
-              </View>
-
-              <View style={styles.tenantInputContainer}>
-                <Text style={styles.tenantInputLabel}>Email</Text>
-                <TextInput
-                  style={[styles.tenantInput, { backgroundColor: '#e0e0e0' }]}
-                  value={operator?.email || ''}
-                  editable={false}
-                />
-                <Text style={styles.tenantInputHelp}>
-                  El email no se puede modificar
-                </Text>
-              </View>
-
-              <View style={styles.tenantInputContainer}>
-                <Text style={styles.tenantInputLabel}>Empresa (Tenant)</Text>
-                <TextInput
-                  style={[styles.tenantInput, { backgroundColor: '#e0e0e0' }]}
-                  value={tenantConfig.tenant || ''}
-                  editable={false}
-                />
-                <Text style={styles.tenantInputHelp}>
-                  El tenant no se puede modificar
-                </Text>
-              </View>
-
-              <View style={styles.tenantInputContainer}>
-                <Text style={styles.tenantInputLabel}>Nueva Contraseña (dejar vacío para no cambiar)</Text>
-                <TextInput
-                  style={styles.tenantInput}
-                  value={editProfilePin}
-                  onChangeText={setEditProfilePin}
-                  placeholder="Ingrese nueva contraseña (6 dígitos)"
-                  secureTextEntry={true}
-                  editable={!editProfileLoading}
-                  maxLength={6}
-                />
-                <Text style={styles.tenantInputHelp}>
-                  Debe tener 6 dígitos
-                </Text>
-              </View>
-
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <TouchableOpacity
-                  style={[styles.tenantSaveButton, { flex: 1, backgroundColor: '#6c757d' }]}
-                  onPress={handleEditProfileClose}
-                  disabled={editProfileLoading}
-                >
-                  <Text style={styles.tenantSaveButtonText}>
-                    Cancelar
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.tenantSaveButton,
-                    { flex: 1 },
-                    (!editProfileName.trim() || editProfileLoading) && styles.tenantSaveButtonDisabled
-                  ]}
-                  onPress={handleEditProfileSave}
-                  disabled={!editProfileName.trim() || editProfileLoading}
-                >
-                  <Text style={styles.tenantSaveButtonText}>
-                    {editProfileLoading ? 'Guardando...' : 'Guardar'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
             </View>
           </View>
         </View>
