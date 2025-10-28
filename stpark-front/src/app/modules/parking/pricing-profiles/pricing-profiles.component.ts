@@ -439,6 +439,7 @@ export class PricingProfilesComponent implements OnInit, OnDestroy {
       max_duration_minutes: null,
       daily_max_amount: null,
       min_amount: null,
+      min_amount_is_base: false, // Agregar el campo faltante
       price_per_minute: 0,
       fixed_price: 0,
       start_time: '',
@@ -529,6 +530,7 @@ export class PricingProfilesComponent implements OnInit, OnDestroy {
         max_duration_minutes: this.ruleForm.value.max_duration_minutes,
         daily_max_amount: this.ruleForm.value.daily_max_amount,
         min_amount: this.ruleForm.value.min_amount,
+        min_amount_is_base: this.ruleForm.value.min_amount_is_base || false, // Agregar el campo faltante
         price_per_minute: this.ruleForm.value.price_per_minute, // Campo correcto para el backend
         fixed_price: this.ruleForm.value.fixed_price,
         days_of_week: this.selectedDays,

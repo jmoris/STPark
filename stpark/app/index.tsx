@@ -30,6 +30,9 @@ export default function HomeScreen() {
   const [showActiveSessionsModal, setShowActiveSessionsModal] = useState(false);
   const [activeSessions, setActiveSessions] = useState<any[]>([]);
   const [loadingActiveSessions, setLoadingActiveSessions] = useState(false);
+  const [showDebtsModal, setShowDebtsModal] = useState(false);
+  const [debtsByPlate, setDebtsByPlate] = useState<any[]>([]);
+  const [loadingDebts, setLoadingDebts] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [printerConnected, setPrinterConnected] = useState(false);
@@ -264,6 +267,47 @@ export default function HomeScreen() {
     // Recargar datos después del pago exitoso
     loadActiveSessions();
     loadDailyStats();
+    loadDebtsByPlate();
+  };
+
+  // Función para cargar deudas agrupadas por placa
+  const loadDebtsByPlate = async () => {
+    setLoadingDebts(true);
+    try {
+      console.log('Cargando deudas agrupadas por placa...');
+      const response = await apiService.getPendingDebtsGroupedByPlate();
+      
+      if (response.success) {
+        console.log('Deudas cargadas:', response.data);
+        setDebtsByPlate(response.data || []);
+      } else {
+        console.error('Error cargando deudas:', response.message);
+        setDebtsByPlate([]);
+      }
+    } catch (error) {
+      console.error('Error cargando deudas:', error);
+      setDebtsByPlate([]);
+    } finally {
+      setLoadingDebts(false);
+    }
+  };
+
+  // Función para mostrar deudas
+  const handleShowDebts = async () => {
+    console.log('=== ABRIENDO MODAL DE DEUDAS ===');
+    
+    // Abrir el modal primero para mostrar el estado de carga
+    setShowDebtsModal(true);
+    
+    // Luego cargar las deudas
+    await loadDebtsByPlate();
+  };
+
+  // Función para liquidar una deuda específica
+  const handleLiquidateDebt = (debt: any) => {
+    console.log('Liquidando deuda:', debt);
+    setSelectedSession(debt);
+    setShowPaymentModal(true);
   };
 
   // Función para mostrar sesiones activas
@@ -945,12 +989,12 @@ export default function HomeScreen() {
                 <Text style={styles.statLabel}>Vehículos Activos</Text>
               </TouchableOpacity>
               
-              <View style={styles.statItem}>
+              <TouchableOpacity style={styles.statItem} onPress={handleShowDebts}>
                 <Text style={styles.statNumber}>
                   {loadingStats ? '...' : dailyStats?.vehicles_with_debt || 0}
                 </Text>
                 <Text style={styles.statLabel}>Con Deuda</Text>
-              </View>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -1034,6 +1078,73 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
+      {/* Modal de Deudas */}
+      <Modal
+        visible={showDebtsModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDebtsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Deudas Pendientes</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowDebtsModal(false)}
+              >
+                <IconSymbol size={24} name="xmark.circle.fill" color="#6c757d" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalBody}>
+              {loadingDebts ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>Cargando deudas...</Text>
+                </View>
+              ) : debtsByPlate.length > 0 ? (
+                <FlatList
+                  data={debtsByPlate}
+                  keyExtractor={(item) => item.plate}
+                  renderItem={({ item }) => (
+                    <View style={styles.sessionItem}>
+                      <View style={styles.sessionInfo}>
+                        <Text style={styles.sessionPlate}>{item.plate}</Text>
+                        <Text style={styles.sessionSector}>
+                          Total: ${item.total_amount.toLocaleString('es-CL')}
+                        </Text>
+                        <Text style={styles.sessionTime}>
+                          {item.debts.length} {item.debts.length === 1 ? 'deuda' : 'deudas'} pendiente{item.debts.length > 1 ? 's' : ''}
+                        </Text>
+                      </View>
+                      <TouchableOpacity 
+                        style={styles.checkoutButton}
+                        onPress={() => {
+                          // Mostrar las deudas individuales de esta placa
+                          setSelectedSession({ plate: item.plate, debts: item.debts });
+                          setShowDebtsModal(false);
+                          setShowPaymentModal(true);
+                        }}
+                      >
+                        <IconSymbol size={20} name="creditcard.fill" color="#fff" />
+                        <Text style={styles.checkoutButtonText}>Liquidar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  style={styles.sessionsList}
+                />
+              ) : (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>
+                    No hay deudas pendientes
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal de Pago */}
       <PaymentModal
         visible={showPaymentModal}
@@ -1043,7 +1154,7 @@ export default function HomeScreen() {
         }}
         data={selectedSession}
         onSuccess={handlePaymentSuccess}
-        type="checkout"
+        type={selectedSession?.debts ? "debt" : "checkout"}
         operator={operator}
       />
 

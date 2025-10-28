@@ -651,6 +651,57 @@ class ApiService {
       };
     }
   }
+
+  // Obtener deudas pendientes agrupadas por placa
+  async getPendingDebtsGroupedByPlate(): Promise<ApiResponse<any[]>> {
+    try {
+      const response = await makeRequest('/debts?status=PENDING', {
+        method: 'GET',
+        headers: await this.getHeaders(),
+      });
+
+      const result = await response.json();
+      console.log('API: Respuesta de deudas:', result);
+      
+      if (result.success && result.data) {
+        const debts = result.data.data || result.data; // Manejar paginación
+        const debtsByPlate: any = {};
+        
+        // Agrupar deudas por placa
+        debts.forEach((debt: any) => {
+          if (!debtsByPlate[debt.plate]) {
+            debtsByPlate[debt.plate] = {
+              plate: debt.plate,
+              debts: [],
+              total_amount: 0,
+            };
+          }
+          
+          debtsByPlate[debt.plate].debts.push(debt);
+          debtsByPlate[debt.plate].total_amount += parseFloat(debt.principal_amount);
+        });
+        
+        // Convertir objeto a array
+        const resultArray = Object.values(debtsByPlate);
+        
+        return {
+          success: true,
+          data: resultArray,
+        };
+      }
+      
+      return {
+        success: false,
+        message: result.message || 'Error obteniendo deudas',
+      };
+    } catch (error) {
+      console.error('API: Error obteniendo deudas agrupadas:', error);
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+      };
+    }
+  }
 }
 
 export const apiService = new ApiService();

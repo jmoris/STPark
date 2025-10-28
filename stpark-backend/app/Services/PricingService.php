@@ -6,6 +6,7 @@ use App\Models\PricingProfile;
 use App\Models\PricingRule;
 use App\Models\Sector;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class PricingService
 {
@@ -57,18 +58,34 @@ class PricingService
         if ($applicableRule->min_amount_is_base && $minAmount) {
             $minDuration = $applicableRule->min_duration_minutes ?? 0;
             
+            Log::info('Aplicando lógica de monto mínimo como base', [
+                'min_amount_is_base' => $applicableRule->min_amount_is_base,
+                'min_amount' => $minAmount,
+                'min_duration' => $minDuration,
+                'rounded_minutes' => $roundedMinutes,
+                'price_per_min' => $applicableRule->price_per_min
+            ]);
+            
             if ($roundedMinutes <= $minDuration) {
                 // Si no supera el tiempo mínimo, cobrar solo el monto mínimo
                 $baseAmount = $minAmount;
+                Log::info('No supera tiempo mínimo, cobrando solo monto mínimo', ['amount' => $baseAmount]);
             } else {
                 // Si supera el tiempo mínimo, cobrar monto mínimo + minutos adicionales
                 $extraMinutes = $roundedMinutes - $minDuration;
                 $pricePerMin = (float) $applicableRule->price_per_min;
                 $baseAmount = $minAmount + ($extraMinutes * $pricePerMin);
+                Log::info('Supera tiempo mínimo, calculando adicionales', [
+                    'extra_minutes' => $extraMinutes,
+                    'price_per_min' => $pricePerMin,
+                    'additional_amount' => ($extraMinutes * $pricePerMin),
+                    'total_amount' => $baseAmount
+                ]);
             }
         } elseif ($minAmount && $baseAmount < $minAmount) {
             // Lógica tradicional: aplicar monto mínimo si el calculado es menor
             $baseAmount = $minAmount;
+            Log::info('Aplicando lógica tradicional de monto mínimo', ['amount' => $baseAmount]);
         }
         
         // Aplicar monto máximo diario si existe

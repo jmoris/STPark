@@ -73,7 +73,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         response = await apiService.getSessionQuote(data.id);
       } else {
         // Para deudas, usar el monto de la deuda directamente
-        setEstimatedAmount(parseFloat(data.principal_amount));
+        if (data.debts && data.debts.length > 0) {
+          // Múltiples deudas - sumar el total
+          const total = data.debts.reduce((sum: number, debt: any) => sum + parseFloat(debt.principal_amount), 0);
+          setEstimatedAmount(total);
+        } else {
+          // Una sola deuda
+          setEstimatedAmount(parseFloat(data.principal_amount));
+        }
         setLoadingQuote(false);
         return;
       }
@@ -125,14 +132,42 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         response = await apiService.checkoutSession(data.id, paymentData);
       } else {
         // Procesar pago de deuda
-        const paymentData = {
-          amount: estimatedAmount || 0,
-          method: selectedPaymentMethod,
-          cashier_operator_id: operator?.id || 1,
-          approval_code: approvalCode || undefined,
-        };
+        if (data.debts && data.debts.length > 0) {
+          // Si hay múltiples deudas, procesarlas una por una
+          for (const debt of data.debts) {
+            const paymentData = {
+              amount: parseFloat(debt.principal_amount),
+              method: selectedPaymentMethod,
+              cashier_operator_id: operator?.id || 1,
+              approval_code: approvalCode || undefined,
+            };
+            
+            const debtResponse = await apiService.payDebt(debt.id, paymentData);
+            if (!debtResponse.success) {
+              throw new Error(`Error al liquidar deuda ID ${debt.id}`);
+            }
+          }
+          
+          // Crear respuesta agregada
+          response = {
+            success: true,
+            data: {
+              plate: data.plate,
+              debts_paid: data.debts.length,
+              total_amount: estimatedAmount,
+            },
+          };
+        } else {
+          // Una sola deuda
+          const paymentData = {
+            amount: estimatedAmount || 0,
+            method: selectedPaymentMethod,
+            cashier_operator_id: operator?.id || 1,
+            approval_code: approvalCode || undefined,
+          };
 
-        response = await apiService.payDebt(data.id, paymentData);
+          response = await apiService.payDebt(data.id, paymentData);
+        }
       }
       
       if (response.success) {
