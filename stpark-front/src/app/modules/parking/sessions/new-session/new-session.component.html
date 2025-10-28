@@ -65,9 +65,9 @@
           </mat-form-field>
 
           <!-- Operator Selection -->
-          <mat-form-field appearance="outline" class="w-full mb-6">
+          <mat-form-field appearance="outline" class="w-full mb-6" [class.mat-form-field-disabled]="!hasOperators()">
             <mat-label>Operador</mat-label>
-            <mat-select formControlName="operator_id">
+            <mat-select formControlName="operator_id" [disabled]="!hasOperators() || !sessionForm.value.sector_id || !sessionForm.value.street_id">
               <mat-option *ngFor="let operator of operators" [value]="operator.id">
                 {{ operator.name }} - {{ operator.rut }}
               </mat-option>
@@ -76,6 +76,8 @@
             <mat-error *ngIf="isFieldInvalid('operator_id')">
               {{ getFieldError('operator_id') }}
             </mat-error>
+            <mat-hint *ngIf="!sessionForm.value.sector_id">Selecciona primero un sector y una calle</mat-hint>
+            <mat-hint *ngIf="sessionForm.value.sector_id && sessionForm.value.street_id && !hasOperators()">No hay operadores disponibles para este sector y calle</mat-hint>
           </mat-form-field>
 
           <!-- Info Card -->

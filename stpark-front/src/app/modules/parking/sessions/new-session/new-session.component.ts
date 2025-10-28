@@ -109,17 +109,30 @@ export class NewSessionComponent implements OnInit, OnDestroy {
     this.sessionForm.get('sector_id')?.valueChanges
       .pipe(takeUntil(this._unsubscribeAll))
       .subscribe(sectorId => {
-        this.loadStreetsBySector(sectorId);
-        this.filterOperatorsBySector(sectorId);
-        this.sessionForm.patchValue({ street_id: null, operator_id: '' });
+        if (sectorId) {
+          // Resetear valores primero
+          this.sessionForm.patchValue({ street_id: null, operator_id: '' });
+          // Cargar calles
+          this.loadStreetsBySector(sectorId);
+        } else {
+          this.streets = [];
+          this.operators = [];
+          this.sessionForm.patchValue({ street_id: null, operator_id: '' });
+        }
       });
 
     // Cuando cambia la calle, filtrar operadores
     this.sessionForm.get('street_id')?.valueChanges
       .pipe(takeUntil(this._unsubscribeAll))
       .subscribe(streetId => {
-        this.filterOperatorsBySectorAndStreet(this.sessionForm.value.sector_id, streetId);
-        this.sessionForm.patchValue({ operator_id: '' });
+        const sectorId = this.sessionForm.value.sector_id;
+        if (sectorId && streetId) {
+          this.filterOperatorsBySectorAndStreet(sectorId, streetId);
+        } else if (!streetId) {
+          this.operators = [];
+        }
+        // Resetear operator_id pero sin disparar eventos para evitar loops
+        this.sessionForm.patchValue({ operator_id: '' }, { emitEvent: false });
       });
   }
 

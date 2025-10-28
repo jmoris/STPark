@@ -218,23 +218,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         // Imprimir ticket de checkout para deuda
         if (type === 'debt' && response.data) {
           try {
-            const paymentTime = new Date().toISOString();
             // Usar la primera deuda para obtener información de la sesión
             const debt = data.debts && data.debts.length > 0 ? data.debts[0] : data;
             // response.data es la deuda liquidada con sus relaciones
             const settledDebt = response.data;
             const parkingSession = settledDebt.parking_session || debt.parking_session;
             
-            console.log('PaymentModal - debt:', debt);
-            console.log('PaymentModal - settledDebt:', settledDebt);
-            console.log('PaymentModal - parkingSession:', parkingSession);
-            console.log('PaymentModal - sector:', parkingSession?.sector);
-            console.log('PaymentModal - street:', parkingSession?.street);
-            
             if (parkingSession && parkingSession.started_at) {
               const startTime = parkingSession.started_at;
-              const endTime = paymentTime;
-              const duration = calculateElapsedTime(startTime);
+              // Usar la fecha de creación de la deuda como fecha de salida, no la hora actual
+              const endTime = debt.created_at || new Date().toISOString();
+              const duration = calculateElapsedTime(startTime, endTime);
               
               const ticketData: CheckoutTicketData = {
                 type: 'CHECKOUT',
@@ -337,10 +331,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   };
 
   // Función para calcular tiempo transcurrido
-  const calculateElapsedTime = (startedAt: string) => {
+  const calculateElapsedTime = (startedAt: string, endedAt?: string) => {
     const start = new Date(startedAt);
-    const now = new Date();
-    const diffMs = now.getTime() - start.getTime();
+    const end = endedAt ? new Date(endedAt) : new Date();
+    const diffMs = end.getTime() - start.getTime();
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
     const hours = Math.floor(diffMinutes / 60);
     const minutes = diffMinutes % 60;
