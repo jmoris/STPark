@@ -230,11 +230,57 @@
             <td mat-cell *matCellDef="let session">{{ reportService.formatAmount(session.amount || 0) }}</td>
           </ng-container>
 
-          <tr mat-header-row *matHeaderRowDef="['plate', 'started_at', 'ended_at', 'sector', 'operator', 'duration', 'amount']"></tr>
-          <tr mat-row *matRowDef="let row; columns: ['plate', 'started_at', 'ended_at', 'sector', 'operator', 'duration', 'amount'];"></tr>
+          <tr mat-header-row *matHeaderRowDef="['operator', 'plate', 'started_at', 'ended_at', 'sector', 'duration', 'amount']"></tr>
+          <tr mat-row *matRowDef="let row; columns: ['operator', 'plate', 'started_at', 'ended_at', 'sector', 'duration', 'amount'];"></tr>
         </table>
 
         <div *ngIf="!currentReport.sessions || currentReport.sessions.length === 0" class="text-center py-8">
+          <p class="text-gray-500">No hay datos para mostrar</p>
+        </div>
+      </div>
+
+      <!-- Tabla de Deudas -->
+      <div class="overflow-x-auto" *ngIf="currentReportType === 'debts'">
+        <table mat-table [dataSource]="currentReport.debts || []" class="w-full">
+          <ng-container matColumnDef="plate">
+            <th mat-header-cell *matHeaderCellDef>Patente</th>
+            <td mat-cell *matCellDef="let debt">{{ debt.parkingSession?.plate || 'N/A' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="sector">
+            <th mat-header-cell *matHeaderCellDef>Sector</th>
+            <td mat-cell *matCellDef="let debt">{{ debt.parkingSession?.sector?.name || 'N/A' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="operator">
+            <th mat-header-cell *matHeaderCellDef>Operador</th>
+            <td mat-cell *matCellDef="let debt">{{ debt.parkingSession?.operator?.name || 'N/A' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="principal_amount">
+            <th mat-header-cell *matHeaderCellDef>Monto</th>
+            <td mat-cell *matCellDef="let debt">{{ reportService.formatAmount(debt.principal_amount || 0) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let debt">
+              <span *ngIf="debt.status === 'PENDING'" class="px-2 py-1 text-xs font-semibold rounded bg-yellow-100 text-yellow-800">Pendiente</span>
+              <span *ngIf="debt.status === 'SETTLED'" class="px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-800">Liquidada</span>
+              <span *ngIf="debt.status === 'CANCELLED'" class="px-2 py-1 text-xs font-semibold rounded bg-red-100 text-red-800">Cancelada</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="created_at">
+            <th mat-header-cell *matHeaderCellDef>Fecha</th>
+            <td mat-cell *matCellDef="let debt">{{ debt.created_at | date:'dd/MM/yyyy HH:mm' }}</td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="['plate', 'sector', 'operator', 'principal_amount', 'status', 'created_at']"></tr>
+          <tr mat-row *matRowDef="let row; columns: ['plate', 'sector', 'operator', 'principal_amount', 'status', 'created_at'];"></tr>
+        </table>
+
+        <div *ngIf="!currentReport.debts || currentReport.debts.length === 0" class="text-center py-8">
           <p class="text-gray-500">No hay datos para mostrar</p>
         </div>
       </div>

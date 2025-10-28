@@ -162,7 +162,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     login,
     logout,
-    updateOperator,
   };
 
   return (

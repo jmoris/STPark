@@ -186,10 +186,11 @@
     <table>
         <thead>
             <tr>
-                <th style="width: 20%;">Operador</th>
+                <th style="width: 15%;">Operador</th>
+                <th style="width: 12%;">Patente</th>
                 <th style="width: 18%;">Ingreso</th>
                 <th style="width: 18%;">Salida</th>
-                <th style="width: 12%;" class="text-right">Duración</th>
+                <th style="width: 10%;" class="text-right">Duración</th>
                 <th style="width: 12%;" class="text-right">Monto</th>
             </tr>
         </thead>
@@ -197,6 +198,7 @@
             @foreach($data['sessions_detail'] as $session)
             <tr>
                 <td>{{ $session['operator'] }}</td>
+                <td>{{ $session['plate'] ?? 'N/A' }}</td>
                 <td>{{ \Carbon\Carbon::parse($session['started_at'])->format('d/m/Y H:i') }}</td>
                 <td>{{ $session['ended_at'] ? \Carbon\Carbon::parse($session['ended_at'])->format('d/m/Y H:i') : 'N/A' }}</td>
                 <td class="text-right">{{ $session['duration'] }}</td>

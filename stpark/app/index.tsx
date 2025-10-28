@@ -16,7 +16,6 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { router, Link } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
-import { tenantConfigService } from '../services/tenantConfig';
 import { apiService } from '@/services/api';
 import { PaymentModal } from '@/components/PaymentModal';
 import { useFocusEffect } from '@react-navigation/native';
@@ -43,7 +42,7 @@ export default function HomeScreen() {
   const [tenantInput, setTenantInput] = useState('');
   const [tenantConfigLoading, setTenantConfigLoading] = useState(false);
   const { operator, logout } = useAuth();
-  const { tenantConfig, isLoading: tenantLoading, setTenant, refreshTenantConfig } = useTenant();
+  const { tenantConfig, isLoading: tenantLoading, setTenant } = useTenant();
 
   // Verificar si hay tenant configurado al cargar la pantalla
   useEffect(() => {
@@ -79,24 +78,27 @@ export default function HomeScreen() {
     setTenantConfigLoading(true);
 
     try {
-      // Usar el servicio directamente como en configuración
-      await tenantConfigService.setTenant(tenantInput.trim());
-      console.log('Tenant configurado exitosamente:', tenantInput.trim());
+      // Usar el método setTenant del contexto para mantener consistencia
+      const success = await setTenant(tenantInput.trim());
       
-      // Actualizar el contexto manualmente
-      await refreshTenantConfig();
-      
-      setShowTenantConfigModal(false);
-      setTenantInput('');
-      
-      // Esperar un momento para que el contexto se actualice
-      setTimeout(async () => {
-        // Recargar todos los datos con el nuevo tenant
-        console.log('Recargando datos con el nuevo tenant...');
-        await loadDailyStats();
-        await loadActiveSessions();
-        await loadSelectedPrinter();
-      }, 500);
+      if (success) {
+        console.log('Tenant configurado exitosamente:', tenantInput.trim());
+        
+        setShowTenantConfigModal(false);
+        setTenantInput('');
+        
+        // Esperar un momento para que el contexto se actualice
+        setTimeout(async () => {
+          // Recargar todos los datos con el nuevo tenant
+          console.log('Recargando datos con el nuevo tenant...');
+          await loadDailyStats();
+          await loadActiveSessions();
+          await loadSelectedPrinter();
+        }, 500);
+      } else {
+        console.error('Error configurando tenant: no se pudo guardar');
+        alert('Error al configurar el tenant');
+      }
       
     } catch (error) {
       console.error('Error configurando tenant:', error);

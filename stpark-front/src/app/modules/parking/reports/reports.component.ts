@@ -73,7 +73,7 @@ export class ReportsComponent implements OnInit, OnDestroy {
   // Datos del reporte actual
   currentReport: any = null;
   currentReportType: string = '';
-  displayedColumns: string[] = ['plate', 'started_at', 'ended_at', 'sector', 'operator', 'duration', 'amount'];
+  displayedColumns: string[] = ['operator', 'plate', 'started_at', 'ended_at', 'sector', 'duration', 'amount'];
 
   constructor(
     private reportService: ReportService,

@@ -731,6 +731,7 @@ class ReportController extends Controller
                 
                 $sessionDetails[] = [
                     'operator' => $session->operator ? $session->operator->name : 'N/A',
+                    'plate' => $session->plate,
                     'started_at' => $session->started_at,
                     'ended_at' => $session->ended_at,
                     'duration' => $durationFormatted,
