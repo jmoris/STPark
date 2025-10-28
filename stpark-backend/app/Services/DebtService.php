@@ -68,7 +68,7 @@ class DebtService
             $debt->toArray()
         );
 
-        return $debt->load(['payments']);
+        return $debt->load(['parkingSession.sector', 'parkingSession.street', 'payments']);
     }
 
     /**

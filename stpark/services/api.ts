@@ -666,6 +666,12 @@ class ApiService {
       if (result.success && result.data) {
         // Si viene paginado, obtener los datos de la paginación
         const debts = result.data.data ? result.data.data : result.data;
+        
+        console.log('API: Deudas recibidas del backend:', debts);
+        console.log('API: Primera deuda completa:', debts[0]);
+        console.log('API: ¿Primera deuda tiene parkingSession?', debts[0]?.parking_session);
+        console.log('API: ¿Primera deuda tiene sector?', debts[0]?.parking_session?.sector);
+        
         const debtsByPlate: any = {};
         
         // Agrupar deudas por placa

@@ -142,7 +142,7 @@ class DebtController extends Controller
 
             return response()->json([
                 'success' => true,
-                'data' => $debt->load(['parkingSession.sector', 'parkingSession.street', 'payments']),
+                'data' => $debt,
                 'message' => 'Deuda liquidada exitosamente'
             ]);
 

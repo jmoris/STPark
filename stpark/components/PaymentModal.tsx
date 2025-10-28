@@ -132,6 +132,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         response = await apiService.checkoutSession(data.id, paymentData);
       } else {
         // Procesar pago de deuda
+        let firstDebtWithRelations = null;
+        
         if (data.debts && data.debts.length > 0) {
           // Si hay múltiples deudas, procesarlas una por una
           for (const debt of data.debts) {
@@ -146,12 +148,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             if (!debtResponse.success) {
               throw new Error(`Error al liquidar deuda ID ${debt.id}`);
             }
+            
+            // Guardar la primera respuesta que tiene las relaciones
+            if (!firstDebtWithRelations) {
+              firstDebtWithRelations = debtResponse.data;
+            }
           }
           
-          // Crear respuesta agregada
+          // Crear respuesta agregada usando la primera deuda para las relaciones
           response = {
             success: true,
             data: {
+              ...firstDebtWithRelations,
               plate: data.plate,
               debts_paid: data.debts.length,
               total_amount: estimatedAmount,
@@ -211,11 +219,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         if (type === 'debt' && response.data) {
           try {
             const paymentTime = new Date().toISOString();
-            // Si hay múltiples deudas, tomar la primera para la información
+            // Usar la primera deuda para obtener información de la sesión
             const debt = data.debts && data.debts.length > 0 ? data.debts[0] : data;
-            const parkingSession = debt.parking_session || response.data.parking_session;
+            // response.data es la deuda liquidada con sus relaciones
+            const settledDebt = response.data;
+            const parkingSession = settledDebt.parking_session || debt.parking_session;
             
             console.log('PaymentModal - debt:', debt);
+            console.log('PaymentModal - settledDebt:', settledDebt);
             console.log('PaymentModal - parkingSession:', parkingSession);
             console.log('PaymentModal - sector:', parkingSession?.sector);
             console.log('PaymentModal - street:', parkingSession?.street);

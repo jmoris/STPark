@@ -1121,6 +1121,9 @@ export default function HomeScreen() {
                         style={styles.checkoutButton}
                         onPress={() => {
                           // Mostrar las deudas individuales de esta placa
+                          console.log('Index: Deudas a liquidar:', item.debts);
+                          console.log('Index: Primera deuda:', item.debts[0]);
+                          console.log('Index: ¿Primera deuda tiene parkingSession?', item.debts[0]?.parking_session);
                           setSelectedSession({ plate: item.plate, debts: item.debts });
                           setShowDebtsModal(false);
                           setShowPaymentModal(true);
