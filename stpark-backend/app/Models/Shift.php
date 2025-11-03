@@ -53,6 +53,49 @@ class Shift extends Model
             if (empty($shift->id)) {
                 $shift->id = (string) Str::uuid();
             }
+            
+            // Validar que solo haya un turno abierto por operador y dispositivo
+            // Esta validación funciona en ambas bases de datos (PostgreSQL y MariaDB)
+            if ($shift->status === self::STATUS_OPEN) {
+                $query = static::where('operator_id', $shift->operator_id)
+                    ->where('status', self::STATUS_OPEN);
+                
+                // Incluir device_id en la validación si está presente
+                if ($shift->device_id) {
+                    $query->where('device_id', $shift->device_id);
+                } else {
+                    $query->whereNull('device_id');
+                }
+                
+                if ($query->exists()) {
+                    throw new \RuntimeException(
+                        'Ya existe un turno abierto para este operador y dispositivo.'
+                    );
+                }
+            }
+        });
+        
+        static::updating(function ($shift) {
+            // Validar que solo haya un turno abierto por operador y dispositivo
+            // cuando se está cambiando el estado a OPEN
+            if ($shift->isDirty('status') && $shift->status === self::STATUS_OPEN) {
+                $query = static::where('operator_id', $shift->operator_id)
+                    ->where('status', self::STATUS_OPEN)
+                    ->where('id', '!=', $shift->id);
+                
+                // Incluir device_id en la validación si está presente
+                if ($shift->device_id) {
+                    $query->where('device_id', $shift->device_id);
+                } else {
+                    $query->whereNull('device_id');
+                }
+                
+                if ($query->exists()) {
+                    throw new \RuntimeException(
+                        'Ya existe un turno abierto para este operador y dispositivo.'
+                    );
+                }
+            }
         });
     }
 

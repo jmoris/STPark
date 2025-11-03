@@ -32,8 +32,18 @@ return new class extends Migration
             $table->index(['operator_id', 'device_id', 'status']);
         });
 
-        // Índice único parcial (PostgreSQL)
-        DB::statement('CREATE UNIQUE INDEX shifts_unique_open ON shifts(operator_id, COALESCE(device_id, \'\'), status) WHERE status = \'OPEN\';');
+        // Índice único compatible entre PostgreSQL y MariaDB
+        $driver = DB::getDriverName();
+        
+        if ($driver === 'pgsql') {
+            // PostgreSQL soporta índices parciales con WHERE
+            DB::statement('CREATE UNIQUE INDEX shifts_unique_open ON shifts(operator_id, COALESCE(device_id, \'\'), status) WHERE status = \'OPEN\';');
+        } else {
+            // MariaDB/MySQL no soporta índices parciales con WHERE
+            // No creamos índice único completo porque sería demasiado restrictivo
+            // La validación de "solo un turno abierto" se debe manejar a nivel de aplicación/modelo
+            // El índice normal en ['operator_id', 'device_id', 'status'] ayudará en las consultas
+        }
     }
 
     /**
@@ -41,7 +51,13 @@ return new class extends Migration
      */
     public function down(): void
     {
-        DB::statement('DROP INDEX IF EXISTS shifts_unique_open;');
+        $driver = DB::getDriverName();
+        
+        // Solo eliminar el índice único si es PostgreSQL (donde se creó)
+        if ($driver === 'pgsql') {
+            DB::statement('DROP INDEX IF EXISTS shifts_unique_open;');
+        }
+        
         Schema::dropIfExists('shifts');
     }
 };
