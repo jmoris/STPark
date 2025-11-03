@@ -1,0 +1,223 @@
+<div class="p-6 w-full">
+  <!-- Header -->
+  <div class="flex items-center gap-4 mb-6">
+    <button mat-icon-button (click)="goBack()" class="rounded-sm">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <h1 class="text-2xl font-bold text-gray-900">Detalle de Turno</h1>
+    <span class="flex-1"></span>
+    <button mat-raised-button color="primary" (click)="downloadReport('pdf')" *ngIf="shift?.status === 'CLOSED'" class="rounded-sm">
+      <mat-icon>picture_as_pdf</mat-icon>
+      Descargar PDF
+    </button>
+    <button mat-stroked-button (click)="downloadReport('json')" *ngIf="shift?.status === 'CLOSED'" class="rounded-sm">
+      <mat-icon>description</mat-icon>
+      JSON
+    </button>
+  </div>
+
+  <div *ngIf="loading" class="flex justify-center items-center h-64">
+    <mat-spinner diameter="50"></mat-spinner>
+  </div>
+
+  <div *ngIf="!loading && shift" class="space-y-6">
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <!-- Shift Status Card -->
+      <mat-card class="rounded-lg">
+        <mat-card-content class="p-6">
+          <div class="flex items-center mb-2">
+            <div class="p-3 rounded-full"
+                 [class.bg-green-100]="shift.status === 'OPEN'"
+                 [class.bg-blue-100]="shift.status === 'CLOSED'"
+                 [class.bg-red-100]="shift.status === 'CANCELED'">
+              <mat-icon [class.text-green-600]="shift.status === 'OPEN'"
+                        [class.text-blue-600]="shift.status === 'CLOSED'"
+                        [class.text-red-600]="shift.status === 'CANCELED'">
+                {{ shift.status === 'OPEN' ? 'stopwatch' : shift.status === 'CLOSED' ? 'check_circle' : 'cancel' }}
+              </mat-icon>
+            </div>
+            <div class="ml-4">
+              <p class="text-sm font-medium text-gray-600">Estado</p>
+              <p class="text-lg font-bold"
+                 [class.text-green-600]="shift.status === 'OPEN'"
+                 [class.text-blue-600]="shift.status === 'CLOSED'"
+                 [class.text-red-600]="shift.status === 'CANCELED'">
+                {{ shift.status === 'OPEN' ? 'Abierto' : shift.status === 'CLOSED' ? 'Cerrado' : 'Cancelado' }}
+              </p>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Cash Expected Card -->
+      <mat-card class="rounded-lg" *ngIf="totals">
+        <mat-card-content class="p-6">
+          <div class="flex items-center mb-2">
+            <div class="p-3 bg-blue-100 rounded-full">
+              <mat-icon class="text-blue-600">account_balance_wallet</mat-icon>
+            </div>
+            <div class="ml-4">
+              <p class="text-sm font-medium text-gray-600">Efectivo Esperado</p>
+              <p class="text-xl font-bold text-blue-600">{{ formatAmount(totals.cash_expected) }}</p>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Cash Collected Card -->
+      <mat-card class="rounded-lg" *ngIf="totals">
+        <mat-card-content class="p-6">
+          <div class="flex items-center mb-2">
+            <div class="p-3 bg-green-100 rounded-full">
+              <mat-icon class="text-green-600">payments</mat-icon>
+            </div>
+            <div class="ml-4">
+              <p class="text-sm font-medium text-gray-600">Efectivo Cobrado</p>
+              <p class="text-xl font-bold text-green-600">{{ formatAmount(totals.cash_collected) }}</p>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Difference Card -->
+      <mat-card class="rounded-lg" *ngIf="shift.cash_over_short !== null && shift.cash_over_short !== undefined">
+        <mat-card-content class="p-6">
+          <div class="flex items-center mb-2">
+            <div class="p-3 rounded-full"
+                 [class.bg-red-100]="shift.cash_over_short < 0"
+                 [class.bg-green-100]="shift.cash_over_short > 0">
+              <mat-icon [class.text-red-600]="shift.cash_over_short < 0"
+                        [class.text-green-600]="shift.cash_over_short > 0">
+                {{ shift.cash_over_short < 0 ? 'trending_down' : 'trending_up' }}
+              </mat-icon>
+            </div>
+            <div class="ml-4">
+              <p class="text-sm font-medium text-gray-600">Diferencia</p>
+              <p class="text-xl font-bold"
+                 [class.text-red-600]="shift.cash_over_short < 0"
+                 [class.text-green-600]="shift.cash_over_short > 0">
+                {{ formatAmount(shift.cash_over_short) }}
+              </p>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- Main Details Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Shift Information -->
+      <mat-card class="rounded-lg">
+        <mat-card-header class="pb-4">
+          <mat-card-title class="flex items-center gap-2">
+            <mat-icon>info</mat-icon>
+            Información del Turno
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="space-y-4">
+            <div class="flex items-center justify-between py-2 border-b border-gray-100">
+              <span class="text-gray-600 font-medium">Turno ID</span>
+              <span class="font-mono text-sm font-semibold">#{{ shift.id.substring(0, 8) }}</span>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-gray-100">
+              <span class="text-gray-600 font-medium">Operador</span>
+              <span class="font-semibold text-gray-900">{{ shift.operator?.name || 'N/A' }}</span>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-gray-100">
+              <span class="text-gray-600 font-medium">Sector</span>
+              <span class="font-semibold text-gray-900">{{ shift.sector?.name || 'N/A' }}</span>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-gray-100">
+              <span class="text-gray-600 font-medium">Apertura</span>
+              <span class="text-sm">{{ formatDate(shift.opened_at) }}</span>
+            </div>
+            <div class="flex items-center justify-between py-2" *ngIf="shift.closed_at">
+              <span class="text-gray-600 font-medium">Cierre</span>
+              <span class="text-sm">{{ formatDate(shift.closed_at) }}</span>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Cash Flow -->
+      <mat-card class="rounded-lg" *ngIf="totals">
+        <mat-card-header class="pb-4">
+          <mat-card-title class="flex items-center gap-2">
+            <mat-icon>account_balance</mat-icon>
+            Flujo de Efectivo
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="space-y-4">
+            <div class="flex items-center justify-between py-2 border-b border-gray-100">
+              <span class="text-gray-600 font-medium">Fondo Inicial</span>
+              <span class="font-semibold text-gray-900">{{ formatAmount(totals.opening_float) }}</span>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-gray-100">
+              <span class="text-gray-600 font-medium">Efectivo Cobrado</span>
+              <span class="font-semibold text-green-600">+{{ formatAmount(totals.cash_collected) }}</span>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-gray-100" *ngIf="totals.cash_withdrawals > 0">
+              <span class="text-gray-600 font-medium">Retiros</span>
+              <span class="font-semibold text-red-600">-{{ formatAmount(totals.cash_withdrawals) }}</span>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-gray-100" *ngIf="totals.cash_deposits > 0">
+              <span class="text-gray-600 font-medium">Depósitos</span>
+              <span class="font-semibold text-green-600">+{{ formatAmount(totals.cash_deposits) }}</span>
+            </div>
+            <div class="flex items-center justify-between py-3 border-t-2 border-blue-200 bg-blue-50 px-2 -mx-2 rounded">
+              <span class="font-semibold text-blue-900">Efectivo Esperado</span>
+              <span class="text-xl font-bold text-blue-600">{{ formatAmount(totals.cash_expected) }}</span>
+            </div>
+            <div class="flex items-center justify-between py-2" *ngIf="totals.cash_declared !== null && totals.cash_declared !== undefined">
+              <span class="text-gray-600 font-medium">Efectivo Declarado</span>
+              <span class="font-semibold text-gray-900">{{ formatAmount(totals.cash_declared) }}</span>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- Payments by Method -->
+    <mat-card class="rounded-lg" *ngIf="totals && totals.payments_by_method && totals.payments_by_method.length > 0">
+      <mat-card-header class="pb-4">
+        <mat-card-title class="flex items-center gap-2">
+          <mat-icon>receipt_long</mat-icon>
+          Pagos por Método
+        </mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="overflow-x-auto">
+          <table mat-table [dataSource]="totals.payments_by_method" class="w-full">
+            <ng-container matColumnDef="method">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold">Método de Pago</th>
+              <td mat-cell *matCellDef="let item" class="py-4">
+                <div class="flex items-center gap-2">
+                  <mat-icon class="text-gray-400 text-sm">{{ getMethodIcon(item.method) }}</mat-icon>
+                  <span class="font-medium">{{ getMethodText(item.method) }}</span>
+                </div>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="count">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-right">Transacciones</th>
+              <td mat-cell *matCellDef="let item" class="text-right">
+                <span class="font-semibold">{{ item.count }}</span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="collected">
+              <th mat-header-cell *matHeaderCellDef class="font-semibold text-right">Monto Total</th>
+              <td mat-cell *matCellDef="let item" class="text-right">
+                <span class="font-bold text-gray-900">{{ formatAmount(item.collected) }}</span>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="displayedColumns" class="border-b-2 border-gray-200"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns" class="border-b border-gray-100"></tr>
+          </table>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>
+

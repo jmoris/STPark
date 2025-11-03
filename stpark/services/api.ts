@@ -57,6 +57,26 @@ export interface ApiResponse<T> {
   errors?: any;
 }
 
+export interface Shift {
+  id: string;
+  operator_id: number;
+  sector_id?: number;
+  device_id?: string;
+  opened_at: string;
+  closed_at?: string;
+  opening_float: number;
+  closing_declared_cash?: number;
+  cash_over_short?: number;
+  status: 'OPEN' | 'CLOSED' | 'CANCELED';
+  notes?: string;
+  created_by?: number;
+  closed_by?: number;
+  operator?: Operator;
+  sector?: any;
+  creator?: any;
+  closer?: any;
+}
+
 class ApiService {
   private token: string | null = null;
 
@@ -678,6 +698,198 @@ class ApiService {
       };
     } catch (error) {
       console.error('API: Error obteniendo deudas agrupadas:', error);
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+      };
+    }
+  }
+
+  // Métodos de Turnos (Shifts)
+  
+  /**
+   * Abrir un nuevo turno
+   */
+  async openShift(data: {
+    operator_id: number;
+    opening_float: number;
+    sector_id?: number;
+    device_id?: string;
+    notes?: string;
+  }): Promise<ApiResponse<Shift>> {
+    try {
+      console.log('API: Abriendo turno:', data);
+      
+      const response = await makeRequest('/shifts/open', {
+        method: 'POST',
+        headers: await this.getHeaders(),
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      console.log('API: Respuesta de abrir turno:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('API: Error abriendo turno:', error);
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+      };
+    }
+  }
+
+  /**
+   * Obtener el turno actual del operador
+   */
+  async getCurrentShift(operatorId: number, deviceId?: string): Promise<ApiResponse<{
+    shift: Shift;
+    totals?: any;
+  }>> {
+    try {
+      console.log('API: Obteniendo turno actual para operador:', operatorId);
+      
+      const params = new URLSearchParams({ operator_id: operatorId.toString() });
+      if (deviceId) {
+        params.append('device_id', deviceId);
+      }
+      
+      const response = await makeRequest(`/shifts/current?${params.toString()}`, {
+        method: 'GET',
+        headers: await this.getHeaders(),
+      });
+
+      const result = await response.json();
+      console.log('API: Respuesta de turno actual:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('API: Error obteniendo turno actual:', error);
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+      };
+    }
+  }
+
+  /**
+   * Cerrar un turno
+   */
+  async closeShift(shiftId: string, data: {
+    closing_declared_cash: number;
+    notes?: string;
+  }): Promise<ApiResponse<any>> {
+    try {
+      console.log('API: Cerrando turno:', shiftId, data);
+      
+      const response = await makeRequest(`/shifts/${shiftId}/close`, {
+        method: 'POST',
+        headers: await this.getHeaders(),
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      console.log('API: Respuesta de cerrar turno:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('API: Error cerrando turno:', error);
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+      };
+    }
+  }
+
+  /**
+   * Cancelar un turno
+   */
+  async cancelShift(shiftId: string, notes?: string): Promise<ApiResponse<Shift>> {
+    try {
+      console.log('API: Cancelando turno:', shiftId);
+      
+      const response = await makeRequest(`/shifts/${shiftId}/cancel`, {
+        method: 'POST',
+        headers: await this.getHeaders(),
+        body: JSON.stringify({ notes }),
+      });
+
+      const result = await response.json();
+      console.log('API: Respuesta de cancelar turno:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('API: Error cancelando turno:', error);
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+      };
+    }
+  }
+
+  /**
+   * Obtener un turno por ID
+   */
+  async getShift(shiftId: string): Promise<ApiResponse<{
+    shift: Shift;
+    totals?: any;
+  }>> {
+    try {
+      console.log('API: Obteniendo turno:', shiftId);
+      
+      const response = await makeRequest(`/shifts/${shiftId}`, {
+        method: 'GET',
+        headers: await this.getHeaders(),
+      });
+
+      const result = await response.json();
+      console.log('API: Respuesta de turno:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('API: Error obteniendo turno:', error);
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+      };
+    }
+  }
+
+  /**
+   * Listar turnos con filtros
+   */
+  async getShifts(filters?: {
+    from?: string;
+    to?: string;
+    operator_id?: number;
+    sector_id?: number;
+    status?: 'OPEN' | 'CLOSED' | 'CANCELED';
+    per_page?: number;
+  }): Promise<ApiResponse<any>> {
+    try {
+      console.log('API: Listando turnos con filtros:', filters);
+      
+      const params = new URLSearchParams();
+      if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            params.append(key, value.toString());
+          }
+        });
+      }
+      
+      const url = `/shifts${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await makeRequest(url, {
+        method: 'GET',
+        headers: await this.getHeaders(),
+      });
+
+      const result = await response.json();
+      console.log('API: Respuesta de turnos:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('API: Error listando turnos:', error);
       return {
         success: false,
         message: 'Error de conexión con el servidor',

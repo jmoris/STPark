@@ -1,0 +1,47 @@
+<h2 mat-dialog-title>Abrir Turno</h2>
+
+<mat-dialog-content>
+  <form>
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Operador *</mat-label>
+      <mat-select [(ngModel)]="request.operator_id" name="operator_id" required>
+        <mat-option *ngFor="let operator of data.operators" [value]="operator.id">
+          {{ operator.name }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Fondo Inicial *</mat-label>
+      <input matInput type="number" [(ngModel)]="request.opening_float" name="opening_float" required min="0" step="0.01" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Sector</mat-label>
+      <mat-select [(ngModel)]="request.sector_id" name="sector_id">
+        <mat-option [value]="undefined">Ninguno</mat-option>
+        <mat-option *ngFor="let sector of data.sectors" [value]="sector.id">
+          {{ sector.name }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Dispositivo</mat-label>
+      <input matInput [(ngModel)]="request.device_id" name="device_id" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Notas</mat-label>
+      <textarea matInput [(ngModel)]="request.notes" name="notes" rows="3"></textarea>
+    </mat-form-field>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="onCancel()">Cancelar</button>
+  <button mat-raised-button color="primary" (click)="onSave()" [disabled]="loading">
+    {{ loading ? 'Abriendo...' : 'Abrir Turno' }}
+  </button>
+</mat-dialog-actions>
+

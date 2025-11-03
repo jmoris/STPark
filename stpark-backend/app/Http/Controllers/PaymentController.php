@@ -44,7 +44,9 @@ class PaymentController extends Controller
                 $request->session_id,
                 $request->method,
                 $request->amount,
-                $request->cashier_operator_id
+                $request->cashier_operator_id,
+                $request->device_id,
+                $request->cash_drawer_ref
             );
 
             DB::commit();

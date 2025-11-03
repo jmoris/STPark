@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Builder;
 
 class Payment extends Model
 {
@@ -14,6 +15,8 @@ class Payment extends Model
         'session_id',
         'debt_id',
         'sale_id',
+        'shift_id',
+        'cash_drawer_ref',
         'amount',
         'method',
         'status',
@@ -27,6 +30,16 @@ class Payment extends Model
         'paid_at' => 'datetime',
         'amount' => 'decimal:2',
     ];
+
+    const STATUS_PENDING = 'PENDING';
+    const STATUS_COMPLETED = 'COMPLETED';
+    const STATUS_FAILED = 'FAILED';
+    const STATUS_CANCELLED = 'CANCELLED';
+
+    const METHOD_CASH = 'CASH';
+    const METHOD_CARD = 'CARD';
+    const METHOD_WEBPAY = 'WEBPAY';
+    const METHOD_TRANSFER = 'TRANSFER';
 
     /**
      * Relación con la sesión de estacionamiento
@@ -50,6 +63,22 @@ class Payment extends Model
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);
+    }
+
+    /**
+     * Relación con el turno
+     */
+    public function shift(): BelongsTo
+    {
+        return $this->belongsTo(Shift::class);
+    }
+
+    /**
+     * Scope para pagos completados
+     */
+    public function scopeCompleted(Builder $query): Builder
+    {
+        return $query->where('status', self::STATUS_COMPLETED);
     }
 
     /**

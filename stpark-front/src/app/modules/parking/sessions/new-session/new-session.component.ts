@@ -361,7 +361,15 @@ export class NewSessionComponent implements OnInit, OnDestroy {
           this.error = error.error?.message || 'Error al crear sesión';
           this.loading = false;
           console.error('Error creating session:', error);
-          this.snackBar.open(this.error, 'Cerrar', { duration: 5000 });
+          
+          // Detectar si no hay turno abierto
+          if (error.error?.error_code === 'NO_SHIFT_OPEN') {
+            this.snackBar.open('No hay turno abierto para este operador. Abre un turno antes de crear sesiones.', 'Cerrar', { duration: 7000 });
+            // Opcional: redirigir a la página de turnos
+            this.router.navigate(['/parking/shifts']);
+          } else {
+            this.snackBar.open(this.error, 'Cerrar', { duration: 5000 });
+          }
         }
       });
   }

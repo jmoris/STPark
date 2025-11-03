@@ -1,0 +1,242 @@
+<div class="p-6 w-full">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Turnos</h1>
+      <p class="text-gray-600">Gestiona los turnos de los operadores del sistema</p>
+    </div>
+    <div class="flex items-center gap-4">
+      <!-- Turno actual -->
+      <div *ngIf="currentShift" class="flex items-center gap-3 px-4 py-2 bg-blue-50 rounded-lg border border-blue-200">
+        <mat-icon class="text-blue-600">stopwatch</mat-icon>
+        <div>
+          <p class="text-xs text-gray-600">Turno Activo</p>
+          <p class="text-sm font-semibold text-gray-900">#{{ currentShift.id.substring(0, 8) }}</p>
+          <p class="text-xs text-gray-500">{{ formatDate(currentShift.opened_at) }}</p>
+        </div>
+        <div class="ml-4 border-l border-blue-200 pl-4">
+          <p class="text-xs text-gray-600">Efectivo</p>
+          <p class="text-lg font-bold text-blue-600">{{ formatAmount(currentShiftTotals?.cash_expected || currentShift.opening_float || 0) }}</p>
+        </div>
+      </div>
+      <button mat-raised-button color="primary" class="rounded-sm" (click)="openShiftModal()" *ngIf="!currentShift">
+        <mat-icon>add</mat-icon>
+        Abrir Turno
+      </button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <mat-card class="mb-6">
+    <mat-card-content class="p-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha desde</mat-label>
+          <input matInput type="date" [(ngModel)]="filters.from" />
+          <mat-icon matPrefix>calendar_today</mat-icon>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha hasta</mat-label>
+          <input matInput type="date" [(ngModel)]="filters.to" />
+          <mat-icon matPrefix>calendar_today</mat-icon>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Operador</mat-label>
+          <mat-select [(ngModel)]="filters.operator_id">
+            <mat-option [value]="undefined">Todos</mat-option>
+            <mat-option *ngFor="let operator of operators" [value]="operator.id">{{ operator.name }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Sector</mat-label>
+          <mat-select [(ngModel)]="filters.sector_id">
+            <mat-option [value]="undefined">Todos</mat-option>
+            <mat-option *ngFor="let sector of sectors" [value]="sector.id">{{ sector.name }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Estado</mat-label>
+          <mat-select [(ngModel)]="filters.status">
+            <mat-option [value]="undefined">Todos</mat-option>
+            <mat-option value="OPEN">Abierto</mat-option>
+            <mat-option value="CLOSED">Cerrado</mat-option>
+            <mat-option value="CANCELED">Cancelado</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-4">
+        <button mat-stroked-button class="rounded-sm" (click)="clearFilters()">
+          <mat-icon>clear</mat-icon>
+          Limpiar
+        </button>
+        <button mat-raised-button color="primary" class="rounded-sm" (click)="applyFilters()">
+          <mat-icon>search</mat-icon>
+          Filtrar
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Shifts Table -->
+  <mat-card>
+    <mat-card-content class="p-6">
+      <div class="overflow-x-auto">
+        <table mat-table [dataSource]="shifts" class="w-full">
+          <!-- ID Column -->
+          <ng-container matColumnDef="id">
+            <th mat-header-cell *matHeaderCellDef>ID</th>
+            <td mat-cell *matCellDef="let shift">
+              <span class="font-medium text-gray-900">#{{ shift.id.substring(0, 8) }}</span>
+            </td>
+          </ng-container>
+
+          <!-- Operator Column -->
+          <ng-container matColumnDef="operator">
+            <th mat-header-cell *matHeaderCellDef>Operador</th>
+            <td mat-cell *matCellDef="let shift">
+              <div class="flex items-center gap-2">
+                <mat-icon class="text-gray-400">person</mat-icon>
+                <span>{{ shift.operator?.name || 'N/A' }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Sector Column -->
+          <ng-container matColumnDef="sector">
+            <th mat-header-cell *matHeaderCellDef>Sector</th>
+            <td mat-cell *matCellDef="let shift">
+              <span>{{ shift.sector?.name || 'N/A' }}</span>
+            </td>
+          </ng-container>
+
+          <!-- Opened At Column -->
+          <ng-container matColumnDef="opened_at">
+            <th mat-header-cell *matHeaderCellDef>Apertura</th>
+            <td mat-cell *matCellDef="let shift">
+              <div class="flex items-center gap-2">
+                <mat-icon class="text-gray-400 text-sm">schedule</mat-icon>
+                <span>{{ formatDate(shift.opened_at) }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Closed At Column -->
+          <ng-container matColumnDef="closed_at">
+            <th mat-header-cell *matHeaderCellDef>Cierre</th>
+            <td mat-cell *matCellDef="let shift">
+              <span *ngIf="shift.closed_at">{{ formatDate(shift.closed_at) }}</span>
+              <span *ngIf="!shift.closed_at" class="text-gray-400">-</span>
+            </td>
+          </ng-container>
+
+          <!-- Status Column -->
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let shift">
+              <span class="px-2 py-1 rounded-full text-xs font-medium"
+                    [class.bg-green-100]="shift.status === 'OPEN'"
+                    [class.text-green-800]="shift.status === 'OPEN'"
+                    [class.bg-blue-100]="shift.status === 'CLOSED'"
+                    [class.text-blue-800]="shift.status === 'CLOSED'"
+                    [class.bg-red-100]="shift.status === 'CANCELED'"
+                    [class.text-red-800]="shift.status === 'CANCELED'">
+                {{ getStatusText(shift.status) }}
+              </span>
+            </td>
+          </ng-container>
+
+          <!-- Totals Column -->
+          <ng-container matColumnDef="totals">
+            <th mat-header-cell *matHeaderCellDef>Total Efectivo</th>
+            <td mat-cell *matCellDef="let shift">
+              <div>
+                <span class="font-semibold text-gray-900" *ngIf="shift.status === 'CLOSED'">
+                  {{ formatAmount(shift.closing_declared_cash || 0) }}
+                </span>
+                <span class="font-semibold text-green-600" *ngIf="shift.status === 'OPEN'">
+                  {{ formatAmount(shift.totals?.cash_expected || shift.opening_float || 0) }}
+                </span>
+                <div *ngIf="shift.cash_over_short" class="text-xs mt-1"
+                     [class.text-red-600]="shift.cash_over_short < 0"
+                     [class.text-green-600]="shift.cash_over_short > 0">
+                  <span *ngIf="shift.cash_over_short < 0">Falta: </span>
+                  <span *ngIf="shift.cash_over_short > 0">Sobra: </span>
+                  {{ formatAmount(abs(shift.cash_over_short)) }}
+                </div>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Actions Column -->
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Acciones</th>
+            <td mat-cell *matCellDef="let shift">
+              <button mat-icon-button class="rounded-sm" [matMenuTriggerFor]="menu">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+              <mat-menu #menu="matMenu">
+                <button mat-menu-item (click)="viewShiftDetails(shift)">
+                  <mat-icon>visibility</mat-icon>
+                  Ver detalles
+                </button>
+                <button mat-menu-item (click)="downloadReport(shift, 'json')" *ngIf="shift.status === 'CLOSED'">
+                  <mat-icon>description</mat-icon>
+                  Reporte JSON
+                </button>
+                <button mat-menu-item (click)="downloadReport(shift, 'pdf')" *ngIf="shift.status === 'CLOSED'">
+                  <mat-icon>picture_as_pdf</mat-icon>
+                  Reporte PDF
+                </button>
+                <button mat-menu-item (click)="cashAdjustmentModal(shift)" *ngIf="shift.status === 'OPEN'">
+                  <mat-icon>account_balance</mat-icon>
+                  Ajuste de caja
+                </button>
+                <button mat-menu-item (click)="closeShiftModal(shift)" *ngIf="shift.status === 'OPEN'">
+                  <mat-icon>lock</mat-icon>
+                  Cerrar turno
+                </button>
+                <button mat-menu-item (click)="cancelShift(shift)" *ngIf="shift.status === 'OPEN'">
+                  <mat-icon>cancel</mat-icon>
+                  Cancelar
+                </button>
+              </mat-menu>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+
+        <!-- Loading Spinner -->
+        <div *ngIf="loading" class="flex justify-center items-center py-8">
+          <mat-spinner diameter="40"></mat-spinner>
+        </div>
+
+        <!-- Empty State -->
+        <div *ngIf="!loading && shifts.length === 0" class="text-center py-8">
+          <mat-icon class="text-gray-400 text-6xl">stopwatch</mat-icon>
+          <h3 class="text-lg font-medium text-gray-900 mt-4">No hay turnos registrados</h3>
+          <p class="text-gray-500">Los turnos aparecerán aquí cuando se abran.</p>
+        </div>
+      </div>
+
+      <!-- Paginator -->
+      <mat-paginator 
+        *ngIf="totalItems > 0"
+        [length]="totalItems"
+        [pageSize]="pageSize"
+        [pageIndex]="currentPage"
+        [pageSizeOptions]="pageSizeOptions"
+        [showFirstLastButtons]="true"
+        (page)="onPageChange($event)"
+        class="mt-4">
+      </mat-paginator>
+    </mat-card-content>
+  </mat-card>
+</div>
+

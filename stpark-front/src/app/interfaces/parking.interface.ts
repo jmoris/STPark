@@ -346,3 +346,130 @@ export interface WebpayWebhookRequest {
   token_ws: string;
   TBK_TOKEN: string;
 }
+
+// ============ INTERFACES DE TURNOS ============
+
+export interface Shift {
+  id: string;
+  operator_id: number;
+  sector_id?: number;
+  device_id?: string;
+  opened_at: string;
+  closed_at?: string;
+  opening_float: number;
+  closing_declared_cash?: number;
+  cash_over_short?: number;
+  status: 'OPEN' | 'CLOSED' | 'CANCELED';
+  notes?: string;
+  created_by?: number;
+  closed_by?: number;
+  created_at?: string;
+  updated_at?: string;
+  operator?: Operator;
+  sector?: Sector;
+  creator?: any;
+  closer?: any;
+  totals?: ShiftTotals;
+}
+
+export interface ShiftTotals {
+  opening_float: number;
+  cash_collected: number;
+  cash_withdrawals: number;
+  cash_deposits: number;
+  cash_expected: number;
+  cash_declared?: number;
+  cash_over_short?: number;
+  tickets_count: number;
+  sales_total: number;
+  payments_by_method: PaymentByMethod[];
+}
+
+export interface PaymentByMethod {
+  method: string;
+  collected: number;
+  count: number;
+}
+
+export interface ShiftOperation {
+  id: number;
+  shift_id: string;
+  kind: 'OPEN' | 'CLOSE' | 'ADJUSTMENT' | 'WITHDRAWAL' | 'DEPOSIT';
+  amount?: number;
+  at: string;
+  ref_id?: number;
+  ref_type?: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CashAdjustment {
+  id: number;
+  shift_id: string;
+  type: 'WITHDRAWAL' | 'DEPOSIT';
+  amount: number;
+  at: string;
+  reason?: string;
+  receipt_number?: string;
+  actor_id?: number;
+  approved_by?: number;
+  created_at?: string;
+  updated_at?: string;
+  actor?: Operator;
+  approver?: any;
+}
+
+export interface ShiftFilters {
+  from?: string;
+  to?: string;
+  operator_id?: number;
+  sector_id?: number;
+  status?: 'OPEN' | 'CLOSED' | 'CANCELED';
+  per_page?: number;
+}
+
+export interface OpenShiftRequest {
+  operator_id: number;
+  opening_float: number;
+  sector_id?: number;
+  device_id?: string;
+  notes?: string;
+}
+
+export interface CloseShiftRequest {
+  closing_declared_cash: number;
+  notes?: string;
+}
+
+export interface CashAdjustmentRequest {
+  type: 'WITHDRAWAL' | 'DEPOSIT';
+  amount: number;
+  reason?: string;
+  receipt_number?: string;
+}
+
+export interface ShiftReport {
+  shift: Shift;
+  cash_summary: {
+    opening_float: number;
+    cash_collected: number;
+    cash_withdrawals: number;
+    cash_deposits: number;
+    cash_expected: number;
+    cash_declared?: number;
+    cash_over_short?: number;
+  };
+  sales_summary: {
+    tickets_count: number;
+    subtotal: number;
+    discount_total: number;
+    total: number;
+  };
+  payments_by_method: any[];
+  recent_payments: any[];
+  cash_adjustments: CashAdjustment[];
+  created_by?: any;
+  closed_by?: any;
+  generated_at: string;
+}

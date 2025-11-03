@@ -15,6 +15,7 @@ use App\Http\Controllers\PricingRuleController;
 use App\Http\Controllers\StreetController;
 use App\Http\Controllers\StatsController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\ShiftController;
 use Stancl\Tenancy\Middleware\InitializeTenancyByRequestData;
 
 /*
@@ -159,6 +160,18 @@ Route::middleware([
         Route::post('/general', [SettingsController::class, 'saveGeneral']); // Guardar configuración general
         Route::get('/default-pricing', [SettingsController::class, 'getDefaultPricing']); // Obtener configuración de precios por defecto
         Route::post('/default-pricing', [SettingsController::class, 'saveDefaultPricing']); // Guardar configuración de precios por defecto
+    });
+
+    // Rutas de turnos
+    Route::prefix('shifts')->group(function () {
+        Route::post('/open', [ShiftController::class, 'open']); // Abrir turno
+        Route::get('/current', [ShiftController::class, 'current']); // Obtener turno actual del operador
+        Route::get('/', [ShiftController::class, 'index']); // Listar turnos con filtros
+        Route::get('/{id}', [ShiftController::class, 'show']); // Obtener turno por ID
+        Route::post('/{id}/close', [ShiftController::class, 'close']); // Cerrar turno
+        Route::post('/{id}/cancel', [ShiftController::class, 'cancel']); // Cancelar turno
+        Route::post('/{id}/adjustments', [ShiftController::class, 'adjustment']); // Registrar ajuste de caja
+        Route::get('/{id}/report', [ShiftController::class, 'report']); // Reporte de turno (PDF/Excel/JSON)
     });
 
 });

@@ -81,6 +81,13 @@ export const defaultNavigation: FuseNavigationItem[] = [
         link : '/parking/payments'
     },
     {
+        id   : 'parking.shifts',
+        title: 'Turnos',
+        type : 'basic',
+        icon : 'heroicons_outline:clock',
+        link : '/parking/shifts'
+    },
+    {
         id   : 'parking.debts',
         title: 'Deudas',
         type : 'basic',
@@ -166,6 +173,13 @@ export const compactNavigation: FuseNavigationItem[] = [
         type : 'basic',
         icon : 'heroicons_outline:credit-card',
         link : '/parking/payments'
+    },
+    {
+        id   : 'parking.shifts',
+        title: 'Turnos',
+        type : 'basic',
+        icon : 'heroicons_outline:clock',
+        link : '/parking/shifts'
     },
     {
         id   : 'parking.debts',
@@ -255,6 +269,13 @@ export const futuristicNavigation: FuseNavigationItem[] = [
         link : '/parking/payments'
     },
     {
+        id   : 'parking.shifts',
+        title: 'Turnos',
+        type : 'basic',
+        icon : 'heroicons_outline:clock',
+        link : '/parking/shifts'
+    },
+    {
         id   : 'parking.debts',
         title: 'Deudas',
         type : 'basic',
@@ -340,6 +361,13 @@ export const horizontalNavigation: FuseNavigationItem[] = [
         type : 'basic',
         icon : 'heroicons_outline:credit-card',
         link : '/parking/payments'
+    },
+    {
+        id   : 'parking.shifts',
+        title: 'Turnos',
+        type : 'basic',
+        icon : 'heroicons_outline:clock',
+        link : '/parking/shifts'
     },
     {
         id   : 'parking.debts',

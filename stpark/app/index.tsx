@@ -41,6 +41,11 @@ export default function HomeScreen() {
   const [showTenantConfigModal, setShowTenantConfigModal] = useState(false);
   const [tenantInput, setTenantInput] = useState('');
   const [tenantConfigLoading, setTenantConfigLoading] = useState(false);
+  const [plateQuery, setPlateQuery] = useState('');
+  const [showPlateQueryModal, setShowPlateQueryModal] = useState(false);
+  const [queryLoading, setQueryLoading] = useState(false);
+  const [foundActiveSession, setFoundActiveSession] = useState<any>(null);
+  const [foundDebts, setFoundDebts] = useState<any[]>([]);
   const { operator, logout } = useAuth();
   const { tenantConfig, isLoading: tenantLoading, setTenant } = useTenant();
 
@@ -87,14 +92,8 @@ export default function HomeScreen() {
         setShowTenantConfigModal(false);
         setTenantInput('');
         
-        // Esperar un momento para que el contexto se actualice
-        setTimeout(async () => {
-          // Recargar todos los datos con el nuevo tenant
-          console.log('Recargando datos con el nuevo tenant...');
-          await loadDailyStats();
-          await loadActiveSessions();
-          await loadSelectedPrinter();
-        }, 500);
+        // Los datos se recargarán automáticamente mediante useFocusEffect
+        // que depende de tenantConfig.tenant
       } else {
         console.error('Error configurando tenant: no se pudo guardar');
         alert('Error al configurar el tenant');
@@ -266,6 +265,68 @@ export default function HomeScreen() {
     loadActiveSessions();
     loadDailyStats();
     loadDebtsByPlate();
+    // Limpiar consulta después del pago
+    setPlateQuery('');
+    setFoundActiveSession(null);
+    setFoundDebts([]);
+    setShowPlateQueryModal(false);
+  };
+
+  // Función para consultar patente
+  const handleQueryPlate = async () => {
+    if (!plateQuery.trim()) {
+      Alert.alert('Error', 'Por favor ingresa la patente del vehículo');
+      return;
+    }
+
+    setQueryLoading(true);
+    setShowPlateQueryModal(true);
+    setFoundActiveSession(null);
+    setFoundDebts([]);
+
+    try {
+      const plate = plateQuery.toUpperCase().trim();
+      console.log('Consultando patente:', plate);
+
+      // Buscar sesión activa y deudas en paralelo
+      const [sessionResponse, debtsResponse] = await Promise.all([
+        apiService.getActiveSessionByPlate(plate),
+        apiService.getDebtsByPlate(plate),
+      ]);
+
+      // Procesar sesión activa
+      if (sessionResponse.success && sessionResponse.data) {
+        console.log('Sesión activa encontrada:', sessionResponse.data);
+        setFoundActiveSession(sessionResponse.data);
+      }
+
+      // Procesar deudas
+      if (debtsResponse.success && debtsResponse.data) {
+        console.log('Deudas encontradas:', debtsResponse.data);
+        // Filtrar solo deudas pendientes
+        const pendingDebts = debtsResponse.data.filter((debt: any) => debt.status === 'PENDING');
+        setFoundDebts(pendingDebts);
+      }
+    } catch (error) {
+      console.error('Error consultando patente:', error);
+      Alert.alert('Error', 'No se pudo conectar con el servidor');
+    } finally {
+      setQueryLoading(false);
+    }
+  };
+
+  // Función para manejar checkout desde modal de consulta
+  const handleCheckoutFromQuery = (session: any) => {
+    setSelectedSession(session);
+    setShowPlateQueryModal(false);
+    setShowPaymentModal(true);
+  };
+
+  // Función para manejar liquidación de deuda desde modal de consulta
+  const handleLiquidateDebtFromQuery = (debt: any) => {
+    setSelectedSession({ plate: plateQuery.toUpperCase(), debts: [debt] });
+    setShowPlateQueryModal(false);
+    setShowPaymentModal(true);
   };
 
   // Función para cargar deudas agrupadas por placa
@@ -338,7 +399,7 @@ export default function HomeScreen() {
       setTimeout(() => {
         loadSelectedPrinter();
       }, 1000);
-    }, [])
+    }, [tenantConfig.tenant])
   );
 
   const menuItems = [
@@ -357,10 +418,10 @@ export default function HomeScreen() {
       color: '#ffffff',
     },
     {
-      title: 'Consultas',
-      description: 'Ver sesiones y deudas',
-      icon: 'magnifyingglass.circle.fill',
-      route: '/consultas',
+      title: 'Turnos',
+      description: 'Gestionar turnos',
+      icon: 'clock.fill',
+      route: '/turnos',
       color: '#ffffff',
     },
   ];
@@ -827,6 +888,75 @@ export default function HomeScreen() {
       marginTop: 16,
       fontWeight: '500',
     },
+    // Estilos para input de consulta de patente
+    plateQueryContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#ffffff',
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.5)',
+      minHeight: 44,
+    },
+    plateQueryInput: {
+      flex: 1,
+      fontSize: 16,
+      color: '#043476',
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+    },
+    plateQueryButton: {
+      backgroundColor: '#043476',
+      borderRadius: 8,
+      padding: 8,
+      marginLeft: 8,
+      minWidth: 36,
+      minHeight: 36,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    // Estilos para modal de consulta
+    queryResultSection: {
+      marginBottom: 24,
+    },
+    querySectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+      paddingBottom: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: '#e9ecef',
+    },
+    querySectionTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: '#043476',
+      marginLeft: 8,
+    },
+    queryTotalDebt: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: '#f8f9fa',
+      borderRadius: 12,
+      padding: 16,
+      marginTop: 12,
+      borderWidth: 2,
+      borderColor: '#ffc107',
+    },
+    queryTotalDebtLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#043476',
+    },
+    queryTotalDebtAmount: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#dc3545',
+    },
   });
 
   // Si está cargando la configuración del tenant, mostrar estado de carga
@@ -877,6 +1007,33 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.menuContainer}>
+          {/* Input de consulta por patente */}
+          <View style={styles.plateQueryContainer}>
+            <TextInput
+              style={styles.plateQueryInput}
+              placeholder="Consultar patente..."
+              placeholderTextColor="#9ca3af"
+              value={plateQuery}
+              onChangeText={setPlateQuery}
+              autoCapitalize="characters"
+              onSubmitEditing={handleQueryPlate}
+            />
+            <TouchableOpacity
+              style={[
+                styles.plateQueryButton,
+                (!plateQuery.trim() || queryLoading) && { backgroundColor: '#9ca3af' }
+              ]}
+              onPress={handleQueryPlate}
+              disabled={!plateQuery.trim() || queryLoading}
+            >
+              <IconSymbol 
+                size={18} 
+                name="magnifyingglass.circle.fill" 
+                color="#ffffff" 
+              />
+            </TouchableOpacity>
+          </View>
+
           {menuItems.map((item, index) => (
             <TouchableOpacity
               key={index}
@@ -1084,6 +1241,126 @@ export default function HomeScreen() {
                     No hay deudas pendientes
                   </Text>
                 </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Consulta por Patente */}
+      <Modal
+        visible={showPlateQueryModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowPlateQueryModal(false);
+          setPlateQuery('');
+          setFoundActiveSession(null);
+          setFoundDebts([]);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Consulta: {plateQuery.toUpperCase()}</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => {
+                  setShowPlateQueryModal(false);
+                  setPlateQuery('');
+                  setFoundActiveSession(null);
+                  setFoundDebts([]);
+                }}
+              >
+                <IconSymbol size={24} name="xmark.circle.fill" color="#6c757d" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalBody}>
+              {queryLoading ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>Consultando patente...</Text>
+                </View>
+              ) : (
+                <ScrollView style={styles.sessionsList}>
+                  {/* Sesión Activa */}
+                  {foundActiveSession && (
+                    <View style={styles.queryResultSection}>
+                      <View style={styles.querySectionHeader}>
+                        <IconSymbol size={20} name="checkmark.circle.fill" color="#28a745" />
+                        <Text style={styles.querySectionTitle}>Sesión Activa</Text>
+                      </View>
+                      <View style={styles.sessionItem}>
+                        <View style={styles.sessionInfo}>
+                          <Text style={styles.sessionPlate}>{foundActiveSession.plate}</Text>
+                          <Text style={styles.sessionSector}>
+                            {foundActiveSession.sector?.name || 'N/A'} - {foundActiveSession.street?.name || 'N/A'}
+                          </Text>
+                          <Text style={styles.sessionTime}>
+                            Ingreso: {new Date(foundActiveSession.started_at).toLocaleString('es-CL')}
+                          </Text>
+                        </View>
+                        <TouchableOpacity 
+                          style={styles.checkoutButton}
+                          onPress={() => handleCheckoutFromQuery(foundActiveSession)}
+                        >
+                          <IconSymbol size={20} name="creditcard.fill" color="#fff" />
+                          <Text style={styles.checkoutButtonText}>Checkout</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Deudas */}
+                  {foundDebts.length > 0 && (
+                    <View style={styles.queryResultSection}>
+                      <View style={styles.querySectionHeader}>
+                        <IconSymbol size={20} name="exclamationmark.triangle.fill" color="#ffc107" />
+                        <Text style={styles.querySectionTitle}>Deudas Pendientes ({foundDebts.length})</Text>
+                      </View>
+                      {foundDebts.map((debt: any, index: number) => (
+                        <View key={debt.id || index} style={styles.sessionItem}>
+                          <View style={styles.sessionInfo}>
+                            <Text style={styles.sessionPlate}>{debt.plate || plateQuery.toUpperCase()}</Text>
+                            <Text style={styles.sessionSector}>
+                              Monto: ${debt.principal_amount?.toLocaleString('es-CL') || '0'}
+                            </Text>
+                            <Text style={styles.sessionTime}>
+                              {debt.parking_session ? (
+                                `Sesión #${debt.parking_session.id || 'N/A'} - ${new Date(debt.parking_session.started_at).toLocaleDateString('es-CL')}`
+                              ) : (
+                                `Deuda pendiente desde ${new Date(debt.created_at).toLocaleDateString('es-CL')}`
+                              )}
+                            </Text>
+                          </View>
+                          <TouchableOpacity 
+                            style={styles.checkoutButton}
+                            onPress={() => handleLiquidateDebtFromQuery(debt)}
+                          >
+                            <IconSymbol size={20} name="creditcard.fill" color="#fff" />
+                            <Text style={styles.checkoutButtonText}>Pagar</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                      <View style={styles.queryTotalDebt}>
+                        <Text style={styles.queryTotalDebtLabel}>Total de deudas:</Text>
+                        <Text style={styles.queryTotalDebtAmount}>
+                          ${foundDebts.reduce((sum: number, debt: any) => sum + (parseFloat(debt.principal_amount) || 0), 0).toLocaleString('es-CL')}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Estado vacío */}
+                  {!queryLoading && !foundActiveSession && foundDebts.length === 0 && (
+                    <View style={styles.emptyState}>
+                      <IconSymbol size={48} name="magnifyingglass" color="#6c757d" />
+                      <Text style={styles.emptyStateText}>
+                        No se encontró sesión activa ni deudas pendientes para esta patente
+                      </Text>
+                    </View>
+                  )}
+                </ScrollView>
               )}
             </View>
           </View>

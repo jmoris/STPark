@@ -76,6 +76,16 @@ export const parkingRoutes: Route[] = [
     loadComponent: () => import('./settings/settings.component').then(m => m.SettingsComponent)
   },
 
+  // Shifts
+  {
+    path: 'shifts',
+    loadComponent: () => import('./shifts/shifts.component').then(m => m.ShiftsComponent)
+  },
+  {
+    path: 'shifts/:id',
+    loadComponent: () => import('./shifts/shift-detail/shift-detail.component').then(m => m.ShiftDetailComponent)
+  },
+
   // Redirect to dashboard
   {
     path: '**',

@@ -22,6 +22,7 @@ const MAPPING = {
   'plus.circle.fill': 'add-circle',
   'checkmark.circle.fill': 'check-circle',
   'magnifyingglass.circle.fill': 'search',
+  'magnifyingglass': 'search',
   'arrow.left': 'arrow-back',
   'plus.circle': 'add-circle-outline',
   'minus.circle.fill': 'remove-circle',

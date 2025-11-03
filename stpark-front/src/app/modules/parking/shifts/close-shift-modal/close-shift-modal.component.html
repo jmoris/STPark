@@ -1,0 +1,37 @@
+<h2 mat-dialog-title>Cerrar Turno</h2>
+
+<mat-dialog-content>
+  <div class="shift-info">
+    <p><strong>Turno:</strong> {{ data.shift.id.substring(0, 8) }}</p>
+    <p><strong>Operador:</strong> {{ data.shift.operator?.name }}</p>
+    <p><strong>Efectivo Esperado:</strong> {{ formatAmount(expectedCash) }}</p>
+  </div>
+
+  <form>
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Efectivo Declarado *</mat-label>
+      <input matInput type="number" [(ngModel)]="request.closing_declared_cash" name="closing_declared_cash" required min="0" step="0.01" />
+    </mat-form-field>
+
+    <div class="cash-summary">
+      <p><strong>Diferencia:</strong> 
+        <span [style.color]="getDifference() < 0 ? 'red' : getDifference() > 0 ? 'green' : 'black'">
+          {{ formatAmount(getDifference()) }}
+        </span>
+      </p>
+    </div>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Notas</mat-label>
+      <textarea matInput [(ngModel)]="request.notes" name="notes" rows="3"></textarea>
+    </mat-form-field>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="onCancel()">Cancelar</button>
+  <button mat-raised-button color="primary" (click)="onSave()" [disabled]="loading">
+    {{ loading ? 'Cerrando...' : 'Cerrar Turno' }}
+  </button>
+</mat-dialog-actions>
+

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ParkingSession;
 use App\Services\ParkingSessionService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -98,6 +99,16 @@ class ParkingSessionController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+            
+            // Detectar si no hay turno abierto
+            if ($e->getMessage() === 'NO_SHIFT_OPEN') {
+                return response()->json([
+                    'success' => false,
+                    'error_code' => 'NO_SHIFT_OPEN',
+                    'message' => 'El operador no tiene un turno abierto. Por favor, abre un turno antes de crear sesiones.'
+                ], 422);
+            }
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Error al crear sesión: ' . $e->getMessage()
@@ -201,6 +212,7 @@ class ParkingSessionController extends Controller
             'payment_method' => 'required|in:CASH,CARD,TRANSFER',
             'amount' => 'required|numeric|min:0',
             'ended_at' => 'nullable|date',
+            'approval_code' => 'nullable|string|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -210,13 +222,20 @@ class ParkingSessionController extends Controller
         try {
             DB::beginTransaction();
 
-            $endedAt = $request->ended_at ?? now()->toISOString();
+            // Si no se proporciona ended_at, usar la fecha actual en timezone America/Santiago
+            if ($request->ended_at) {
+                $endedAt = $request->ended_at;
+            } else {
+                // Usar Carbon con timezone America/Santiago
+                $endedAt = Carbon::now('America/Santiago')->toIso8601String();
+            }
             
             $result = $this->sessionService->checkout(
                 $id,
                 $request->payment_method,
                 $request->amount,
-                $endedAt
+                $endedAt,
+                $request->approval_code
             );
 
             DB::commit();
@@ -365,6 +384,16 @@ class ParkingSessionController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+            
+            // Detectar si no hay turno abierto
+            if ($e->getMessage() === 'NO_SHIFT_OPEN') {
+                return response()->json([
+                    'success' => false,
+                    'error_code' => 'NO_SHIFT_OPEN',
+                    'message' => 'El operador no tiene un turno abierto. Por favor, abre un turno antes de crear sesiones.'
+                ], 422);
+            }
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Error al crear sesión: ' . $e->getMessage()

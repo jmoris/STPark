@@ -11,6 +11,7 @@ import {
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { apiService } from '@/services/api';
 import { ticketPrinterService, CheckoutTicketData } from '@/services/ticketPrinter';
+import { getCurrentDateInSantiago } from '@/utils/dateUtils';
 
 interface PaymentModalProps {
   visible: boolean;
@@ -118,9 +119,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       
       if (type === 'checkout') {
         // Procesar checkout de sesión
+        // Obtener fecha actual en timezone America/Santiago
+        const endedAt = getCurrentDateInSantiago();
+        
         const paymentData: any = {
           payment_method: selectedPaymentMethod,
           amount: estimatedAmount || 0,
+          ended_at: endedAt,
         };
 
         if (selectedPaymentMethod === 'CASH' && amountPaid) {
@@ -184,9 +189,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         // Imprimir ticket solo para checkout
         if (type === 'checkout' && response.data) {
           try {
-            const endTime = new Date().toISOString();
+            // Usar la fecha de finalización de la sesión si está disponible, 
+            // o la fecha actual en timezone Santiago
+            const endTime = response.data.session?.ended_at || getCurrentDateInSantiago();
             const startTime = data.started_at;
-            const duration = calculateElapsedTime(startTime);
+            const duration = calculateElapsedTime(startTime, endTime);
             
             const ticketData: CheckoutTicketData = {
               type: 'CHECKOUT',

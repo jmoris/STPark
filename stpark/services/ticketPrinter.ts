@@ -26,6 +26,28 @@ export interface CheckoutTicketData extends TicketData {
   type: 'CHECKOUT';
 }
 
+export interface ShiftCloseTicketData {
+  type: 'SHIFT_CLOSE';
+  shiftId?: string;
+  openedAt?: string;
+  closedAt?: string;
+  operatorName?: string;
+  sectorName?: string;
+  openingFloat?: number;
+  cashCollected?: number;
+  cashWithdrawals?: number;
+  cashDeposits?: number;
+  cashExpected?: number;
+  cashDeclared?: number;
+  cashOverShort?: number;
+  totalTransactions?: number;
+  paymentsByMethod?: Array<{
+    method: string;
+    collected: number;
+    count: number;
+  }>;
+}
+
 class TicketPrinterService {
   private selectedPrinter: ThermalPrinterDevice | null = null;
 
@@ -243,6 +265,71 @@ Monto a pagar: ${this.formatAmount(data.amount)}
     }
   }
 
+  // Generar ticket de cierre de turno
+  private async generateShiftCloseTicket(data: ShiftCloseTicketData): Promise<string> {
+    const openedAt = this.formatDateTime(data.openedAt);
+    const closedAt = this.formatDateTime(data.closedAt);
+    const systemName = await this.getSystemName();
+    
+    let ticket = `
+================================
+    CIERRE DE TURNO
+================================
+
+${systemName}
+
+Operador: ${data.operatorName || 'N/A'}
+${data.sectorName ? `Sector: ${data.sectorName}` : ''}
+Turno: ${data.shiftId ? data.shiftId.substring(0, 8) : 'N/A'}
+
+Apertura: ${openedAt}
+Cierre: ${closedAt}
+--------------------------------
+
+RESUMEN FINANCIERO:
+Fondo Inicial: ${this.formatAmount(data.openingFloat)}
+Efectivo Cobrado: ${this.formatAmount(data.cashCollected)}
+Retiros: ${this.formatAmount(data.cashWithdrawals)}
+Depósitos: ${this.formatAmount(data.cashDeposits)}
+--------------------------------
+Efectivo Esperado: ${this.formatAmount(data.cashExpected)}
+Efectivo Contado: ${this.formatAmount(data.cashDeclared)}
+--------------------------------
+`;
+
+    if (data.cashOverShort !== undefined && data.cashOverShort !== 0) {
+      const overShortLabel = data.cashOverShort > 0 ? 'SOBRA' : 'FALTA';
+      ticket += `${overShortLabel}: ${this.formatAmount(Math.abs(data.cashOverShort))}
+--------------------------------
+`;
+    }
+
+    ticket += `
+RESUMEN DE TRANSACCIONES:
+`;
+
+    if (data.paymentsByMethod && data.paymentsByMethod.length > 0) {
+      data.paymentsByMethod.forEach((payment) => {
+        const methodName = payment.method === 'CASH' ? 'Efectivo' : 
+                          payment.method === 'CARD' ? 'Tarjeta' : 
+                          payment.method;
+        ticket += `${methodName}: ${this.formatAmount(payment.collected)} (${payment.count} trans.)
+`;
+      });
+    }
+
+    ticket += `
+Total Transacciones: ${data.totalTransactions || 0}
+
+================================
+          FIN DE TURNO
+================================
+
+`;
+
+    return ticket;
+  }
+
   // Imprimir ticket de checkout
   async printCheckoutTicket(data: CheckoutTicketData): Promise<boolean> {
     try {
@@ -272,6 +359,33 @@ Monto a pagar: ${this.formatAmount(data.amount)}
       return true;
     } catch (error) {
       console.error('Error imprimiendo ticket de checkout:', error);
+      return false;
+    }
+  }
+
+  // Imprimir ticket de cierre de turno
+  async printShiftCloseTicket(data: ShiftCloseTicketData): Promise<boolean> {
+    try {
+      console.log('Iniciando impresión de ticket de cierre de turno...');
+      
+      // Conectar a impresora Bluetooth
+      const connected = await this.ensureConnected();
+      if (!connected) {
+        console.log('No hay impresora Bluetooth conectada');
+        return false;
+      }
+
+      console.log('Usando impresora Bluetooth para ticket de cierre de turno');
+      const ticketText = await this.generateShiftCloseTicket(data);
+      console.log('Ticket generado:', ticketText);
+      
+      // Imprimir ticket
+      await this.selectedPrinter!.printText(ticketText);
+      
+      console.log('Ticket de cierre de turno impreso exitosamente con Bluetooth');
+      return true;
+    } catch (error) {
+      console.error('Error imprimiendo ticket de cierre de turno:', error);
       return false;
     }
   }

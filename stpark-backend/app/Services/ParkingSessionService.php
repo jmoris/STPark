@@ -8,16 +8,22 @@ use App\Models\Sector;
 use App\Models\Street;
 use App\Models\Operator;
 use App\Services\PricingService;
+use App\Services\CurrentShiftService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class ParkingSessionService
 {
     protected $pricingService;
+    protected $currentShiftService;
 
-    public function __construct(PricingService $pricingService)
+    public function __construct(
+        PricingService $pricingService,
+        CurrentShiftService $currentShiftService
+    )
     {
         $this->pricingService = $pricingService;
+        $this->currentShiftService = $currentShiftService;
     }
 
     /**
@@ -33,6 +39,13 @@ class ParkingSessionService
 
         if ($activeSession) {
             throw new \Exception('Ya existe una sesión activa para esta placa en este sector');
+        }
+
+        // Verificar si el operador tiene un turno abierto
+        $shift = $this->currentShiftService->get($operatorId, null);
+        
+        if (!$shift) {
+            throw new \Exception('NO_SHIFT_OPEN');
         }
 
         // Crear la sesión
@@ -174,6 +187,9 @@ class ParkingSessionService
                 $result['debt'] = $debt;
                 $result['message'] = 'Sesión cerrada sin pago. Deuda creada automáticamente.';
             } else {
+                // Obtener turno actual del operador cajero
+                $shift = $this->currentShiftService->get($session->operator_in_id, null);
+                
                 // Crear el pago normal
                 $payment = $session->payments()->create([
                     'amount' => $amount,
@@ -181,7 +197,21 @@ class ParkingSessionService
                     'status' => 'COMPLETED',
                     'paid_at' => now(),
                     'approval_code' => $approvalCode,
+                    'shift_id' => $shift?->id,
                 ]);
+
+                // Si hay turno, registrar operación
+                if ($shift) {
+                    \App\Models\ShiftOperation::create([
+                        'shift_id' => $shift->id,
+                        'kind' => \App\Models\ShiftOperation::KIND_ADJUSTMENT,
+                        'amount' => $amount,
+                        'at' => now(),
+                        'ref_id' => $payment->id,
+                        'ref_type' => 'payment',
+                        'notes' => "Pago {$paymentMethod} por {$amount}",
+                    ]);
+                }
 
                 $result['payment'] = $payment;
                 $result['message'] = 'Checkout procesado exitosamente';

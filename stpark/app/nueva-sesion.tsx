@@ -19,6 +19,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 import { ticketPrinterService, SessionTicketData } from '../services/ticketPrinter';
 import { PaymentModal } from '@/components/PaymentModal';
+import { OpenShiftModal } from '@/components/OpenShiftModal';
 
 export default function NuevaSesionScreen() {
   const [patente, setPatente] = useState('');
@@ -29,6 +30,9 @@ export default function NuevaSesionScreen() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [pendingDebts, setPendingDebts] = useState<any[]>([]);
   const [selectedDebt, setSelectedDebt] = useState<any>(null);
+  const [showNoShiftAlert, setShowNoShiftAlert] = useState(false);
+  const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
+  const [openingShift, setOpeningShift] = useState(false);
   const { operator } = useAuth();
 
   // Los datos del operador ya están cargados desde el login
@@ -180,6 +184,13 @@ export default function NuevaSesionScreen() {
         );
       } else {
         console.error('Error en respuesta:', response);
+        
+        // Verificar si no hay turno abierto
+        if (response.error_code === 'NO_SHIFT_OPEN') {
+          setShowNoShiftAlert(true);
+          return;
+        }
+        
         Alert.alert('Error', response.message || 'No se pudo crear la sesión');
       }
     } catch (error) {
@@ -215,6 +226,38 @@ export default function NuevaSesionScreen() {
       await createSession();
     }
     // Si hay deudas pendientes, el modal se mostrará automáticamente
+  };
+
+  // Función para abrir turno
+  const handleOpenShift = async (openingFloat: number) => {
+    if (!operator) {
+      Alert.alert('Error', 'No hay operador disponible');
+      return;
+    }
+
+    setOpeningShift(true);
+    try {
+      const response = await apiService.openShift({
+        operator_id: operator.id,
+        opening_float: openingFloat,
+        sector_id: activeSector?.id,
+      });
+
+      if (response.success) {
+        console.log('Turno abierto exitosamente');
+        setShowOpenShiftModal(false);
+        setShowNoShiftAlert(false);
+        // Intentar crear la sesión nuevamente
+        await createSession();
+      } else {
+        Alert.alert('Error', response.message || 'No se pudo abrir el turno');
+      }
+    } catch (error) {
+      console.error('Error abriendo turno:', error);
+      Alert.alert('Error', 'No se pudo conectar con el servidor');
+    } finally {
+      setOpeningShift(false);
+    }
   };
 
   const styles = StyleSheet.create({
@@ -360,7 +403,7 @@ export default function NuevaSesionScreen() {
       backgroundColor: 'rgba(0, 0, 0, 0.7)',
       justifyContent: 'center',
       alignItems: 'center',
-      padding: 20,
+      padding: 30,
     },
     modalContainer: {
       backgroundColor: '#ffffff',
@@ -468,6 +511,8 @@ export default function NuevaSesionScreen() {
     },
     modalActions: {
       gap: 12,
+      padding: 24,
+      paddingTop: 16,
     },
     continueButton: {
       backgroundColor: '#6c757d',
@@ -476,6 +521,55 @@ export default function NuevaSesionScreen() {
       alignItems: 'center',
     },
     continueButtonText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    alertHeader: {
+      alignItems: 'center',
+      padding: 24,
+      borderBottomWidth: 1,
+      borderBottomColor: '#e9ecef',
+    },
+    alertTitle: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: '#043476',
+      marginTop: 16,
+      textAlign: 'center',
+    },
+    alertText: {
+      fontSize: 16,
+      color: '#6c757d',
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+    openButton: {
+      backgroundColor: '#28a745',
+    },
+    openButtonText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    alertCancelButton: {
+      backgroundColor: '#6c757d',
+      borderRadius: 12,
+      padding: 16,
+      alignItems: 'center',
+    },
+    alertCancelButtonText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    alertOpenButton: {
+      backgroundColor: '#28a745',
+      borderRadius: 12,
+      padding: 16,
+      alignItems: 'center',
+    },
+    alertOpenButtonText: {
       color: '#fff',
       fontSize: 16,
       fontWeight: '600',
@@ -665,6 +759,56 @@ export default function NuevaSesionScreen() {
         onSuccess={handleDebtPaymentSuccess}
         type="debt"
         operator={operator}
+      />
+
+      {/* Alerta de turno no abierto */}
+      <Modal
+        visible={showNoShiftAlert}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowNoShiftAlert(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.alertHeader}>
+              <IconSymbol size={64} name="exclamationmark.triangle.fill" color="#ffc107" />
+              <Text style={styles.alertTitle}>Turno No Abierto</Text>
+            </View>
+            
+            <View style={styles.modalContent}>
+              <Text style={styles.alertText}>
+                No tienes un turno activo. Debes abrir un turno antes de ingresar vehículos.
+              </Text>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.alertCancelButton}
+                onPress={() => setShowNoShiftAlert(false)}
+              >
+                <Text style={styles.alertCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.alertOpenButton}
+                onPress={() => {
+                  setShowNoShiftAlert(false);
+                  setShowOpenShiftModal(true);
+                }}
+              >
+                <Text style={styles.alertOpenButtonText}>Abrir Turno</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para abrir turno */}
+      <OpenShiftModal
+        visible={showOpenShiftModal}
+        onClose={() => setShowOpenShiftModal(false)}
+        onOpen={handleOpenShift}
+        loading={openingShift}
       />
     </SafeAreaView>
   );

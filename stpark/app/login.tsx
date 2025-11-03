@@ -41,7 +41,7 @@ export default function LoginScreen() {
   const [tenantConfigLoading, setTenantConfigLoading] = useState(false);
   const [serviceCheckTimer, setServiceCheckTimer] = useState<ReturnType<typeof setInterval> | null>(null);
   const { login, operator } = useAuth();
-  const { tenantConfig, isLoading: tenantLoading } = useTenant();
+  const { tenantConfig, isLoading: tenantLoading, setTenant } = useTenant();
   const pinInputRef = useRef<TextInput>(null);
   const tenantConfigRef = useRef({ isValid: tenantConfig.isValid, loading: tenantLoading });
   const serviceCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -113,7 +113,7 @@ export default function LoginScreen() {
     if (!tenantLoading && tenantConfig.isValid) {
       loadOperators();
     }
-  }, [tenantLoading, tenantConfig.isValid]);
+  }, [tenantLoading, tenantConfig.isValid, tenantConfig.tenant]);
 
   // Solo verificar estado de red cuando la pantalla recibe foco
   useFocusEffect(
@@ -137,7 +137,7 @@ export default function LoginScreen() {
       return () => {
         console.log('=== PANTALLA DE LOGIN PERDIÓ EL FOCO ===');
       };
-    }, [tenantConfig.isValid])
+    }, [tenantConfig.isValid, tenantConfig.tenant])
   );
 
   // Limpiar timers al desmontar el componente
@@ -216,12 +216,16 @@ export default function LoginScreen() {
 
     setTenantConfigLoading(true);
     try {
-      await tenantConfigService.setTenant(tenantInput.trim());
-      console.log('Tenant configurado exitosamente:', tenantInput.trim());
-      setShowTenantConfigModal(false);
-      setTenantInput('');
-      // Recargar operadores después de configurar el tenant
-      loadOperators();
+      const success = await setTenant(tenantInput.trim());
+      if (success) {
+        console.log('Tenant configurado exitosamente:', tenantInput.trim());
+        setShowTenantConfigModal(false);
+        setTenantInput('');
+        // Los operadores se recargarán automáticamente mediante useEffect
+        // que depende de tenantConfig.tenant
+      } else {
+        Alert.alert('Error', 'No se pudo configurar el tenant');
+      }
     } catch (error) {
       console.error('Error configurando tenant:', error);
       Alert.alert('Error', 'No se pudo configurar el tenant');
