@@ -83,13 +83,20 @@ export class SettingsComponent implements OnInit {
 
   loadGeneralSettings(): void {
     this.loading = true;
-    this.http.get<any>(`${environment.apiUrl}/settings/general`)
+    this.http.get<{ success: boolean; data: any }>(`${environment.apiUrl}/settings/general`)
       .subscribe({
-        next: (config) => {
-          this.generalForm.patchValue(config);
+        next: (response) => {
+          // El backend devuelve { success: true, data: {...} }
+          if (response && response.success && response.data) {
+            console.log('Configuración general cargada:', response.data);
+            this.generalForm.patchValue(response.data);
+          } else {
+            console.warn('La respuesta no tiene el formato esperado:', response);
+          }
           this.loading = false;
         },
         error: (error) => {
+          console.error('Error al cargar configuración general:', error);
           console.log('No hay configuración general previa, usando valores por defecto');
           this.loading = false;
         }
@@ -98,13 +105,20 @@ export class SettingsComponent implements OnInit {
 
   loadDefaultPricing(): void {
     this.loading = true;
-    this.http.get<DefaultPricingConfig>(`${environment.apiUrl}/settings/default-pricing`)
+    this.http.get<{ success: boolean; data: DefaultPricingConfig }>(`${environment.apiUrl}/settings/default-pricing`)
       .subscribe({
-        next: (config) => {
-          this.pricingForm.patchValue(config);
+        next: (response) => {
+          // El backend devuelve { success: true, data: {...} }
+          if (response && response.success && response.data) {
+            console.log('Configuración de precios cargada:', response.data);
+            this.pricingForm.patchValue(response.data);
+          } else {
+            console.warn('La respuesta no tiene el formato esperado:', response);
+          }
           this.loading = false;
         },
         error: (error) => {
+          console.error('Error al cargar configuración de precios:', error);
           console.log('No hay configuración previa, usando valores por defecto');
           this.loading = false;
         }

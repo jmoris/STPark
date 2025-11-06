@@ -110,7 +110,9 @@ class ParkingSessionService
         $quote = $this->pricingService->calculatePrice(
             $session->sector_id,
             $session->street_id,
-            $duration
+            $duration,
+            $startTime,
+            $endTime
         );
 
         // Aplicar descuento si se proporciona código
@@ -164,7 +166,9 @@ class ParkingSessionService
             $quote = $this->pricingService->calculatePrice(
                 $session->sector_id,
                 $session->street_id,
-                $duration
+                $duration,
+                $startTime,
+                $endTime
             );
 
             $result = [
@@ -273,7 +277,9 @@ class ParkingSessionService
             $quote = $this->pricingService->calculatePrice(
                 $session->sector_id,
                 $session->street_id,
-                $duration
+                $duration,
+                $startTime,
+                $endTime
             );
 
             // Crear deuda

@@ -49,7 +49,7 @@ export class OperatorsComponent implements OnInit, OnDestroy {
 
   operators: Operator[] = [];
   loading = false;
-  displayedColumns: string[] = ['name', 'rut', 'email', 'phone', 'assignments', 'status', 'actions'];
+  displayedColumns: string[] = ['name', 'rut', 'email', 'phone', 'status', 'actions'];
   
   // Paginación
   totalItems = 0;
@@ -104,22 +104,40 @@ export class OperatorsComponent implements OnInit, OnDestroy {
   }
 
   getAssignmentsCount(operator: Operator): number {
-    // Solo contar sectores asignados, no calles
-    return (operator as any).sectors?.length || 0;
+    // Contar sectores asignados desde operator_assignments
+    if (!operator.operator_assignments || operator.operator_assignments.length === 0) {
+      return 0;
+    }
+    
+    // Obtener sectores únicos asignados
+    const assignedSectors = new Set<number>();
+    operator.operator_assignments.forEach((assignment: any) => {
+      if (assignment.sector && assignment.sector.id) {
+        assignedSectors.add(assignment.sector.id);
+      }
+    });
+    
+    return assignedSectors.size;
   }
 
   getAssignments(operator: Operator): any[] {
-    const sectors = (operator as any).sectors || [];
+    if (!operator.operator_assignments || operator.operator_assignments.length === 0) {
+      return [];
+    }
     
     const assignments = [];
+    const processedSectors = new Set<number>();
     
-    // Solo agregar sectores
-    sectors.forEach((sector: any) => {
-      assignments.push({
-        type: 'Sector',
-        name: sector.name,
-        id: sector.id
-      });
+    // Solo agregar sectores únicos
+    operator.operator_assignments.forEach((assignment: any) => {
+      if (assignment.sector && assignment.sector.id && !processedSectors.has(assignment.sector.id)) {
+        assignments.push({
+          type: 'Sector',
+          name: assignment.sector.name,
+          id: assignment.sector.id
+        });
+        processedSectors.add(assignment.sector.id);
+      }
     });
     
     return assignments;
@@ -127,7 +145,7 @@ export class OperatorsComponent implements OnInit, OnDestroy {
 
   getStatusColor(operator: Operator): string {
     const assignmentsCount = this.getAssignmentsCount(operator);
-    return assignmentsCount > 0 ? 'active' : 'inactive';
+    return assignmentsCount > 0 ? 'assigned' : 'unassigned';
   }
 
   getStatusText(operator: Operator): string {

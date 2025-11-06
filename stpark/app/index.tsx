@@ -9,15 +9,16 @@ import {
   FlatList,
   TextInput,
   Alert,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { STParkLogo } from '@/components/STParkLogo';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { router, Link } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
 import { apiService } from '@/services/api';
 import { PaymentModal } from '@/components/PaymentModal';
+import { systemConfigService } from '@/services/systemConfig';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReactNativePosPrinter, { ThermalPrinterDevice } from 'react-native-thermal-pos-printer';
@@ -46,6 +47,7 @@ export default function HomeScreen() {
   const [queryLoading, setQueryLoading] = useState(false);
   const [foundActiveSession, setFoundActiveSession] = useState<any>(null);
   const [foundDebts, setFoundDebts] = useState<any[]>([]);
+  const [systemName, setSystemName] = useState<string>('Sistema de Gestión de Estacionamiento');
   const { operator, logout } = useAuth();
   const { tenantConfig, isLoading: tenantLoading, setTenant } = useTenant();
 
@@ -59,6 +61,28 @@ export default function HomeScreen() {
       setShowTenantConfigModal(false);
     }
   }, [tenantLoading, tenantConfig.isValid]);
+
+  // Cargar el nombre del sistema desde la API
+  useEffect(() => {
+    const loadSystemName = async () => {
+      try {
+        // Primero intentar cargar desde el servidor
+        await systemConfigService.loadFromServer();
+        // Luego obtener el nombre
+        const name = await systemConfigService.getSystemName();
+        setSystemName(name);
+        console.log('Nombre del sistema cargado:', name);
+      } catch (error) {
+        console.error('Error cargando nombre del sistema:', error);
+        // Si falla, mantener el valor por defecto
+      }
+    };
+
+    // Solo cargar si el tenant está configurado
+    if (!tenantLoading && tenantConfig.isValid) {
+      loadSystemName();
+    }
+  }, [tenantLoading, tenantConfig.isValid, tenantConfig.tenant]);
 
 
   // Función para manejar la configuración del tenant desde el modal
@@ -465,8 +489,13 @@ export default function HomeScreen() {
       alignItems: 'center',
       marginBottom: 20,
     },
+    logoImage: {
+      width: 200,
+      height: 65,
+      marginTop: 8,
+    },
     menuContainer: {
-      marginBottom: 15,
+      marginBottom: 12,
       marginTop: 8, // Espacio adicional desde el header
     },
     menuItem: {
@@ -993,10 +1022,14 @@ export default function HomeScreen() {
       >
         <View style={styles.header}>
           <View style={styles.iconContainer}>
-            <STParkLogo size={60} color="#ffffff" showText={true} />
+            <Image 
+              source={require('@/assets/images/stpark.png')} 
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
           <Text style={styles.subtitle}>
-            Sistema de Gestión de Estacionamiento
+            {systemName}
           </Text>
           
           {operator && (
@@ -1037,7 +1070,10 @@ export default function HomeScreen() {
           {menuItems.map((item, index) => (
             <TouchableOpacity
               key={index}
-              style={styles.menuItem}
+              style={[
+                styles.menuItem,
+                index === menuItems.length - 1 && { marginBottom: 0 }
+              ]}
               onPress={() => handleMenuPress(item.route)}
             >
               <View style={styles.menuIcon}>

@@ -1,4 +1,4 @@
-import { Alert, Platform } from 'react-native';
+import { Alert, Platform, Linking } from 'react-native';
 import { check, request, PERMISSIONS, RESULTS, Permission } from 'react-native-permissions';
 
 export interface BluetoothPermissionsService {
@@ -6,6 +6,8 @@ export interface BluetoothPermissionsService {
   requestBluetoothPermissions(): Promise<boolean>;
   checkLocationPermissions(): Promise<boolean>;
   requestLocationPermissions(): Promise<boolean>;
+  checkNearbyDevicesPermission(): Promise<boolean>;
+  requestNearbyDevicesPermission(): Promise<boolean>;
 }
 
 class BluetoothPermissionsServiceImpl implements BluetoothPermissionsService {
@@ -112,9 +114,17 @@ class BluetoothPermissionsServiceImpl implements BluetoothPermissionsService {
         
         if (!granted) {
           Alert.alert(
-            'Permisos de Bluetooth Requeridos',
-            'Esta app necesita permisos de Bluetooth para conectarse a impresoras térmicas.\n\nVe a Configuración > Aplicaciones > STPark > Permisos y habilita Bluetooth.',
-            [{ text: 'OK' }]
+            'Permiso de Dispositivos Cercanos Requerido',
+            'Esta aplicación necesita acceso a dispositivos cercanos (Bluetooth) para conectarse a impresoras térmicas.\n\nPor favor, habilita el permiso de "Dispositivos cercanos" en la configuración de la aplicación.',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              { 
+                text: 'Abrir Configuración', 
+                onPress: () => {
+                  Linking.openSettings();
+                }
+              }
+            ]
           );
         }
         
@@ -130,9 +140,17 @@ class BluetoothPermissionsServiceImpl implements BluetoothPermissionsService {
         
         if (!granted) {
           Alert.alert(
-            'Permisos de Ubicación Requeridos',
-            'Esta app necesita permisos de ubicación para usar Bluetooth en versiones anteriores de Android.\n\nVe a Configuración > Aplicaciones > STPark > Permisos y habilita Ubicación.',
-            [{ text: 'OK' }]
+            'Permiso de Ubicación Requerido',
+            'Esta aplicación necesita permiso de ubicación para usar Bluetooth en versiones anteriores de Android.\n\nPor favor, habilita el permiso de ubicación en la configuración de la aplicación.',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              { 
+                text: 'Abrir Configuración', 
+                onPress: () => {
+                  Linking.openSettings();
+                }
+              }
+            ]
           );
         }
         
@@ -233,6 +251,116 @@ class BluetoothPermissionsServiceImpl implements BluetoothPermissionsService {
     const locationOk = await this.requestLocationPermissions();
     
     return bluetoothOk && locationOk;
+  }
+
+  /**
+   * Verificar permiso de dispositivos cercanos (Nearby Devices)
+   * En Android 12+, esto incluye BLUETOOTH_SCAN y BLUETOOTH_CONNECT
+   */
+  async checkNearbyDevicesPermission(): Promise<boolean> {
+    try {
+      if (Platform.OS !== 'android') {
+        return true; // En iOS no hay permiso específico de dispositivos cercanos
+      }
+
+      console.log('Verificando permiso de dispositivos cercanos...');
+      
+      // Para Android 12+ (API 31+)
+      if (Number(Platform.Version) >= 31) {
+        const bluetoothConnect = await check(PERMISSIONS.ANDROID.BLUETOOTH_CONNECT);
+        const bluetoothScan = await check(PERMISSIONS.ANDROID.BLUETOOTH_SCAN);
+        
+        console.log('Permisos de dispositivos cercanos (Android 12+):');
+        console.log('- BLUETOOTH_CONNECT:', bluetoothConnect);
+        console.log('- BLUETOOTH_SCAN:', bluetoothScan);
+        
+        return bluetoothConnect === RESULTS.GRANTED && bluetoothScan === RESULTS.GRANTED;
+      } else {
+        // Para versiones anteriores, verificar ubicación y permisos básicos de Bluetooth
+        const location = await check(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
+        
+        console.log('Permisos de dispositivos cercanos (Android <12):');
+        console.log('- ACCESS_FINE_LOCATION:', location);
+        
+        return location === RESULTS.GRANTED;
+      }
+    } catch (error) {
+      console.error('Error verificando permiso de dispositivos cercanos:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Solicitar permiso de dispositivos cercanos (Nearby Devices)
+   * En Android 12+, esto solicita BLUETOOTH_SCAN y BLUETOOTH_CONNECT
+   */
+  async requestNearbyDevicesPermission(): Promise<boolean> {
+    try {
+      if (Platform.OS !== 'android') {
+        return true; // En iOS no hay permiso específico de dispositivos cercanos
+      }
+
+      console.log('Solicitando permiso de dispositivos cercanos...');
+      
+      // Para Android 12+ (API 31+)
+      if (Number(Platform.Version) >= 31) {
+        const bluetoothConnectResult = await request(PERMISSIONS.ANDROID.BLUETOOTH_CONNECT);
+        const bluetoothScanResult = await request(PERMISSIONS.ANDROID.BLUETOOTH_SCAN);
+        
+        console.log('Resultados permisos de dispositivos cercanos (Android 12+):');
+        console.log('- BLUETOOTH_CONNECT:', bluetoothConnectResult);
+        console.log('- BLUETOOTH_SCAN:', bluetoothScanResult);
+        
+        const granted = bluetoothConnectResult === RESULTS.GRANTED && bluetoothScanResult === RESULTS.GRANTED;
+        
+        if (!granted) {
+          Alert.alert(
+            'Permiso de Dispositivos Cercanos Requerido',
+            'Esta aplicación necesita acceso a dispositivos cercanos (Bluetooth) para conectarse a impresoras térmicas.\n\nPor favor, habilita el permiso de "Dispositivos cercanos" en la configuración de la aplicación.',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              { 
+                text: 'Abrir Configuración', 
+                onPress: () => {
+                  Linking.openSettings();
+                }
+              }
+            ]
+          );
+        }
+        
+        return granted;
+      } else {
+        // Para versiones anteriores de Android - solicitar ubicación
+        const locationResult = await request(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
+        
+        console.log('Resultado permiso de dispositivos cercanos (Android <12):');
+        console.log('- ACCESS_FINE_LOCATION:', locationResult);
+        
+        const granted = locationResult === RESULTS.GRANTED;
+        
+        if (!granted) {
+          Alert.alert(
+            'Permiso de Ubicación Requerido',
+            'Esta aplicación necesita permiso de ubicación para usar Bluetooth en versiones anteriores de Android.\n\nPor favor, habilita el permiso de ubicación en la configuración de la aplicación.',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              { 
+                text: 'Abrir Configuración', 
+                onPress: () => {
+                  Linking.openSettings();
+                }
+              }
+            ]
+          );
+        }
+        
+        return granted;
+      }
+    } catch (error) {
+      console.error('Error solicitando permiso de dispositivos cercanos:', error);
+      return false;
+    }
   }
 }
 

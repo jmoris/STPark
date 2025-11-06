@@ -631,7 +631,45 @@ class ApiService {
       const result = await response.json();
       console.log('API: Configuración del sistema obtenida:', result);
       
-      return result;
+      // Validar que la respuesta tenga la estructura correcta
+      if (result && result.success && result.data) {
+        // Validar que data tenga todos los campos requeridos
+        const defaultConfig = {
+          name: 'STPark - Sistema de Gestión de Estacionamientos',
+          currency: 'CLP',
+          timezone: 'America/Santiago',
+          language: 'es'
+        };
+        
+        // Asegurar que todos los campos estén presentes
+        const config = {
+          ...defaultConfig,
+          ...result.data
+        };
+        
+        // Validar que el nombre no esté vacío
+        if (!config.name || config.name.trim() === '') {
+          console.warn('API: El nombre del sistema está vacío, usando valor por defecto');
+          config.name = defaultConfig.name;
+        }
+        
+        return {
+          success: true,
+          data: config
+        };
+      }
+      
+      // Si la respuesta no tiene el formato esperado, devolver valores por defecto
+      console.warn('API: La respuesta no tiene el formato esperado:', result);
+      return {
+        success: true,
+        data: {
+          name: 'STPark - Sistema de Gestión de Estacionamientos',
+          currency: 'CLP',
+          timezone: 'America/Santiago',
+          language: 'es'
+        }
+      };
     } catch (error) {
       console.error('API: Error obteniendo configuración del sistema:', error);
       return {

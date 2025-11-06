@@ -682,28 +682,31 @@ export class PricingProfilesComponent implements OnInit, OnDestroy {
     }
     
     try {
-      // Parse ISO datetime strings
-      const start = new Date(startTime);
-      const end = new Date(endTime);
+      // Si startTime y endTime son solo horas (HH:mm:ss o HH:mm), parsearlos directamente
+      let startTimeStr = startTime;
+      let endTimeStr = endTime;
       
-      // Format as dd/mm/yyyy HH:mm - HH:mm
-      const startFormatted = start.toLocaleDateString('es-CL', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      }) + ' ' + start.toLocaleTimeString('es-CL', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
+      // Si es un string de fecha/hora ISO, extraer solo la hora
+      if (startTime.includes('T') || startTime.includes(' ')) {
+        const startDate = new Date(startTime);
+        if (!isNaN(startDate.getTime())) {
+          startTimeStr = startDate.toTimeString().substring(0, 5); // HH:mm
+        }
+      } else if (startTime.includes(':')) {
+        // Si ya es formato HH:mm o HH:mm:ss, usar directamente
+        startTimeStr = startTime.substring(0, 5); // Tomar solo HH:mm
+      }
       
-      const endFormatted = end.toLocaleTimeString('es-CL', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
+      if (endTime.includes('T') || endTime.includes(' ')) {
+        const endDate = new Date(endTime);
+        if (!isNaN(endDate.getTime())) {
+          endTimeStr = endDate.toTimeString().substring(0, 5); // HH:mm
+        }
+      } else if (endTime.includes(':')) {
+        endTimeStr = endTime.substring(0, 5); // Tomar solo HH:mm
+      }
       
-      return `${startFormatted} - ${endFormatted}`;
+      return `${startTimeStr} - ${endTimeStr}`;
     } catch (error) {
       console.error('Error formatting time range:', error);
       return 'Todo el día';

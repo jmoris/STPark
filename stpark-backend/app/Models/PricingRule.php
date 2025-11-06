@@ -31,8 +31,8 @@ class PricingRule extends Model
     ];
 
     protected $casts = [
-        'start_time' => 'datetime',
-        'end_time' => 'datetime',
+        'start_time' => 'string',
+        'end_time' => 'string',
         'price_per_min' => 'decimal:2',
         'fixed_price' => 'decimal:2',
         'days_of_week' => 'array',
@@ -41,6 +41,50 @@ class PricingRule extends Model
         'is_active' => 'boolean',
         'min_amount_is_base' => 'boolean',
     ];
+    
+    /**
+     * Accessor para obtener start_time como string de hora
+     */
+    public function getStartTimeAttribute($value)
+    {
+        if ($value === null) {
+            return null;
+        }
+        
+        // Si ya es string, devolverlo
+        if (is_string($value)) {
+            return $value;
+        }
+        
+        // Si es un objeto DateTime/Carbon, formatear como hora
+        if ($value instanceof \DateTime || $value instanceof \Carbon\Carbon) {
+            return $value->format('H:i:s');
+        }
+        
+        return $value;
+    }
+    
+    /**
+     * Accessor para obtener end_time como string de hora
+     */
+    public function getEndTimeAttribute($value)
+    {
+        if ($value === null) {
+            return null;
+        }
+        
+        // Si ya es string, devolverlo
+        if (is_string($value)) {
+            return $value;
+        }
+        
+        // Si es un objeto DateTime/Carbon, formatear como hora
+        if ($value instanceof \DateTime || $value instanceof \Carbon\Carbon) {
+            return $value->format('H:i:s');
+        }
+        
+        return $value;
+    }
 
     /**
      * Relación con el perfil de precios

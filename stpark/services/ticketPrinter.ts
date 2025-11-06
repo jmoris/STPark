@@ -156,8 +156,15 @@ class TicketPrinterService {
 
   // Formatear monto
   private formatAmount(amount?: number): string {
-    if (!amount) return '$0';
-    return `$${amount.toLocaleString('es-CL')}`;
+    if (!amount && amount !== 0) return '$0';
+    // Usar Intl.NumberFormat para formato chileno correcto (puntos como separador de miles, sin decimales)
+    // El formato ya incluye el símbolo $ automáticamente
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount || 0);
   }
 
   // Obtener nombre del sistema
@@ -290,7 +297,7 @@ RESUMEN FINANCIERO:
 Fondo Inicial: ${this.formatAmount(data.openingFloat)}
 Efectivo Cobrado: ${this.formatAmount(data.cashCollected)}
 Retiros: ${this.formatAmount(data.cashWithdrawals)}
-Depósitos: ${this.formatAmount(data.cashDeposits)}
+Depositos: ${this.formatAmount(data.cashDeposits)}
 --------------------------------
 Efectivo Esperado: ${this.formatAmount(data.cashExpected)}
 Efectivo Contado: ${this.formatAmount(data.cashDeclared)}
@@ -308,6 +315,12 @@ Efectivo Contado: ${this.formatAmount(data.cashDeclared)}
 RESUMEN DE TRANSACCIONES:
 `;
 
+    // Calcular total de transacciones sumando los count de cada método de pago
+    let totalTransactions = data.totalTransactions || 0;
+    if (totalTransactions === 0 && data.paymentsByMethod && data.paymentsByMethod.length > 0) {
+      totalTransactions = data.paymentsByMethod.reduce((sum, payment) => sum + (payment.count || 0), 0);
+    }
+
     if (data.paymentsByMethod && data.paymentsByMethod.length > 0) {
       data.paymentsByMethod.forEach((payment) => {
         const methodName = payment.method === 'CASH' ? 'Efectivo' : 
@@ -319,7 +332,7 @@ RESUMEN DE TRANSACCIONES:
     }
 
     ticket += `
-Total Transacciones: ${data.totalTransactions || 0}
+Total Transacciones: ${totalTransactions}
 
 ================================
           FIN DE TURNO

@@ -28,8 +28,37 @@ export class ConfigService {
    * This method should be called when user logs in
    */
   loadConfig(): Observable<SystemConfig> {
-    return this._httpClient.get<SystemConfig>(`${environment.apiUrl}/settings/general`)
+    const defaultConfig: SystemConfig = {
+      name: 'STPark - Sistema de Gestión de Estacionamientos',
+      currency: 'CLP',
+      timezone: 'America/Santiago',
+      language: 'es'
+    };
+
+    return this._httpClient.get<{ success: boolean; data: SystemConfig }>(`${environment.apiUrl}/settings/general`)
       .pipe(
+        map(response => {
+          // El backend devuelve { success: true, data: {...} }
+          if (response && response.success && response.data) {
+            // Validar que todos los campos estén presentes
+            const config: SystemConfig = {
+              ...defaultConfig,
+              ...response.data
+            };
+            
+            // Validar que el nombre no esté vacío
+            if (!config.name || config.name.trim() === '') {
+              console.warn('ConfigService: El nombre del sistema está vacío, usando valor por defecto');
+              config.name = defaultConfig.name;
+            }
+            
+            return config;
+          }
+          
+          // Si la respuesta no tiene el formato esperado, usar valores por defecto
+          console.warn('ConfigService: La respuesta no tiene el formato esperado:', response);
+          return defaultConfig;
+        }),
         tap(config => {
           this._systemConfig.next(config);
           this._configLoaded = true;
@@ -38,7 +67,8 @@ export class ConfigService {
         catchError(error => {
           console.error('Error al cargar configuración del sistema:', error);
           // Return default config if error
-          return of(this._systemConfig.value);
+          this._systemConfig.next(defaultConfig);
+          return of(defaultConfig);
         })
       );
   }
