@@ -141,7 +141,7 @@ class ParkingSessionService
     /**
      * Realizar checkout de una sesión
      */
-    public function checkout(int $sessionId, string $paymentMethod, float $amount, string $endedAt, ?string $approvalCode = null): array
+    public function checkout(int $sessionId, string $paymentMethod, float $amount, string|Carbon $endedAt, ?string $approvalCode = null): array
     {
         $session = ParkingSession::findOrFail($sessionId);
         
@@ -152,8 +152,31 @@ class ParkingSessionService
         DB::beginTransaction();
 
         try {
-            // Parsear ended_at y asegurar que esté en timezone America/Santiago
-            $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
+            // Parsear ended_at: si viene como string ISO con 'Z' (UTC), 
+            // interpretar los componentes como hora local de America/Santiago
+            // Esto es porque el frontend envía new Date().toISOString() que marca como UTC
+            // pero realmente representa la hora local
+            if (is_string($endedAt) && (str_ends_with($endedAt, 'Z') || str_contains($endedAt, '+00:00'))) {
+                // Extraer componentes de la fecha UTC pero crear en America/Santiago
+                $parsedDate = Carbon::parse($endedAt, 'UTC');
+                $endTime = Carbon::create(
+                    $parsedDate->year,
+                    $parsedDate->month,
+                    $parsedDate->day,
+                    $parsedDate->hour,
+                    $parsedDate->minute,
+                    $parsedDate->second,
+                    'America/Santiago'
+                );
+            } elseif (is_string($endedAt)) {
+                // Si no es UTC, parsear y establecer timezone
+                $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
+            } else {
+                // Si ya es un objeto Carbon, asegurar timezone
+                $endTime = $endedAt instanceof Carbon 
+                    ? $endedAt->copy()->setTimezone('America/Santiago')
+                    : Carbon::parse($endedAt)->setTimezone('America/Santiago');
+            }
             
             // Actualizar la sesión con el objeto Carbon (Laravel lo guardará correctamente)
             $session->update([
@@ -254,7 +277,7 @@ class ParkingSessionService
     /**
      * Forzar checkout sin pago
      */
-    public function forceCheckoutWithoutPayment(int $sessionId, string $endedAt): array
+    public function forceCheckoutWithoutPayment(int $sessionId, string|Carbon $endedAt): array
     {
         $session = ParkingSession::findOrFail($sessionId);
         
@@ -265,8 +288,29 @@ class ParkingSessionService
         DB::beginTransaction();
 
         try {
-            // Parsear ended_at y asegurar que esté en timezone America/Santiago
-            $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
+            // Parsear ended_at: si viene como string ISO con 'Z' (UTC), 
+            // interpretar los componentes como hora local de America/Santiago
+            if (is_string($endedAt) && (str_ends_with($endedAt, 'Z') || str_contains($endedAt, '+00:00'))) {
+                // Extraer componentes de la fecha UTC pero crear en America/Santiago
+                $parsedDate = Carbon::parse($endedAt, 'UTC');
+                $endTime = Carbon::create(
+                    $parsedDate->year,
+                    $parsedDate->month,
+                    $parsedDate->day,
+                    $parsedDate->hour,
+                    $parsedDate->minute,
+                    $parsedDate->second,
+                    'America/Santiago'
+                );
+            } elseif (is_string($endedAt)) {
+                // Si no es UTC, parsear y establecer timezone
+                $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
+            } else {
+                // Si ya es un objeto Carbon, asegurar timezone
+                $endTime = $endedAt instanceof Carbon 
+                    ? $endedAt->copy()->setTimezone('America/Santiago')
+                    : Carbon::parse($endedAt)->setTimezone('America/Santiago');
+            }
             
             // Actualizar la sesión con el objeto Carbon (Laravel lo guardará correctamente)
             $session->update([
