@@ -152,15 +152,17 @@ class ParkingSessionService
         DB::beginTransaction();
 
         try {
-            // Actualizar la sesión
+            // Parsear ended_at y asegurar que esté en timezone America/Santiago
+            $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
+            
+            // Actualizar la sesión con el objeto Carbon (Laravel lo guardará correctamente)
             $session->update([
-                'ended_at' => $endedAt,
+                'ended_at' => $endTime,
                 'status' => 'COMPLETED'
             ]);
 
             // Calcular el precio real
             $startTime = Carbon::parse($session->started_at)->setTimezone('America/Santiago');
-            $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
             $duration = $startTime->diffInMinutes($endTime);
 
             $quote = $this->pricingService->calculatePrice(
@@ -263,15 +265,17 @@ class ParkingSessionService
         DB::beginTransaction();
 
         try {
-            // Actualizar la sesión
+            // Parsear ended_at y asegurar que esté en timezone America/Santiago
+            $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
+            
+            // Actualizar la sesión con el objeto Carbon (Laravel lo guardará correctamente)
             $session->update([
-                'ended_at' => $endedAt,
+                'ended_at' => $endTime,
                 'status' => 'FORCED_CHECKOUT'
             ]);
 
             // Calcular el precio
             $startTime = Carbon::parse($session->started_at)->setTimezone('America/Santiago');
-            $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
             $duration = $startTime->diffInMinutes($endTime);
 
             $quote = $this->pricingService->calculatePrice(

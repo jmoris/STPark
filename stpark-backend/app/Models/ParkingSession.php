@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Builder;
+use Carbon\Carbon;
 
 class ParkingSession extends Model
 {
@@ -190,5 +191,17 @@ class ParkingSession extends Model
     public function getFormattedTotalPaid(): string
     {
         return '$' . number_format($this->getTotalPaid(), 0, ',', '.');
+    }
+
+    /**
+     * Preparar una fecha para serialización (asegurar zona horaria America/Santiago)
+     */
+    protected function serializeDate(\DateTimeInterface $date): string
+    {
+        // Convertir a Carbon si no lo es
+        $carbon = $date instanceof Carbon ? $date : Carbon::instance($date);
+        
+        // Asegurar que esté en timezone America/Santiago
+        return $carbon->setTimezone('America/Santiago')->toIso8601String();
     }
 }

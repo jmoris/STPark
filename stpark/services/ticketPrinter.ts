@@ -120,7 +120,6 @@ class TicketPrinterService {
       await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('   Gracias por su preferencia', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
-      await TuuPrinter.addBlankLines(1);
       await TuuPrinter.addTextLine('No valido como documento fiscal', {align: 1, size: 20, bold: false, italic: false});
       await TuuPrinter.addBlankLines(5);
       await TuuPrinter.beginPrint();
@@ -287,12 +286,14 @@ class TicketPrinterService {
     }
   }
 
-  // Formatear fecha y hora
+  // Formatear fecha y hora en zona horaria America/Santiago
   private formatDateTime(dateString?: string): string {
     if (!dateString) return 'N/A';
     try {
       const date = new Date(dateString);
+      // Convertir a zona horaria America/Santiago
       return date.toLocaleString('es-CL', {
+        timeZone: 'America/Santiago',
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
