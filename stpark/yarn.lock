@@ -5863,6 +5863,11 @@ react-native-thermal-pos-printer@^1.6.6:
   resolved "https://registry.npmjs.org/react-native-thermal-pos-printer/-/react-native-thermal-pos-printer-1.6.6.tgz"
   integrity sha512-DcBElYolAwYCln+N6TSVOGJExSSrb2+arb4CxOMCl/VXKXhHz9gC+kcQP0N875tcvcL1630nbK557uL4A7odaQ==
 
+"react-native-tuu-printer@file:../../react-native-tuu-printer/react-native-tuu-printer-0.1.0.tgz":
+  version "0.1.0"
+  resolved "file:../../react-native-tuu-printer/react-native-tuu-printer-0.1.0.tgz"
+  integrity sha512-2DaMpgaQe+LIwOudb1zvNvwpykx+xZcLj/QNGIvXyYVsdi+Z2hTPnM+riNjpaodoeJX46bTzhAtBNuodQhAZ0g==
+
 react-native-web@*, react-native-web@~0.21.0:
   version "0.21.2"
   resolved "https://registry.npmjs.org/react-native-web/-/react-native-web-0.21.2.tgz"

@@ -62,8 +62,6 @@ export const CloseShiftModal: React.FC<CloseShiftModalProps> = ({
     onClose();
   };
 
-  const difference = shiftData ? parseFloat(closingCash || '0') - (shiftData.expected_cash || 0) : 0;
-
   return (
     <Modal
       visible={visible}
@@ -145,20 +143,6 @@ export const CloseShiftModal: React.FC<CloseShiftModalProps> = ({
                   editable={!loading}
                 />
               </View>
-
-              {difference !== 0 && (
-                <View style={[styles.differenceContainer, difference > 0 ? styles.positiveDifference : styles.negativeDifference]}>
-                  <IconSymbol
-                    size={20}
-                    name={difference > 0 ? 'arrow.up.circle.fill' : 'arrow.down.circle.fill'}
-                    color="#fff"
-                  />
-                  <Text style={styles.differenceText}>
-                    {difference > 0 ? 'Sobra' : 'Falta'}: ${Math.abs(difference).toLocaleString('es-CL')}
-                  </Text>
-                </View>
-              )}
-
               <View style={styles.inputContainer}>
                 <Text style={styles.label}>Notas (opcional)</Text>
                 <TextInput
@@ -295,25 +279,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     minHeight: 80,
     textAlignVertical: 'top',
-  },
-  differenceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 16,
-    gap: 8,
-  },
-  positiveDifference: {
-    backgroundColor: '#d4edda',
-  },
-  negativeDifference: {
-    backgroundColor: '#f8d7da',
-  },
-  differenceText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#155724',
   },
   modalFooter: {
     flexDirection: 'row',

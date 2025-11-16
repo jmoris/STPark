@@ -224,7 +224,8 @@ class ParkingSessionController extends Controller
 
             // Si no se proporciona ended_at, usar la fecha actual en timezone America/Santiago
             if ($request->ended_at) {
-                $endedAt = $request->ended_at;
+                // Parsear la fecha proporcionada y asegurar que esté en timezone America/Santiago
+                $endedAt = Carbon::parse($request->ended_at)->setTimezone('America/Santiago')->toIso8601String();
             } else {
                 // Usar Carbon con timezone America/Santiago
                 $endedAt = Carbon::now('America/Santiago')->toIso8601String();
@@ -298,7 +299,12 @@ class ParkingSessionController extends Controller
         try {
             DB::beginTransaction();
 
-            $endedAt = $request->ended_at ?? now()->toISOString();
+            // Usar timezone America/Santiago para el checkout forzado
+            if ($request->ended_at) {
+                $endedAt = Carbon::parse($request->ended_at)->setTimezone('America/Santiago')->toIso8601String();
+            } else {
+                $endedAt = Carbon::now('America/Santiago')->toIso8601String();
+            }
             
             $session = $this->sessionService->forceCheckoutWithoutPayment($id, $endedAt);
 

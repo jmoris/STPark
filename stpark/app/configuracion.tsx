@@ -26,6 +26,8 @@ import { bluetoothDevicesService } from '@/services/bluetoothDevices';
 import { bluetoothPrinterService } from '@/services/bluetoothPrinter';
 import { PrinterStatus } from 'react-native-thermal-pos-printer/src/types/printer';
 
+import { TuuPrinter } from 'react-native-tuu-printer';
+
 export default function ConfiguracionScreen() {
   const { tenantConfig, setTenant } = useTenant();
   const [showScanModal, setShowScanModal] = useState(false);
@@ -49,10 +51,26 @@ export default function ConfiguracionScreen() {
   const [newTenant, setNewTenant] = useState('');
   const [pairedDevices, setPairedDevices] = useState<any[]>([]);
   const [loadingPairedDevices, setLoadingPairedDevices] = useState(false);
+  const [tuuPrinterConnected, setTuuPrinterConnected] = useState(false);
+  
   useEffect(() => {
     loadCustomServerUrl();
     loadSelectedPrinter();
+    checkTuuPrinterConnection();
   }, []);
+
+  // Función para verificar si hay una impresora TUU conectada
+  const checkTuuPrinterConnection = async () => {
+    try {
+      await TuuPrinter.init();
+      setTuuPrinterConnected(true);
+      setImpresoraConectada(true);
+      console.log('Impresora TUU detectada y conectada');
+    } catch (error) {
+      setTuuPrinterConnected(false);
+      console.log('No hay impresora TUU conectada');
+    }
+  };
 
   // Función para refrescar el estado de la impresora
   const refreshPrinterStatus = async () => {
@@ -528,6 +546,51 @@ correctamente.
       Alert.alert('Error', `Error: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
+
+  const testTuuPrinter = async () => {
+    try {
+      console.log('Iniciando prueba de impresión...');
+      await TuuPrinter.init();  
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('TICKET DE PRUEBA', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('STPark App', {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('Fecha: ' + new Date().toLocaleString('es-CL'), {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine('Este es un ticket de prueba para verificar que la impresora funciona correctamente.', {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('IMPRESIÓN EXITOSA', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(5);
+      await TuuPrinter.beginPrint();
+    } catch (error) {
+      console.error('Error al probar la impresora:', error);
+    }
+    
+  };
+
+  const testPrinter = async () => {
+    let tuuPrinter = true;
+    try{
+      await TuuPrinter.init();
+    } catch (error) {
+      tuuPrinter = false;
+    }
+
+    console.log('TuuPrinter:', tuuPrinter);
+    if(tuuPrinter){
+      setTuuPrinterConnected(true);
+      setImpresoraConectada(true);
+      testTuuPrinter();
+      return;
+    }
+    if(!tuuPrinter){
+      setTuuPrinterConnected(false);
+      testConnectedPrinter();
+      return;
+    }
+  }
 
   // Función para desconectar la impresora
   const disconnectPrinter = async () => {
@@ -1330,43 +1393,47 @@ correctamente.
 
         {/* Sección de Impresora */}
         <View style={styles.configSection}>
-          <Text style={styles.sectionTitle}>Impresora Bluetooth</Text>
+          <Text style={styles.sectionTitle}>Configuración de Impresora</Text>
           
           <View style={styles.configItem}>
             <View style={styles.statusContainer}>
               <View style={styles.statusHeader}>
                 <View style={[
                   styles.statusIndicator,
-                  impresoraConectada ? styles.statusConnected : styles.statusDisconnected
+                  tuuPrinterConnected || impresoraConectada ? styles.statusConnected : styles.statusDisconnected
                 ]} />
                 <Text style={styles.configLabel}>Estado de conexión</Text>
               </View>
               <Text style={[
                 styles.statusText,
-                impresoraConectada ? styles.statusConnectedText : styles.statusDisconnectedText
+                tuuPrinterConnected || impresoraConectada ? styles.statusConnectedText : styles.statusDisconnectedText
               ]} numberOfLines={2}>
-                {impresoraConectada && selectedPrinterInfo 
-                  ? `Conectada a ${selectedPrinterInfo.name}` 
-                  : selectedPrinterInfo 
-                    ? `Guardada: ${selectedPrinterInfo.name}\n(No conectada)`
-                    : 'Desconectada'}
+                {tuuPrinterConnected 
+                  ? 'Conectada (Impresora TUU)' 
+                  : impresoraConectada && selectedPrinterInfo 
+                    ? `Conectada a ${selectedPrinterInfo.name}` 
+                    : selectedPrinterInfo 
+                      ? `Guardada: ${selectedPrinterInfo.name}\n(No conectada)`
+                      : 'Desconectada'}
               </Text>
             </View>
           </View>
 
-          {/* Botón para refrescar estado de la impresora */}
-          <View style={styles.configItem}>
-            <Text style={styles.configLabel}>Refrescar Estado</Text>
-            <TouchableOpacity
-              style={[styles.configButton, styles.diagnosticButton]}
-              onPress={refreshPrinterStatus}
-            >
-              <Text style={styles.configButtonText}>🔄 Refrescar</Text>
-            </TouchableOpacity>
-          </View>
+          {/* Botón para refrescar estado de la impresora - Solo visible si NO hay impresora TUU */}
+          {!tuuPrinterConnected && (
+            <View style={styles.configItem}>
+              <Text style={styles.configLabel}>Refrescar Estado</Text>
+              <TouchableOpacity
+                style={[styles.configButton, styles.diagnosticButton]}
+                onPress={refreshPrinterStatus}
+              >
+                <Text style={styles.configButtonText}>🔄 Refrescar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-          {/* Botón para reconectar impresora guardada */}
-          {selectedPrinterInfo && !impresoraConectada && (
+          {/* Botón para reconectar impresora guardada - Solo visible si NO hay impresora TUU */}
+          {!tuuPrinterConnected && selectedPrinterInfo && !impresoraConectada && (
             <View style={styles.configItem}>
               <Text style={styles.configLabel}>Reconectar Impresora</Text>
               <TouchableOpacity
@@ -1378,70 +1445,80 @@ correctamente.
             </View>
           )}
 
-          {/* Botón para buscar dispositivos (funciona) */}
-          <View style={styles.configItem}>
-            <Text style={styles.configLabel}>Buscar Dispositivos</Text>
-            <TouchableOpacity
-              style={[styles.configButton, styles.deviceButton]}
-              onPress={() => {
-                setShowDeviceModal(true);
-                handleScanDevices();
-              }}
-            >
-              <Text style={styles.configButtonText}>📱 Buscar Dispositivos</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.configItem}>
-            <Text style={styles.configLabel}>Impresora Seleccionada</Text>
-            <Text style={styles.configValue}>
-              {selectedPrinterInfo ? selectedPrinterInfo.name : 'Ninguna seleccionada'}
-            </Text>
-          </View>
-
-          {selectedPrinterInfo && (
+          {/* Botón para buscar dispositivos - Solo visible si NO hay impresora TUU */}
+          {!tuuPrinterConnected && (
             <View style={styles.configItem}>
-              <Text style={styles.configLabel}>Dirección MAC</Text>
-              <Text style={styles.configValue}>
-                {selectedPrinterInfo.address}
-              </Text>
+              <Text style={styles.configLabel}>Buscar Dispositivos</Text>
+              <TouchableOpacity
+                style={[styles.configButton, styles.deviceButton]}
+                onPress={() => {
+                  setShowDeviceModal(true);
+                  handleScanDevices();
+                }}
+              >
+                <Text style={styles.configButtonText}>📱 Buscar Dispositivos</Text>
+              </TouchableOpacity>
             </View>
           )}
 
-          <View style={styles.configItem}>
-            <Text style={styles.configLabel}>Estado de Conexión</Text>
-            <Text style={styles.configValue}>
-              {impresoraConectada ? 'Conectada' : 'Desconectada'}
-            </Text>
-          </View>
+          {/* Información de impresora Bluetooth - Solo visible si NO hay impresora TUU */}
+          {!tuuPrinterConnected && (
+            <>
+              <View style={styles.configItem}>
+                <Text style={styles.configLabel}>Impresora Seleccionada</Text>
+                <Text style={styles.configValue}>
+                  {selectedPrinterInfo ? selectedPrinterInfo.name : 'Ninguna seleccionada'}
+                </Text>
+              </View>
+
+              {selectedPrinterInfo && (
+                <View style={styles.configItem}>
+                  <Text style={styles.configLabel}>Dirección MAC</Text>
+                  <Text style={styles.configValue}>
+                    {selectedPrinterInfo.address}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.configItem}>
+                <Text style={styles.configLabel}>Estado de Conexión</Text>
+                <Text style={styles.configValue}>
+                  {impresoraConectada ? 'Conectada' : 'Desconectada'}
+                </Text>
+              </View>
+            </>
+          )}
 
           {/* Botón para probar impresora conectada */}
           <View style={styles.configItem}>
             <Text style={styles.configLabel}>Probar Impresora</Text>
             <TouchableOpacity
               style={[styles.configButton, styles.testButton]}
-              onPress={testConnectedPrinter}
+              onPress={testPrinter}
             >
               <Text style={styles.configButtonText}>🖨️ Probar Impresora</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Botón para desconectar impresora */}
-          <View style={styles.configItem}>
-            <Text style={styles.configLabel}>Desconectar</Text>
-            <TouchableOpacity
-              style={[styles.configButton, styles.disconnectButton]}
-              onPress={disconnectPrinter}
-            >
-              <Text style={styles.configButtonText}>🔌 Desconectar</Text>
-            </TouchableOpacity>
-          </View>
+          {/* Botón para desconectar impresora - Solo visible si NO hay impresora TUU */}
+          {!tuuPrinterConnected && (
+            <View style={styles.configItem}>
+              <Text style={styles.configLabel}>Desconectar</Text>
+              <TouchableOpacity
+                style={[styles.configButton, styles.disconnectButton]}
+                onPress={disconnectPrinter}
+              >
+                <Text style={styles.configButtonText}>🔌 Desconectar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <View style={styles.infoSection}>
             <Text style={styles.infoTitle}>Información</Text>
             <Text style={styles.infoText}>
-              La impresora se usa para imprimir tickets de estacionamiento y recibos de pago. 
-              Asegúrate de que esté encendida y en modo de emparejamiento antes de conectar.
+              {tuuPrinterConnected 
+                ? 'La impresora TUU está conectada y lista para imprimir tickets de estacionamiento y recibos de pago. No se requiere configuración adicional de Bluetooth.'
+                : 'La impresora se usa para imprimir tickets de estacionamiento y recibos de pago. Asegúrate de que esté encendida y en modo de emparejamiento antes de conectar.'}
             </Text>
           </View>
         </View>

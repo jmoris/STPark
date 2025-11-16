@@ -57,8 +57,13 @@ class PricingService
      */
     private function calculatePriceByTimeRange(int $sectorId, ?int $streetId, $startedAt, $endedAt, $pricingProfile, $pricingRules): array
     {
-        $startTime = Carbon::parse($startedAt);
-        $endTime = Carbon::parse($endedAt);
+        // Asegurar que las fechas estén en timezone America/Santiago
+        $startTime = $startedAt instanceof Carbon 
+            ? $startedAt->setTimezone('America/Santiago') 
+            : Carbon::parse($startedAt)->setTimezone('America/Santiago');
+        $endTime = $endedAt instanceof Carbon 
+            ? $endedAt->setTimezone('America/Santiago') 
+            : Carbon::parse($endedAt)->setTimezone('America/Santiago');
         $durationMinutes = $startTime->diffInMinutes($endTime);
         
         $breakdown = [];

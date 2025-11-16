@@ -54,7 +54,7 @@ class ParkingSessionService
             'sector_id' => $sectorId,
             'street_id' => $streetId,
             'operator_in_id' => $operatorId,
-            'started_at' => now(),
+            'started_at' => Carbon::now('America/Santiago'),
             'status' => 'ACTIVE'
         ]);
 
@@ -103,8 +103,8 @@ class ParkingSessionService
             throw new \Exception('La sesión ya ha terminado');
         }
 
-        $startTime = Carbon::parse($session->started_at);
-        $endTime = isset($params['ended_at']) ? Carbon::parse($params['ended_at']) : now();
+        $startTime = Carbon::parse($session->started_at)->setTimezone('America/Santiago');
+        $endTime = isset($params['ended_at']) ? Carbon::parse($params['ended_at'])->setTimezone('America/Santiago') : Carbon::now('America/Santiago');
         $duration = $startTime->diffInMinutes($endTime);
 
         $quote = $this->pricingService->calculatePrice(
@@ -159,8 +159,8 @@ class ParkingSessionService
             ]);
 
             // Calcular el precio real
-            $startTime = Carbon::parse($session->started_at);
-            $endTime = Carbon::parse($endedAt);
+            $startTime = Carbon::parse($session->started_at)->setTimezone('America/Santiago');
+            $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
             $duration = $startTime->diffInMinutes($endTime);
 
             $quote = $this->pricingService->calculatePrice(
@@ -185,7 +185,7 @@ class ParkingSessionService
                     'origin' => 'SESSION',
                     'principal_amount' => $quote['total'],
                     'status' => 'PENDING',
-                    'created_at' => now()
+                    'created_at' => Carbon::now('America/Santiago')
                 ]);
 
                 $result['debt'] = $debt;
@@ -199,7 +199,7 @@ class ParkingSessionService
                     'amount' => $amount,
                     'method' => $paymentMethod,
                     'status' => 'COMPLETED',
-                    'paid_at' => now(),
+                    'paid_at' => Carbon::now('America/Santiago'),
                     'approval_code' => $approvalCode,
                     'shift_id' => $shift?->id,
                 ]);
@@ -210,7 +210,7 @@ class ParkingSessionService
                         'shift_id' => $shift->id,
                         'kind' => \App\Models\ShiftOperation::KIND_ADJUSTMENT,
                         'amount' => $amount,
-                        'at' => now(),
+                        'at' => Carbon::now('America/Santiago'),
                         'ref_id' => $payment->id,
                         'ref_type' => 'payment',
                         'notes' => "Pago {$paymentMethod} por {$amount}",
@@ -242,7 +242,7 @@ class ParkingSessionService
         }
 
         $session->update([
-            'ended_at' => now(),
+            'ended_at' => Carbon::now('America/Santiago'),
             'status' => 'CANCELLED'
         ]);
 
@@ -270,8 +270,8 @@ class ParkingSessionService
             ]);
 
             // Calcular el precio
-            $startTime = Carbon::parse($session->started_at);
-            $endTime = Carbon::parse($endedAt);
+            $startTime = Carbon::parse($session->started_at)->setTimezone('America/Santiago');
+            $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
             $duration = $startTime->diffInMinutes($endTime);
 
             $quote = $this->pricingService->calculatePrice(
@@ -288,7 +288,7 @@ class ParkingSessionService
                 'amount' => $quote['total'],
                 'description' => 'Deuda por estacionamiento no pagado',
                 'status' => 'PENDING',
-                'created_at' => now()
+                'created_at' => Carbon::now('America/Santiago')
             ]);
 
             DB::commit();

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ReactNativePosPrinter, ThermalPrinterDevice } from 'react-native-thermal-pos-printer';
 import { systemConfigService } from './systemConfig';
+import { TuuPrinter, type Align } from 'react-native-tuu-printer';
 
 export interface TicketData {
   plate: string;
@@ -50,6 +51,156 @@ export interface ShiftCloseTicketData {
 
 class TicketPrinterService {
   private selectedPrinter: ThermalPrinterDevice | null = null;
+
+  // Verificar si la impresora TUU está conectada
+  private async isTuuPrinterConnected(): Promise<boolean> {
+    try {
+      await TuuPrinter.init();
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  // Imprimir ticket de ingreso con TUU
+  private async printIngressTicketWithTuu(data: SessionTicketData): Promise<boolean> {
+    try {
+      await TuuPrinter.init();
+      const startTime = this.formatDateTime(data.startTime);
+      const locationInfo = this.getLocationInfo(data);
+      const systemName = await this.getSystemName();
+      
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('TICKET DE INGRESO', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine(systemName, {align: 0, size: 24, bold: true, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine(`Patente: ${data.plate}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(locationInfo, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine(`Hora Ingreso: ${startTime}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('Gracias por su preferencia', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(5);
+      await TuuPrinter.beginPrint();
+      return true;
+    } catch (error) {
+      console.error('Error imprimiendo con TUU:', error);
+      return false;
+    }
+  }
+
+  // Imprimir ticket de checkout con TUU
+  private async printCheckoutTicketWithTuu(data: CheckoutTicketData): Promise<boolean> {
+    try {
+      await TuuPrinter.init();
+      const startTime = this.formatDateTime(data.startTime);
+      const endTime = this.formatDateTime(data.endTime);
+      const locationInfo = this.getLocationInfo(data);
+      const systemName = await this.getSystemName();
+      
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('TICKET DE SALIDA', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine(systemName, {align: 0, size: 24, bold: true, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine(`Patente: ${data.plate}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine(locationInfo, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Ingreso: ${startTime}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Salida: ${endTime}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Duracion: ${data.duration || 'N/A'}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine(`Monto a pagar: ${this.formatAmount(data.amount)}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('   Gracias por su preferencia', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine('No valido como documento fiscal', {align: 1, size: 20, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(5);
+      await TuuPrinter.beginPrint();
+      return true;
+    } catch (error) {
+      console.error('Error imprimiendo con TUU:', error);
+      return false;
+    }
+  }
+
+  // Imprimir ticket de cierre de turno con TUU
+  private async printShiftCloseTicketWithTuu(data: ShiftCloseTicketData): Promise<boolean> {
+    try {
+      await TuuPrinter.init();
+      const openedAt = this.formatDateTime(data.openedAt);
+      const closedAt = this.formatDateTime(data.closedAt);
+      const systemName = await this.getSystemName();
+      
+      await TuuPrinter.addTextLine('================================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('    CIERRE DE TURNO', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('================================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine(systemName, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine(`Operador: ${data.operatorName || 'N/A'}`, {align: 0, size: 24, bold: false, italic: false});
+      if (data.sectorName) {
+        await TuuPrinter.addTextLine(`Sector: ${data.sectorName}`, {align: 0, size: 24, bold: false, italic: false});
+      }
+      await TuuPrinter.addTextLine(`Turno: ${data.shiftId ? data.shiftId.substring(0, 8) : 'N/A'}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine(`Apertura: ${openedAt}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Cierre: ${closedAt}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('--------------------------------', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine('RESUMEN FINANCIERO:', {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Fondo Inicial: ${this.formatAmount(data.openingFloat)}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Efectivo Cobrado: ${this.formatAmount(data.cashCollected)}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Retiros: ${this.formatAmount(data.cashWithdrawals)}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Depositos: ${this.formatAmount(data.cashDeposits)}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('--------------------------------', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Efectivo Esperado: ${this.formatAmount(data.cashExpected)}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Efectivo Contado: ${this.formatAmount(data.cashDeclared)}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('--------------------------------', {align: 1, size: 24, bold: false, italic: false});
+      
+      if (data.cashOverShort !== undefined && data.cashOverShort !== 0) {
+        const overShortLabel = data.cashOverShort > 0 ? 'SOBRA' : 'FALTA';
+        await TuuPrinter.addTextLine(`${overShortLabel}: ${this.formatAmount(Math.abs(data.cashOverShort))}`, {align: 0, size: 24, bold: false, italic: false});
+        await TuuPrinter.addTextLine('--------------------------------', {align: 1, size: 24, bold: false, italic: false});
+      }
+      
+      await TuuPrinter.addTextLine('', {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('RESUMEN DE TRANSACCIONES:', {align: 0, size: 24, bold: false, italic: false});
+      
+      if (data.paymentsByMethod && data.paymentsByMethod.length > 0) {
+        for (const payment of data.paymentsByMethod) {
+          const methodName = payment.method === 'CASH' ? 'Efectivo' : 
+                            payment.method === 'CARD' ? 'Tarjeta' : 
+                            payment.method;
+          await TuuPrinter.addTextLine(`${methodName}: ${this.formatAmount(payment.collected)} (${payment.count} trans.)`, {align: 0, size: 24, bold: false, italic: false});
+        }
+      }
+      
+      let totalTransactions = data.totalTransactions || 0;
+      if (totalTransactions === 0 && data.paymentsByMethod && data.paymentsByMethod.length > 0) {
+        totalTransactions = data.paymentsByMethod.reduce((sum, payment) => sum + (payment.count || 0), 0);
+      }
+      await TuuPrinter.addTextLine(`Total Transacciones: ${totalTransactions}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('', {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('================================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('          FIN DE TURNO', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('================================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('', {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(5);
+      await TuuPrinter.beginPrint();
+      return true;
+    } catch (error) {
+      console.error('Error imprimiendo con TUU:', error);
+      return false;
+    }
+  }
 
   // Cargar la impresora seleccionada
   private async loadSelectedPrinter() {
@@ -146,8 +297,7 @@ class TicketPrinterService {
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
+        minute: '2-digit'
       });
     } catch (error) {
       return 'N/A';
@@ -251,7 +401,19 @@ Monto a pagar: ${this.formatAmount(data.amount)}
     try {
       console.log('Iniciando impresión de ticket de ingreso...');
       
-      // Conectar a impresora Bluetooth
+      // Intentar primero con TUU
+      const tuuConnected = await this.isTuuPrinterConnected();
+      if (tuuConnected) {
+        console.log('Usando impresora TUU para ticket de ingreso');
+        const printed = await this.printIngressTicketWithTuu(data);
+        if (printed) {
+          console.log('Ticket de ingreso impreso exitosamente con TUU');
+          return true;
+        }
+        console.log('Error imprimiendo con TUU, intentando Bluetooth...');
+      }
+      
+      // Si TUU no está disponible o falló, usar Bluetooth
       const connected = await this.ensureConnected();
       if (!connected) {
         console.log('No hay impresora Bluetooth conectada');
@@ -348,7 +510,19 @@ Total Transacciones: ${totalTransactions}
     try {
       console.log('Iniciando impresión de ticket de checkout...');
       
-      // Conectar a impresora Bluetooth
+      // Intentar primero con TUU
+      const tuuConnected = await this.isTuuPrinterConnected();
+      if (tuuConnected) {
+        console.log('Usando impresora TUU para ticket de checkout');
+        const printed = await this.printCheckoutTicketWithTuu(data);
+        if (printed) {
+          console.log('Ticket de checkout impreso exitosamente con TUU');
+          return true;
+        }
+        console.log('Error imprimiendo con TUU, intentando Bluetooth...');
+      }
+      
+      // Si TUU no está disponible o falló, usar Bluetooth
       const connected = await this.ensureConnected();
       if (!connected) {
         console.log('No hay impresora Bluetooth conectada');
@@ -381,7 +555,19 @@ Total Transacciones: ${totalTransactions}
     try {
       console.log('Iniciando impresión de ticket de cierre de turno...');
       
-      // Conectar a impresora Bluetooth
+      // Intentar primero con TUU
+      const tuuConnected = await this.isTuuPrinterConnected();
+      if (tuuConnected) {
+        console.log('Usando impresora TUU para ticket de cierre de turno');
+        const printed = await this.printShiftCloseTicketWithTuu(data);
+        if (printed) {
+          console.log('Ticket de cierre de turno impreso exitosamente con TUU');
+          return true;
+        }
+        console.log('Error imprimiendo con TUU, intentando Bluetooth...');
+      }
+      
+      // Si TUU no está disponible o falló, usar Bluetooth
       const connected = await this.ensureConnected();
       if (!connected) {
         console.log('No hay impresora Bluetooth conectada');
