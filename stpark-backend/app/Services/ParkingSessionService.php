@@ -219,32 +219,38 @@ class ParkingSessionService
                 $result['message'] = 'Sesión cerrada sin pago. Deuda creada automáticamente.';
             } else {
                 // Obtener turno actual del operador que hace el checkout (no del que recibió el vehículo)
-                // Si no se proporciona operatorOutId, usar el operador que recibió el vehículo como fallback
-                $checkoutOperatorId = $operatorOutId ?? $session->operator_in_id;
-                $shift = $this->currentShiftService->get($checkoutOperatorId, null);
+                // IMPORTANTE: Si no se proporciona operatorOutId, lanzar error para evitar asociar pagos al operador incorrecto
+                if (!$operatorOutId) {
+                    throw new \Exception('El operador que hace el checkout es requerido para asociar el pago al turno correcto');
+                }
                 
-                // Crear el pago normal
+                $shift = $this->currentShiftService->get($operatorOutId, null);
+                
+                // Si el operador que hace el checkout no tiene turno abierto, lanzar error
+                if (!$shift) {
+                    throw new \Exception('El operador que hace el checkout no tiene un turno abierto. Por favor, abre un turno antes de procesar el checkout.');
+                }
+                
+                // Crear el pago normal asociado al turno del operador que hace el checkout
                 $payment = $session->payments()->create([
                     'amount' => $amount,
                     'method' => $paymentMethod,
                     'status' => 'COMPLETED',
                     'paid_at' => Carbon::now('America/Santiago'),
                     'approval_code' => $approvalCode,
-                    'shift_id' => $shift?->id,
+                    'shift_id' => $shift->id, // Siempre asociar al turno del operador que hace el checkout
                 ]);
 
-                // Si hay turno, registrar operación
-                if ($shift) {
-                    \App\Models\ShiftOperation::create([
-                        'shift_id' => $shift->id,
-                        'kind' => \App\Models\ShiftOperation::KIND_ADJUSTMENT,
-                        'amount' => $amount,
-                        'at' => Carbon::now('America/Santiago'),
-                        'ref_id' => $payment->id,
-                        'ref_type' => 'payment',
-                        'notes' => "Pago {$paymentMethod} por {$amount}",
-                    ]);
-                }
+                // Registrar operación en el turno
+                \App\Models\ShiftOperation::create([
+                    'shift_id' => $shift->id,
+                    'kind' => \App\Models\ShiftOperation::KIND_ADJUSTMENT,
+                    'amount' => $amount,
+                    'at' => Carbon::now('America/Santiago'),
+                    'ref_id' => $payment->id,
+                    'ref_type' => 'payment',
+                    'notes' => "Pago {$paymentMethod} por {$amount}",
+                ]);
 
                 $result['payment'] = $payment;
                 $result['message'] = 'Checkout procesado exitosamente';

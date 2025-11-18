@@ -124,7 +124,7 @@ class ParkingSessionController extends Controller
     public function show(int $id): JsonResponse
     {
         try {
-            $session = ParkingSession::with(['sector', 'street', 'operator', 'payments'])
+            $session = ParkingSession::with(['sector', 'street', 'operator', 'operatorOut', 'payments'])
                 ->findOrFail($id);
 
             // Agregar campos calculados
@@ -215,7 +215,7 @@ class ParkingSessionController extends Controller
             'amount' => 'required|numeric|min:0',
             'ended_at' => 'nullable|date',
             'approval_code' => 'nullable|string|max:100',
-            'operator_id' => 'nullable|exists:operators,id',
+            'operator_id' => 'required|exists:operators,id', // REQUERIDO: operador que hace el checkout
         ]);
 
         if ($validator->fails()) {
@@ -229,13 +229,14 @@ class ParkingSessionController extends Controller
             // Ignorar ended_at del request para evitar problemas de conversión de timezone
             $endedAt = Carbon::now('America/Santiago');
             
+            // IMPORTANTE: Usar SOLO el operador que hace el checkout, nunca el que abrió la sesión
             $result = $this->sessionService->checkout(
                 $id,
                 $request->payment_method,
                 $request->amount,
                 $endedAt,
                 $request->approval_code,
-                $request->operator_id // Operador que hace el checkout
+                $request->operator_id // Operador que hace el checkout (REQUERIDO)
             );
 
             DB::commit();

@@ -260,6 +260,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         fullResult: tuuResult
       });
 
+      // Validar que el operador esté disponible
+      if (!operator?.id) {
+        Alert.alert('Error', 'No se pudo identificar el operador. Por favor, inicia sesión nuevamente.');
+        setProcessingPayment(false);
+        return;
+      }
+
       // Procesar el checkout con el código de aprobación obtenido
       const endedAt = getCurrentDateInSantiago();
       const paymentData: any = {
@@ -267,7 +274,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         amount: paymentAmount,
         ended_at: endedAt,
         approval_code: approvalCode || undefined,
-        operator_id: operator?.id, // Operador que hace el checkout
+        operator_id: operator.id, // Operador que hace el checkout (REQUERIDO)
       };
 
       const response = await apiService.checkoutSession(data.id, paymentData);
@@ -356,6 +363,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       let response;
       
       if (type === 'checkout') {
+        // Validar que el operador esté disponible
+        if (!operator?.id) {
+          Alert.alert('Error', 'No se pudo identificar el operador. Por favor, inicia sesión nuevamente.');
+          setProcessingPayment(false);
+          return;
+        }
+
         // Procesar checkout de sesión
         // Obtener fecha actual en timezone America/Santiago
         const endedAt = getCurrentDateInSantiago();
@@ -364,7 +378,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           payment_method: selectedPaymentMethod,
           amount: estimatedAmount || 0,
           ended_at: endedAt,
-          operator_id: operator?.id, // Operador que hace el checkout
+          operator_id: operator.id, // Operador que hace el checkout (REQUERIDO)
         };
 
         if (selectedPaymentMethod === 'CASH' && amountPaid) {

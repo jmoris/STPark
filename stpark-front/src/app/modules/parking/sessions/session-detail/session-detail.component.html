@@ -41,6 +41,10 @@
         <h3>Información de la Sesión</h3>
         <div class="info-list">
           <div class="info-entry">
+            <span class="info-label">Patente</span>
+            <span class="info-value">{{ session.plate }}</span>
+          </div>
+          <div class="info-entry">
             <span class="info-label">Sector</span>
             <span class="info-value">{{ session.sector?.name || 'N/A' }}</span>
           </div>
@@ -49,8 +53,12 @@
             <span class="info-value">{{ session.street?.name || 'N/A' }}</span>
           </div>
           <div class="info-entry">
-            <span class="info-label">Operador</span>
+            <span class="info-label">Operador que recibió</span>
             <span class="info-value">{{ session.operator?.name || 'N/A' }}</span>
+          </div>
+          <div class="info-entry" *ngIf="session.operator_out_id || session.operator_out">
+            <span class="info-label">Operador que cerró</span>
+            <span class="info-value">{{ session.operator_out?.name || 'N/A' }}</span>
           </div>
         </div>
       </div>
@@ -66,13 +74,35 @@
             <span class="info-label">Fin</span>
             <span class="info-value">{{ formatDate(session.ended_at) }}</span>
           </div>
-          <div class="info-entry" *ngIf="session.seconds_total && !isActiveSession">
+          <div class="info-entry" *ngIf="session.duration_formatted && !isActiveSession">
+            <span class="info-label">Duración</span>
+            <span class="info-value">{{ session.duration_formatted }}</span>
+          </div>
+          <div class="info-entry" *ngIf="session.seconds_total && !isActiveSession && !session.duration_formatted">
             <span class="info-label">Duración</span>
             <span class="info-value">{{ formatDuration(session.seconds_total) }}</span>
           </div>
           <div class="info-entry" *ngIf="isActiveSession">
             <span class="info-label">Duración Actual</span>
             <span class="info-value real-time">{{ getCurrentDurationFormatted() }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Información de Pagos -->
+      <div class="info-section" *ngIf="session.payments && session.payments.length > 0">
+        <h3>Pagos</h3>
+        <div class="info-list">
+          <div class="info-entry" *ngFor="let payment of session.payments">
+            <span class="info-label">{{ formatPaymentMethod(payment.method) }}</span>
+            <span class="info-value">{{ formatAmount(payment.amount) }}</span>
+            <span class="info-value" *ngIf="payment.status === 'COMPLETED'" style="color: green; margin-left: 8px;">
+              ✓ Pagado
+            </span>
+          </div>
+          <div class="info-entry" *ngIf="session.total_paid_formatted">
+            <span class="info-label"><strong>Total Pagado</strong></span>
+            <span class="info-value"><strong>{{ session.total_paid_formatted }}</strong></span>
           </div>
         </div>
       </div>

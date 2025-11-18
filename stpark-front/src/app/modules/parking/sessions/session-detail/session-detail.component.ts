@@ -168,7 +168,12 @@ export class SessionDetailComponent implements OnInit, OnDestroy {
       'PAID': 'check_circle',
       'TO_PAY': 'schedule',
       'ACTIVE': 'play_circle',
-      'CANCELLED': 'cancel'
+      'CANCELLED': 'cancel',
+      'CANCELED': 'cancel',
+      'COMPLETED': 'check_circle',
+      'CLOSED': 'check_circle',
+      'FORCED_CHECKOUT': 'warning',
+      'CREATED': 'add_circle'
     };
     return icons[status] || 'help';
   }
@@ -178,7 +183,12 @@ export class SessionDetailComponent implements OnInit, OnDestroy {
       'PAID': 'Sesión Pagada',
       'TO_PAY': 'Pendiente de Pago',
       'ACTIVE': 'Sesión Activa',
-      'CANCELLED': 'Sesión Cancelada'
+      'CANCELLED': 'Sesión Cancelada',
+      'CANCELED': 'Sesión Cancelada',
+      'COMPLETED': 'Sesión Completada',
+      'CLOSED': 'Sesión Cerrada',
+      'FORCED_CHECKOUT': 'Checkout Forzado',
+      'CREATED': 'Sesión Creada'
     };
     return titles[status] || 'Estado Desconocido';
   }
@@ -188,9 +198,24 @@ export class SessionDetailComponent implements OnInit, OnDestroy {
       'PAID': 'La sesión ha sido pagada exitosamente',
       'TO_PAY': 'La sesión está lista para ser pagada',
       'ACTIVE': 'La sesión está actualmente en curso',
-      'CANCELLED': 'Esta sesión ha sido cancelada'
+      'CANCELLED': 'Esta sesión ha sido cancelada',
+      'CANCELED': 'Esta sesión ha sido cancelada',
+      'COMPLETED': 'La sesión ha sido completada y cerrada',
+      'CLOSED': 'La sesión ha sido cerrada',
+      'FORCED_CHECKOUT': 'La sesión fue cerrada sin pago (deuda creada)',
+      'CREATED': 'Sesión recién creada'
     };
     return descriptions[status] || 'Estado no disponible';
+  }
+
+  formatPaymentMethod(method: string): string {
+    const methods: Record<string, string> = {
+      'CASH': 'Efectivo',
+      'CARD': 'Tarjeta',
+      'WEBPAY': 'Webpay',
+      'TRANSFER': 'Transferencia'
+    };
+    return methods[method] || method;
   }
 
   /**

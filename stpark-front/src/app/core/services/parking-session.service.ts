@@ -206,7 +206,10 @@ export class ParkingSessionService {
       'TO_PAY': 'Por Pagar',
       'PAID': 'Pagada',
       'CLOSED': 'Cerrada',
-      'CANCELED': 'Cancelada'
+      'CANCELED': 'Cancelada',
+      'CANCELLED': 'Cancelada',
+      'COMPLETED': 'Completada',
+      'FORCED_CHECKOUT': 'Checkout Forzado'
     };
     
     return statusLabels[status] || status;
@@ -222,7 +225,10 @@ export class ParkingSessionService {
       'TO_PAY': 'orange',
       'PAID': 'green',
       'CLOSED': 'gray',
-      'CANCELED': 'red'
+      'CANCELED': 'red',
+      'CANCELLED': 'red',
+      'COMPLETED': 'green',
+      'FORCED_CHECKOUT': 'orange'
     };
     
     return statusColors[status] || 'gray';
