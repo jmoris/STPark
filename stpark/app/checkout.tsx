@@ -610,6 +610,15 @@ export default function CheckoutScreen() {
                 </Text>
               </View>
               
+              {sesionEncontrada.ended_at && (
+                <View style={styles.sesionInfo}>
+                  <Text style={styles.sesionLabel}>Cierre:</Text>
+                  <Text style={styles.sesionValue}>
+                    {new Date(sesionEncontrada.ended_at).toLocaleString('es-CL')}
+                  </Text>
+                </View>
+              )}
+              
               <View style={styles.sesionInfo}>
                 <Text style={styles.sesionLabel}>Ubicación:</Text>
                 <Text style={styles.sesionValue}>
@@ -618,30 +627,60 @@ export default function CheckoutScreen() {
               </View>
               
               <View style={styles.sesionInfo}>
-                <Text style={styles.sesionLabel}>Tiempo transcurrido:</Text>
+                <Text style={styles.sesionLabel}>Operador que recibió:</Text>
                 <Text style={styles.sesionValue}>
-                  {calculateElapsedTime(sesionEncontrada.started_at)}
+                  {sesionEncontrada.operator?.name || 'N/A'}
                 </Text>
               </View>
               
-              <View style={styles.montoContainer}>
-                <Text style={styles.montoText}>
-                  Monto a Pagar: {
-                    loadingQuote ? 'Calculando...' : 
-                    estimatedAmount ? `$${estimatedAmount.toLocaleString('es-CL')}` : 
-                    '$0'
-                  }
+              {sesionEncontrada.operator_out_id && sesionEncontrada.operator_out && (
+                <View style={styles.sesionInfo}>
+                  <Text style={styles.sesionLabel}>Operador que cerró:</Text>
+                  <Text style={styles.sesionValue}>
+                    {sesionEncontrada.operator_out?.name || 'N/A'}
+                  </Text>
+                </View>
+              )}
+              
+              <View style={styles.sesionInfo}>
+                <Text style={styles.sesionLabel}>Estado:</Text>
+                <Text style={styles.sesionValue}>
+                  {sesionEncontrada.status === 'ACTIVE' ? 'Activa' : 
+                   sesionEncontrada.status === 'COMPLETED' ? 'Completada' : 
+                   sesionEncontrada.status === 'CANCELLED' ? 'Cancelada' : 
+                   sesionEncontrada.status || 'N/A'}
                 </Text>
               </View>
               
-              <TouchableOpacity
-                style={[styles.button, styles.checkoutButton]}
-                onPress={procesarCheckout}
-              >
-                <Text style={styles.buttonText}>
-                  Procesar Checkout
-                </Text>
-              </TouchableOpacity>
+              {!sesionEncontrada.ended_at && (
+                <>
+                  <View style={styles.sesionInfo}>
+                    <Text style={styles.sesionLabel}>Tiempo transcurrido:</Text>
+                    <Text style={styles.sesionValue}>
+                      {calculateElapsedTime(sesionEncontrada.started_at)}
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.montoContainer}>
+                    <Text style={styles.montoText}>
+                      Monto a Pagar: {
+                        loadingQuote ? 'Calculando...' : 
+                        estimatedAmount ? `$${estimatedAmount.toLocaleString('es-CL')}` : 
+                        '$0'
+                      }
+                    </Text>
+                  </View>
+                  
+                  <TouchableOpacity
+                    style={[styles.button, styles.checkoutButton]}
+                    onPress={procesarCheckout}
+                  >
+                    <Text style={styles.buttonText}>
+                      Procesar Checkout
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           )}
       </KeyboardAwareScrollView>

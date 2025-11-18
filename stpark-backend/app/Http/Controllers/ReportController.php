@@ -43,7 +43,8 @@ class ReportController extends Controller
         }
 
         // Usar ParkingSession completadas en lugar de Sale
-        $query = ParkingSession::with(['sector', 'operator', 'payments'])
+        // Filtrar por operator_out_id para mostrar sesiones cerradas por el operador
+        $query = ParkingSession::with(['sector', 'operator', 'operatorOut', 'payments'])
                     ->where('status', 'COMPLETED')
                     ->whereBetween('started_at', [$request->date_from, $request->date_to]);
 
@@ -52,7 +53,15 @@ class ReportController extends Controller
         }
 
         if ($request->filled('operator_id')) {
-            $query->where('operator_in_id', $request->operator_id);
+            // Usar operator_out_id para obtener sesiones cerradas por el operador
+            // Si no hay operator_out_id, usar operator_in_id como fallback (sesiones antiguas)
+            $query->where(function($q) use ($request) {
+                $q->where('operator_out_id', $request->operator_id)
+                  ->orWhere(function($subQ) use ($request) {
+                      $subQ->whereNull('operator_out_id')
+                           ->where('operator_in_id', $request->operator_id);
+                  });
+            });
         }
 
         $sessions = $query->orderBy('started_at', 'desc')->get();
@@ -325,17 +334,30 @@ class ReportController extends Controller
 
         $operator = Operator::findOrFail($request->operator_id);
 
-        // Sesiones creadas por el operador
-        $sessions = ParkingSession::where('operator_in_id', $request->operator_id)
+        // Sesiones donde el operador hizo checkout (operator_out_id) o creó la sesión (operator_in_id)
+        // Priorizar operator_out_id para cierres de turno correctos
+        $sessions = ParkingSession::where(function($query) use ($request) {
+                        $query->where('operator_out_id', $request->operator_id)
+                              ->orWhere(function($subQuery) use ($request) {
+                                  $subQuery->whereNull('operator_out_id')
+                                           ->where('operator_in_id', $request->operator_id);
+                              });
+                    })
                                  ->whereBetween('started_at', [$request->date_from, $request->date_to])
-                                 ->with(['sector', 'street'])
+                                 ->with(['sector', 'street', 'operator', 'operatorOut'])
                                  ->get();
 
-        // Obtener sesiones con pagos para calcular ventas
-        $sessionsForSales = ParkingSession::where('operator_in_id', $request->operator_id)
+        // Obtener sesiones con pagos para calcular ventas (usar operator_out_id para cierres correctos)
+        $sessionsForSales = ParkingSession::where(function($query) use ($request) {
+                        $query->where('operator_out_id', $request->operator_id)
+                              ->orWhere(function($subQuery) use ($request) {
+                                  $subQuery->whereNull('operator_out_id')
+                                           ->where('operator_in_id', $request->operator_id);
+                              });
+                    })
                                  ->whereBetween('started_at', [$request->date_from, $request->date_to])
                                  ->where('status', 'COMPLETED')
-                                 ->with(['sector', 'payments'])
+                                 ->with(['sector', 'payments', 'operator', 'operatorOut'])
                                  ->get();
         
         // Calcular totales de ventas

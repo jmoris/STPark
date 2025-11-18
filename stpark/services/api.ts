@@ -325,6 +325,7 @@ class ApiService {
     payment_method: 'CASH' | 'CARD' | 'TRANSFER';
     amount: number;
     approval_code?: string;
+    operator_id?: number;
   }): Promise<ApiResponse<any>> {
     try {
       const response = await makeRequest(`/sessions/${sessionId}/checkout`, {

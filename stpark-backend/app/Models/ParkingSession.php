@@ -20,6 +20,7 @@ class ParkingSession extends Model
         'sector_id',
         'street_id',
         'operator_in_id',
+        'operator_out_id',
         'started_at',
         'ended_at',
         'status'
@@ -47,11 +48,19 @@ class ParkingSession extends Model
     }
 
     /**
-     * Relación con el operador
+     * Relación con el operador que recibió el vehículo
      */
     public function operator(): BelongsTo
     {
         return $this->belongsTo(Operator::class, 'operator_in_id');
+    }
+
+    /**
+     * Relación con el operador que hizo el checkout
+     */
+    public function operatorOut(): BelongsTo
+    {
+        return $this->belongsTo(Operator::class, 'operator_out_id');
     }
 
     /**

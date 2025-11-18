@@ -141,7 +141,7 @@ class ParkingSessionService
     /**
      * Realizar checkout de una sesión
      */
-    public function checkout(int $sessionId, string $paymentMethod, float $amount, string|Carbon $endedAt, ?string $approvalCode = null): array
+    public function checkout(int $sessionId, string $paymentMethod, float $amount, string|Carbon $endedAt, ?string $approvalCode = null, ?int $operatorOutId = null): array
     {
         $session = ParkingSession::findOrFail($sessionId);
         
@@ -179,9 +179,11 @@ class ParkingSessionService
             }
             
             // Actualizar la sesión con el objeto Carbon (Laravel lo guardará correctamente)
+            // Guardar el operador que hizo el checkout (operator_out_id)
             $session->update([
                 'ended_at' => $endTime,
-                'status' => 'COMPLETED'
+                'status' => 'COMPLETED',
+                'operator_out_id' => $operatorOutId
             ]);
 
             // Calcular el precio real
@@ -197,7 +199,7 @@ class ParkingSessionService
             );
 
             $result = [
-                'session' => $session->load(['sector', 'street', 'operator', 'payments']),
+                'session' => $session->load(['sector', 'street', 'operator', 'operatorOut', 'payments']),
                 'quote' => $quote
             ];
 
@@ -216,8 +218,10 @@ class ParkingSessionService
                 $result['debt'] = $debt;
                 $result['message'] = 'Sesión cerrada sin pago. Deuda creada automáticamente.';
             } else {
-                // Obtener turno actual del operador cajero
-                $shift = $this->currentShiftService->get($session->operator_in_id, null);
+                // Obtener turno actual del operador que hace el checkout (no del que recibió el vehículo)
+                // Si no se proporciona operatorOutId, usar el operador que recibió el vehículo como fallback
+                $checkoutOperatorId = $operatorOutId ?? $session->operator_in_id;
+                $shift = $this->currentShiftService->get($checkoutOperatorId, null);
                 
                 // Crear el pago normal
                 $payment = $session->payments()->create([

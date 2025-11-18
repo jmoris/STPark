@@ -267,6 +267,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         amount: paymentAmount,
         ended_at: endedAt,
         approval_code: approvalCode || undefined,
+        operator_id: operator?.id, // Operador que hace el checkout
       };
 
       const response = await apiService.checkoutSession(data.id, paymentData);
@@ -363,6 +364,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           payment_method: selectedPaymentMethod,
           amount: estimatedAmount || 0,
           ended_at: endedAt,
+          operator_id: operator?.id, // Operador que hace el checkout
         };
 
         if (selectedPaymentMethod === 'CASH' && amountPaid) {
@@ -679,6 +681,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <Text style={styles.sessionSummaryLabel}>Ubicación:</Text>
                   <Text style={styles.sessionSummaryValue}>{dataInfo.location}</Text>
                 </View>
+                {type === 'checkout' && data?.operator?.name && (
+                  <View style={styles.sessionSummaryRow}>
+                    <Text style={styles.sessionSummaryLabel}>Operador que recibió:</Text>
+                    <Text style={styles.sessionSummaryValue}>{data.operator.name}</Text>
+                  </View>
+                )}
                 <View style={styles.sessionSummaryRow}>
                   <Text style={styles.sessionSummaryLabel}>
                     {type === 'checkout' ? 'Tiempo:' : 'Fecha:'}

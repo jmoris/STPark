@@ -215,6 +215,7 @@ class ParkingSessionController extends Controller
             'amount' => 'required|numeric|min:0',
             'ended_at' => 'nullable|date',
             'approval_code' => 'nullable|string|max:100',
+            'operator_id' => 'nullable|exists:operators,id',
         ]);
 
         if ($validator->fails()) {
@@ -233,7 +234,8 @@ class ParkingSessionController extends Controller
                 $request->payment_method,
                 $request->amount,
                 $endedAt,
-                $request->approval_code
+                $request->approval_code,
+                $request->operator_id // Operador que hace el checkout
             );
 
             DB::commit();
