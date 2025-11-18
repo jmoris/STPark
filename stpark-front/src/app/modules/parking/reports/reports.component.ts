@@ -20,8 +20,8 @@ import { Sector } from '../../../interfaces/parking.interface';
 import { Operator } from '../../../interfaces/parking.interface';
 
 interface ReportFilters {
-  date_from: string;
-  date_to: string;
+  date_from: Date | string;
+  date_to: Date | string;
   sector_id?: number;
   operator_id?: number;
   method?: string;
@@ -57,8 +57,8 @@ export class ReportsComponent implements OnInit, OnDestroy {
   
   // Filtros
   filters: ReportFilters = {
-    date_from: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0],
-    date_to: new Date().toISOString().split('T')[0],
+    date_from: new Date(new Date().setDate(new Date().getDate() - 7)),
+    date_to: new Date(),
     sector_id: undefined,
     operator_id: undefined
   };
@@ -130,6 +130,24 @@ export class ReportsComponent implements OnInit, OnDestroy {
     this.selectedReportType = type;
   }
 
+  /**
+   * Formatea una fecha a formato YYYY-MM-DD
+   */
+  private formatDateForApi(date: Date | string): string {
+    if (date instanceof Date) {
+      return date.toISOString().split('T')[0];
+    }
+    // Si ya es string, intentar parsearlo
+    if (typeof date === 'string') {
+      const dateObj = new Date(date);
+      if (!isNaN(dateObj.getTime())) {
+        return dateObj.toISOString().split('T')[0];
+      }
+      return date; // Si no se puede parsear, devolverlo tal cual
+    }
+    return '';
+  }
+
   generateReportFromFilters(): void {
     this.generateReport(this.selectedReportType);
   }
@@ -139,8 +157,8 @@ export class ReportsComponent implements OnInit, OnDestroy {
     this.loading = true;
 
     const filters: any = {
-      date_from: this.filters.date_from,
-      date_to: this.filters.date_to
+      date_from: this.formatDateForApi(this.filters.date_from),
+      date_to: this.formatDateForApi(this.filters.date_to)
     };
 
     // Solo agregar filtros opcionales si tienen valores
@@ -197,8 +215,8 @@ export class ReportsComponent implements OnInit, OnDestroy {
     this.loading = true;
 
     const filters: any = {
-      date_from: this.filters.date_from,
-      date_to: this.filters.date_to
+      date_from: this.formatDateForApi(this.filters.date_from),
+      date_to: this.formatDateForApi(this.filters.date_to)
     };
 
     // Solo agregar filtros opcionales si tienen valores
@@ -250,8 +268,8 @@ export class ReportsComponent implements OnInit, OnDestroy {
 
     // Construir filtros para enviar al backend
     const filters: any = {
-      date_from: this.filters.date_from,
-      date_to: this.filters.date_to
+      date_from: this.formatDateForApi(this.filters.date_from),
+      date_to: this.formatDateForApi(this.filters.date_to)
     };
 
     // Solo agregar filtros opcionales si tienen valores
@@ -268,8 +286,8 @@ export class ReportsComponent implements OnInit, OnDestroy {
 
   clearFilters(): void {
     this.filters = {
-      date_from: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0],
-      date_to: new Date().toISOString().split('T')[0],
+      date_from: new Date(new Date().setDate(new Date().getDate() - 7)),
+      date_to: new Date(),
       sector_id: undefined,
       operator_id: undefined
     };

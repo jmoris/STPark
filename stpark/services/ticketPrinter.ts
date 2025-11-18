@@ -29,6 +29,7 @@ export interface CheckoutTicketData extends TicketData {
   authCode?: string; // Código de autorización de TUU
   transactionMethod?: string; // Método de transacción (ej: "DEBITO", "CREDITO")
   last4?: string; // Últimos 4 dígitos de la tarjeta
+  minAmount?: number; // Monto mínimo configurado en el perfil de precios
 }
 
 export interface ShiftCloseTicketData {
@@ -119,6 +120,11 @@ class TicketPrinterService {
       await TuuPrinter.addTextLine(`Salida: ${endTime}`, {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine(`Duracion: ${data.duration || 'N/A'}`, {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addBlankLines(1);
+      // Mostrar monto mínimo primero si está disponible
+      if (data.minAmount && data.minAmount > 0) {
+        await TuuPrinter.addTextLine(`Monto minimo: ${this.formatAmount(data.minAmount)}`, {align: 0, size: 24, bold: false, italic: false});
+        await TuuPrinter.addBlankLines(1);
+      }
       await TuuPrinter.addTextLine(`Monto a pagar: ${this.formatAmount(data.amount)}`, {align: 0, size: 24, bold: false, italic: false});
       
       // Si el pago fue con TUU, mostrar información adicional
@@ -414,6 +420,7 @@ Ingreso: ${startTime}
 Salida: ${endTime}
 Duracion: ${data.duration || 'N/A'}
 
+${data.minAmount && data.minAmount > 0 ? `Monto minimo: ${this.formatAmount(data.minAmount)}\n` : ''}
 Monto a pagar: ${this.formatAmount(data.amount)}
 ${data.authCode || data.transactionMethod || data.last4 ? `
 --- Pago con TUU ---

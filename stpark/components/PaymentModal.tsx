@@ -44,6 +44,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [estimatedAmount, setEstimatedAmount] = useState<number | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [useTuuPosPayment, setUseTuuPosPayment] = useState<boolean>(false); // Cargado desde configuración del tenant
+  const [quoteBreakdown, setQuoteBreakdown] = useState<any[] | null>(null); // Breakdown de la cotización para obtener monto mínimo
   const tuuPaymentProcessedRef = React.useRef(false);
 
   // Cargar configuración de POS TUU al montar el componente
@@ -73,6 +74,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setApprovalCode('');
       setPaymentSummary(null);
       setEstimatedAmount(null);
+      setQuoteBreakdown(null);
       tuuPaymentProcessedRef.current = false;
       console.log('PaymentModal: Modal cerrado, reseteando estado');
     } else if (data) {
@@ -122,6 +124,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         const amount = response.data.net_amount || response.data.gross_amount || 0;
         console.log('PaymentModal: Monto obtenido:', amount);
         setEstimatedAmount(amount);
+        // Guardar breakdown para obtener monto mínimo
+        if (response.data.breakdown) {
+          setQuoteBreakdown(response.data.breakdown);
+        }
         // NO procesar automáticamente con TUU aquí
         // El pago con TUU se iniciará solo cuando el usuario seleccione "Tarjeta"
       } else {
@@ -316,6 +322,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             authCode: approvalCode || undefined,
             transactionMethod: transactionMethod,
             last4: last4,
+            minAmount: getMinAmountFromBreakdown(),
           };
 
           const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
@@ -473,7 +480,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               operatorName: operator?.name,
               approvalCode: approvalCode,
               change: selectedPaymentMethod === 'CASH' && amountPaid ? 
-                parseFloat(amountPaid) - (estimatedAmount || 0) : undefined
+                parseFloat(amountPaid) - (estimatedAmount || 0) : undefined,
+              minAmount: getMinAmountFromBreakdown(),
             };
             
             const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
@@ -515,7 +523,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 operatorName: operator?.name,
                 approvalCode: approvalCode,
                 change: selectedPaymentMethod === 'CASH' && amountPaid ? 
-                  parseFloat(amountPaid) - (estimatedAmount || 0) : undefined
+                  parseFloat(amountPaid) - (estimatedAmount || 0) : undefined,
+                minAmount: getMinAmountFromBreakdown(), // Puede ser undefined para deudas
               };
               
               const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
@@ -609,6 +618,25 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     const hours = Math.floor(diffMinutes / 60);
     const minutes = diffMinutes % 60;
     return `${hours}h ${minutes}m`;
+  };
+
+  // Función para obtener el monto mínimo del breakdown
+  const getMinAmountFromBreakdown = (): number | undefined => {
+    if (!quoteBreakdown || quoteBreakdown.length === 0) {
+      return undefined;
+    }
+    
+    // Buscar el mayor min_amount de todas las reglas aplicadas
+    const minAmounts = quoteBreakdown
+      .map((rule: any) => rule.min_amount)
+      .filter((min: any) => min !== null && min !== undefined && min > 0);
+    
+    if (minAmounts.length === 0) {
+      return undefined;
+    }
+    
+    // Retornar el mayor monto mínimo encontrado
+    return Math.max(...minAmounts);
   };
 
   if (!data) return null;
