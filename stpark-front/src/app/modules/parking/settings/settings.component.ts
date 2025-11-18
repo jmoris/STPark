@@ -63,7 +63,8 @@ export class SettingsComponent implements OnInit {
       name: ['STPark - Sistema de Estacionamientos', [Validators.required]],
       currency: ['CLP', [Validators.required]],
       timezone: ['America/Santiago', [Validators.required]],
-      language: ['es', [Validators.required]]
+      language: ['es', [Validators.required]],
+      pos_tuu: [{ value: false, disabled: true }] // Solo lectura - solo administradores pueden cambiar
     });
 
     this.pricingForm = this.fb.group({
@@ -89,7 +90,12 @@ export class SettingsComponent implements OnInit {
           // El backend devuelve { success: true, data: {...} }
           if (response && response.success && response.data) {
             console.log('Configuración general cargada:', response.data);
-            this.generalForm.patchValue(response.data);
+            // Usar getRawValue para incluir campos deshabilitados
+            const currentValue = this.generalForm.getRawValue();
+            this.generalForm.patchValue({
+              ...currentValue,
+              ...response.data
+            });
           } else {
             console.warn('La respuesta no tiene el formato esperado:', response);
           }
@@ -163,7 +169,8 @@ export class SettingsComponent implements OnInit {
     }
 
     this.loading = true;
-    const config = this.generalForm.value;
+    // Excluir pos_tuu del objeto a enviar (solo lectura, el backend lo preserva automáticamente)
+    const { pos_tuu, ...config } = this.generalForm.getRawValue();
 
     this.http.post(`${environment.apiUrl}/settings/general`, config)
       .subscribe({
@@ -217,7 +224,8 @@ export class SettingsComponent implements OnInit {
       name: 'STPark - Sistema de Estacionamientos',
       currency: 'CLP',
       timezone: 'America/Santiago',
-      language: 'es'
+      language: 'es',
+      pos_tuu: false
     });
     
     this.pricingForm.reset({

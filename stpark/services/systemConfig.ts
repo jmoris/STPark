@@ -8,6 +8,7 @@ export interface SystemConfig {
   currency: string;
   timezone: string;
   language: string;
+  pos_tuu: boolean; // Configuración de POS TUU (solo lectura para usuarios)
 }
 
 class SystemConfigService {
@@ -61,7 +62,8 @@ class SystemConfigService {
       name: 'STPark - Sistema de Gestión de Estacionamientos',
       currency: 'CLP',
       timezone: 'America/Santiago',
-      language: 'es'
+      language: 'es',
+      pos_tuu: false
     };
     
     return defaultConfig;

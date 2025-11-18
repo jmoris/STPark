@@ -622,6 +622,7 @@ class ApiService {
     currency: string;
     timezone: string;
     language: string;
+    pos_tuu: boolean;
   }>> {
     try {
       const response = await makeRequest('/settings/general', {

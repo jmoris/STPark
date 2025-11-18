@@ -13,13 +13,7 @@ import { apiService } from '@/services/api';
 import { ticketPrinterService, CheckoutTicketData } from '@/services/ticketPrinter';
 import { getCurrentDateInSantiago } from '@/utils/dateUtils';
 import { tuuPaymentsService } from '@/services/tuuPayments';
-
-// ============================================
-// CONFIGURACIÓN: Cambiar este booleano para activar/desactivar el pago con POS TUU
-// true = Usa el intent de TUU para pagos con tarjeta
-// false = Muestra el modal actual con input de código de verificación
-// ============================================
-const USE_TUU_POS_PAYMENT = true;
+import { systemConfigService } from '@/services/systemConfig';
 
 interface PaymentModalProps {
   visible: boolean;
@@ -49,7 +43,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [processingPayment, setProcessingPayment] = useState(false);
   const [estimatedAmount, setEstimatedAmount] = useState<number | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(false);
+  const [useTuuPosPayment, setUseTuuPosPayment] = useState<boolean>(false); // Cargado desde configuración del tenant
   const tuuPaymentProcessedRef = React.useRef(false);
+
+  // Cargar configuración de POS TUU al montar el componente
+  useEffect(() => {
+    const loadTuuConfig = async () => {
+      try {
+        const config = await systemConfigService.getConfig();
+        setUseTuuPosPayment(config.pos_tuu || false);
+        console.log('PaymentModal: Configuración POS TUU cargada:', config.pos_tuu);
+      } catch (error) {
+        console.error('PaymentModal: Error cargando configuración POS TUU:', error);
+        setUseTuuPosPayment(false); // Por defecto desactivado si hay error
+      }
+    };
+    loadTuuConfig();
+  }, []);
 
   // Resetear estado cuando se cierra el modal
   useEffect(() => {
@@ -134,7 +144,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setShowAmountModal(true);
     } else if (method === 'CARD') {
       // Para tarjeta, verificar si debemos usar TUU o el flujo normal
-      if (USE_TUU_POS_PAYMENT && type === 'checkout' && estimatedAmount && estimatedAmount > 0) {
+      if (useTuuPosPayment && type === 'checkout' && estimatedAmount && estimatedAmount > 0) {
         // Usar TUU para procesar el pago con tarjeta
         console.log('PaymentModal: Iniciando pago con TUU para tarjeta, monto:', estimatedAmount);
         processPaymentWithTuu(estimatedAmount);
@@ -858,7 +868,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
       {/* Modal de carga para pago con TUU */}
       <Modal
-        visible={processingPayment && USE_TUU_POS_PAYMENT && type === 'checkout' && !showPaymentMethod}
+        visible={processingPayment && useTuuPosPayment && type === 'checkout' && !showPaymentMethod}
         transparent={true}
         animationType="fade"
       >

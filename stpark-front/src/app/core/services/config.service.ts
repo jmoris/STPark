@@ -10,6 +10,7 @@ export interface SystemConfig {
   currency: string;
   timezone: string;
   language: string;
+  pos_tuu: boolean; // Configuración de POS TUU (solo lectura para usuarios, solo administradores pueden cambiar)
 }
 
 @Injectable({ providedIn: 'root' })
@@ -19,7 +20,8 @@ export class ConfigService {
     name: 'STPark - Sistema de Gestión de Estacionamientos',
     currency: 'CLP',
     timezone: 'America/Santiago',
-    language: 'es'
+    language: 'es',
+    pos_tuu: false
   });
   private _configLoaded = false;
 
@@ -32,7 +34,8 @@ export class ConfigService {
       name: 'STPark - Sistema de Gestión de Estacionamientos',
       currency: 'CLP',
       timezone: 'America/Santiago',
-      language: 'es'
+      language: 'es',
+      pos_tuu: false
     };
 
     return this._httpClient.get<{ success: boolean; data: SystemConfig }>(`${environment.apiUrl}/settings/general`)

@@ -70,6 +70,20 @@
                     Este campo es requerido
                   </mat-error>
                 </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>POS TUU</mat-label>
+                  <mat-select formControlName="pos_tuu" disabled>
+                    <mat-option [value]="true">Activado</mat-option>
+                    <mat-option [value]="false">Desactivado</mat-option>
+                  </mat-select>
+                  <mat-hint>
+                    <span style="display: inline-flex; align-items: center; gap: 4px;">
+                      <mat-icon style="font-size: 16px; width: 16px; height: 16px;">lock</mat-icon>
+                      Solo lectura - Solo administradores pueden modificar este valor
+                    </span>
+                  </mat-hint>
+                </mat-form-field>
               </div>
             </form>
           </mat-card-content>

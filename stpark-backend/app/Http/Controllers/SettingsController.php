@@ -72,7 +72,8 @@ class SettingsController extends Controller
             'name' => 'STPark - Sistema de Estacionamientos',
             'currency' => 'CLP',
             'timezone' => 'America/Santiago',
-            'language' => 'es'
+            'language' => 'es',
+            'pos_tuu' => false // Configuración de POS TUU (solo lectura para usuarios, solo administradores pueden cambiar)
         ];
         
         if (!$setting) {
@@ -116,7 +117,8 @@ class SettingsController extends Controller
             'name' => !empty($config['name']) ? $config['name'] : $defaultConfig['name'],
             'currency' => !empty($config['currency']) ? $config['currency'] : $defaultConfig['currency'],
             'timezone' => !empty($config['timezone']) ? $config['timezone'] : $defaultConfig['timezone'],
-            'language' => !empty($config['language']) ? $config['language'] : $defaultConfig['language']
+            'language' => !empty($config['language']) ? $config['language'] : $defaultConfig['language'],
+            'pos_tuu' => isset($config['pos_tuu']) ? (bool) $config['pos_tuu'] : $defaultConfig['pos_tuu']
         ];
         
         \Log::info('Settings: Configuración general obtenida', [
@@ -135,6 +137,7 @@ class SettingsController extends Controller
 
     /**
      * Guardar la configuración general
+     * NOTA: pos_tuu no se puede cambiar desde aquí (solo administradores)
      */
     public function saveGeneral(Request $request)
     {
@@ -143,13 +146,22 @@ class SettingsController extends Controller
             'currency' => 'required|string|max:10',
             'timezone' => 'required|string|max:50',
             'language' => 'required|string|max:10'
+            // pos_tuu NO se incluye aquí - solo puede ser modificado por administradores directamente en la BD
         ]);
+
+        // Obtener la configuración actual para preservar pos_tuu
+        $currentSetting = Settings::where('key', 'general')->first();
+        $currentConfig = $currentSetting ? $currentSetting->value : [];
+        
+        // Preservar pos_tuu del valor actual (no permitir que usuarios lo cambien)
+        $validated['pos_tuu'] = isset($currentConfig['pos_tuu']) ? (bool) $currentConfig['pos_tuu'] : false;
 
         \Log::info('Settings: Guardando configuración general', [
             'name' => $validated['name'],
             'currency' => $validated['currency'],
             'timezone' => $validated['timezone'],
-            'language' => $validated['language']
+            'language' => $validated['language'],
+            'pos_tuu' => $validated['pos_tuu'] . ' (preservado, no modificable por usuarios)'
         ]);
 
         $setting = Settings::updateOrCreate(
