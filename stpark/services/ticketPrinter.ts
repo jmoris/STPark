@@ -25,6 +25,10 @@ export interface SessionTicketData extends TicketData {
 
 export interface CheckoutTicketData extends TicketData {
   type: 'CHECKOUT';
+  // Campos adicionales para pagos con TUU
+  authCode?: string; // Código de autorización de TUU
+  transactionMethod?: string; // Método de transacción (ej: "DEBITO", "CREDITO")
+  last4?: string; // Últimos 4 dígitos de la tarjeta
 }
 
 export interface ShiftCloseTicketData {
@@ -116,11 +120,31 @@ class TicketPrinterService {
       await TuuPrinter.addTextLine(`Duracion: ${data.duration || 'N/A'}`, {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addBlankLines(1);
       await TuuPrinter.addTextLine(`Monto a pagar: ${this.formatAmount(data.amount)}`, {align: 0, size: 24, bold: false, italic: false});
+      
+      // Si el pago fue con TUU, mostrar información adicional
+      if (data.authCode || data.transactionMethod || data.last4) {
+        await TuuPrinter.addBlankLines(1);
+        await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+        if (data.authCode) {
+          await TuuPrinter.addTextLine(`Cod. Autorizacion: ${data.authCode}`, {align: 0, size: 24, bold: false, italic: false});
+        }
+        if (data.transactionMethod) {
+          await TuuPrinter.addTextLine(`Metodo: ${data.transactionMethod}`, {align: 0, size: 24, bold: false, italic: false});
+        }
+        if (data.last4) {
+          await TuuPrinter.addTextLine(`Tarjeta: ****${data.last4}`, {align: 0, size: 24, bold: false, italic: false});
+        }
+      }
+      
       await TuuPrinter.addBlankLines(1);
       await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('   Gracias por su preferencia', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
-      await TuuPrinter.addTextLine('No valido como documento fiscal', {align: 1, size: 20, bold: false, italic: false});
+      // Si el pago fue con TUU, mostrar "Valido como Boleta", sino "No valido como documento fiscal"
+      const fiscalText = (data.authCode || data.transactionMethod || data.last4) 
+        ? 'Valido como Boleta' 
+        : 'No valido como documento fiscal';
+      await TuuPrinter.addTextLine(fiscalText, {align: 1, size: 20, bold: false, italic: false});
       await TuuPrinter.addBlankLines(5);
       await TuuPrinter.beginPrint();
       return true;
@@ -138,11 +162,11 @@ class TicketPrinterService {
       const closedAt = this.formatDateTime(data.closedAt);
       const systemName = await this.getSystemName();
       
-      await TuuPrinter.addTextLine('================================', {align: 1, size: 24, bold: false, italic: false});
-      await TuuPrinter.addTextLine('    CIERRE DE TURNO', {align: 1, size: 24, bold: false, italic: false});
-      await TuuPrinter.addTextLine('================================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('CIERRE DE TURNO', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addBlankLines(1);
-      await TuuPrinter.addTextLine(systemName, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(systemName, {align: 0, size: 24, bold: true, italic: false});
       await TuuPrinter.addBlankLines(1);
       await TuuPrinter.addTextLine(`Operador: ${data.operatorName || 'N/A'}`, {align: 0, size: 24, bold: false, italic: false});
       if (data.sectorName) {
@@ -152,26 +176,26 @@ class TicketPrinterService {
       await TuuPrinter.addBlankLines(1);
       await TuuPrinter.addTextLine(`Apertura: ${openedAt}`, {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine(`Cierre: ${closedAt}`, {align: 0, size: 24, bold: false, italic: false});
-      await TuuPrinter.addTextLine('--------------------------------', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('------------------------------------------------------', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addBlankLines(1);
-      await TuuPrinter.addTextLine('RESUMEN FINANCIERO:', {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('RESUMEN FINANCIERO:', {align: 0, size: 24, bold: true, italic: false});
       await TuuPrinter.addTextLine(`Fondo Inicial: ${this.formatAmount(data.openingFloat)}`, {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine(`Efectivo Cobrado: ${this.formatAmount(data.cashCollected)}`, {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine(`Retiros: ${this.formatAmount(data.cashWithdrawals)}`, {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine(`Depositos: ${this.formatAmount(data.cashDeposits)}`, {align: 0, size: 24, bold: false, italic: false});
-      await TuuPrinter.addTextLine('--------------------------------', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('------------------------------------------------------', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine(`Efectivo Esperado: ${this.formatAmount(data.cashExpected)}`, {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine(`Efectivo Contado: ${this.formatAmount(data.cashDeclared)}`, {align: 0, size: 24, bold: false, italic: false});
-      await TuuPrinter.addTextLine('--------------------------------', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('------------------------------------------------------', {align: 1, size: 24, bold: false, italic: false});
       
       if (data.cashOverShort !== undefined && data.cashOverShort !== 0) {
         const overShortLabel = data.cashOverShort > 0 ? 'SOBRA' : 'FALTA';
         await TuuPrinter.addTextLine(`${overShortLabel}: ${this.formatAmount(Math.abs(data.cashOverShort))}`, {align: 0, size: 24, bold: false, italic: false});
-        await TuuPrinter.addTextLine('--------------------------------', {align: 1, size: 24, bold: false, italic: false});
+        await TuuPrinter.addTextLine('------------------------------------------------------', {align: 1, size: 24, bold: false, italic: false});
       }
       
       await TuuPrinter.addTextLine('', {align: 0, size: 24, bold: false, italic: false});
-      await TuuPrinter.addTextLine('RESUMEN DE TRANSACCIONES:', {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('RESUMEN DE TRANSACCIONES:', {align: 0, size: 24, bold: true, italic: false});
       
       if (data.paymentsByMethod && data.paymentsByMethod.length > 0) {
         for (const payment of data.paymentsByMethod) {
@@ -188,9 +212,9 @@ class TicketPrinterService {
       }
       await TuuPrinter.addTextLine(`Total Transacciones: ${totalTransactions}`, {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('', {align: 0, size: 24, bold: false, italic: false});
-      await TuuPrinter.addTextLine('================================', {align: 1, size: 24, bold: false, italic: false});
-      await TuuPrinter.addTextLine('          FIN DE TURNO', {align: 1, size: 24, bold: false, italic: false});
-      await TuuPrinter.addTextLine('================================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('FIN DE TURNO', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('', {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addBlankLines(5);
       await TuuPrinter.beginPrint();
@@ -391,7 +415,12 @@ Salida: ${endTime}
 Duracion: ${data.duration || 'N/A'}
 
 Monto a pagar: ${this.formatAmount(data.amount)}
-
+${data.authCode || data.transactionMethod || data.last4 ? `
+--- Pago con TUU ---
+${data.authCode ? `Cod. Autorizacion: ${data.authCode}` : ''}
+${data.transactionMethod ? `Metodo: ${data.transactionMethod}` : ''}
+${data.last4 ? `Tarjeta: ****${data.last4}` : ''}
+` : ''}
 ================================
    Gracias por su preferencia
 ================================`
@@ -537,11 +566,15 @@ Total Transacciones: ${totalTransactions}
       // Imprimir ticket principal
       await this.selectedPrinter!.printText(ticketText);
       
-      const noValido = `No valido como documento fiscal
+      // Si el pago fue con TUU, mostrar "Valido como Boleta", sino "No valido como documento fiscal"
+      const fiscalText = (data.authCode || data.transactionMethod || data.last4) 
+        ? 'Valido como Boleta' 
+        : 'No valido como documento fiscal';
+      const fiscalFooter = `${fiscalText}
       
       
       `;
-      await this.selectedPrinter!.printText(noValido, {align: 'CENTER', size: 8});
+      await this.selectedPrinter!.printText(fiscalFooter, {align: 'CENTER', size: 8});
       
       console.log('Ticket de checkout impreso exitosamente con Bluetooth');
       return true;

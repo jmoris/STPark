@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Operator;
+use App\Models\OperatorAssignment;
 use App\Models\ParkingSession;
 use App\Services\ParkingSessionService;
 use Carbon\Carbon;
@@ -400,7 +402,8 @@ class ParkingSessionController extends Controller
     }
 
     /**
-     * Obtener todas las sesiones activas por operador (históricas)
+     * Obtener todas las sesiones activas del sector asignado al operador
+     * Incluye todas las sesiones activas del sector, no solo las creadas por este operador
      */
     public function activeByOperator(Request $request): JsonResponse
     {
@@ -414,26 +417,55 @@ class ParkingSessionController extends Controller
                 ], 400);
             }
 
-            // Logs de debug
-            Log::info('Buscando todas las sesiones activas (históricas) para operador ID: ' . $operatorId);
-
-            // Primero obtener todas las sesiones del operador para debug
-            $allSessions = ParkingSession::with(['sector', 'street', 'operator'])
-                ->where('operator_in_id', $operatorId)
-                ->get();
-                
-            Log::info('Total de sesiones del operador: ' . $allSessions->count());
-            foreach ($allSessions as $session) {
-                Log::info('Sesión ID: ' . $session->id . ' - Started: ' . $session->started_at . ' - Ended: ' . $session->ended_at);
+            // Obtener el operador
+            $operator = Operator::find($operatorId);
+            
+            if (!$operator) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Operador no encontrado'
+                ], 404);
             }
 
+            // Obtener los sectores asignados al operador
+            // Usamos operator_assignments para obtener los sectores activos
+            $now = Carbon::now();
+            $sectorIds = OperatorAssignment::where('operator_id', $operatorId)
+                ->where(function($query) use ($now) {
+                    $query->whereNull('valid_from')
+                        ->orWhere('valid_from', '<=', $now);
+                })
+                ->where(function($query) use ($now) {
+                    $query->whereNull('valid_to')
+                        ->orWhere('valid_to', '>=', $now);
+                })
+                ->whereNotNull('sector_id')
+                ->pluck('sector_id')
+                ->unique()
+                ->toArray();
+
+            Log::info('Buscando sesiones activas para operador ID: ' . $operatorId . ' en sectores: ' . implode(', ', $sectorIds));
+
+            // Si el operador no tiene sectores asignados, retornar array vacío
+            if (empty($sectorIds)) {
+                Log::warning('Operador ID: ' . $operatorId . ' no tiene sectores asignados');
+                return response()->json([
+                    'success' => true,
+                    'data' => [],
+                    'message' => 'El operador no tiene sectores asignados'
+                ]);
+            }
+
+            // Obtener todas las sesiones activas de los sectores asignados al operador
+            // No filtramos por operator_in_id, para que vea todas las sesiones del sector
             $sessions = ParkingSession::with(['sector', 'street', 'operator'])
-                ->where('operator_in_id', $operatorId)
+                ->whereIn('sector_id', $sectorIds)
+                ->where('status', 'ACTIVE')
                 ->whereNull('ended_at')
                 ->orderBy('started_at', 'desc')
                 ->get();
 
-            Log::info('Sesiones activas encontradas: ' . $sessions->count());
+            Log::info('Sesiones activas encontradas en los sectores del operador: ' . $sessions->count());
 
             return response()->json([
                 'success' => true,
@@ -441,14 +473,15 @@ class ParkingSessionController extends Controller
                 'message' => 'Sesiones activas obtenidas exitosamente',
                 'debug' => [
                     'operator_id' => $operatorId,
-                    'total_sessions' => $allSessions->count(),
+                    'sector_ids' => $sectorIds,
                     'active_sessions' => $sessions->count(),
-                    'note' => 'Incluye todas las sesiones activas históricas del operador'
+                    'note' => 'Incluye todas las sesiones activas de los sectores asignados al operador'
                 ]
             ]);
 
         } catch (\Exception $e) {
             Log::error('Error en activeByOperator: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener sesiones activas: ' . $e->getMessage()

@@ -12,6 +12,14 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { apiService } from '@/services/api';
 import { ticketPrinterService, CheckoutTicketData } from '@/services/ticketPrinter';
 import { getCurrentDateInSantiago } from '@/utils/dateUtils';
+import { tuuPaymentsService } from '@/services/tuuPayments';
+
+// ============================================
+// CONFIGURACIÓN: Cambiar este booleano para activar/desactivar el pago con POS TUU
+// true = Usa el intent de TUU para pagos con tarjeta
+// false = Muestra el modal actual con input de código de verificación
+// ============================================
+const USE_TUU_POS_PAYMENT = true;
 
 interface PaymentModalProps {
   visible: boolean;
@@ -41,6 +49,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [processingPayment, setProcessingPayment] = useState(false);
   const [estimatedAmount, setEstimatedAmount] = useState<number | null>(null);
   const [loadingQuote, setLoadingQuote] = useState(false);
+  const tuuPaymentProcessedRef = React.useRef(false);
 
   // Resetear estado cuando se cierra el modal
   useEffect(() => {
@@ -54,24 +63,37 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setApprovalCode('');
       setPaymentSummary(null);
       setEstimatedAmount(null);
+      tuuPaymentProcessedRef.current = false;
+      console.log('PaymentModal: Modal cerrado, reseteando estado');
     } else if (data) {
-      // Mostrar el modal de método de pago cuando se abre
-      setShowPaymentMethod(true);
+      console.log('PaymentModal: Modal abierto, reseteando tuuPaymentProcessed');
+      // Resetear el ref cuando se abre el modal con nuevos datos
+      tuuPaymentProcessedRef.current = false;
       // Obtener cotización cuando se abre el modal
       getEstimatedQuote();
+      
+      // Siempre mostrar el modal de método de pago primero
+      // El usuario seleccionará el método y luego se procesará con TUU si corresponde
+      setShowPaymentMethod(true);
     }
   }, [visible, data]);
 
   // Función para obtener cotización estimada
   const getEstimatedQuote = async () => {
-    if (!data) return;
+    if (!data) {
+      console.log('PaymentModal: No hay data para obtener cotización');
+      return;
+    }
     
+    console.log('PaymentModal: Obteniendo cotización para:', type, 'ID:', data.id);
     setLoadingQuote(true);
     try {
       let response;
       if (type === 'checkout') {
         // Para checkout, obtener cotización de la sesión
+        console.log('PaymentModal: Llamando a getSessionQuote para sesión:', data.id);
         response = await apiService.getSessionQuote(data.id);
+        console.log('PaymentModal: Respuesta de cotización:', response);
       } else {
         // Para deudas, usar el monto de la deuda directamente
         if (data.debts && data.debts.length > 0) {
@@ -87,10 +109,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       }
       
       if (response.success && response.data) {
-        setEstimatedAmount(response.data.net_amount || response.data.gross_amount || 0);
+        const amount = response.data.net_amount || response.data.gross_amount || 0;
+        console.log('PaymentModal: Monto obtenido:', amount);
+        setEstimatedAmount(amount);
+        // NO procesar automáticamente con TUU aquí
+        // El pago con TUU se iniciará solo cuando el usuario seleccione "Tarjeta"
+      } else {
+        console.log('PaymentModal: Error en respuesta de cotización:', response);
       }
     } catch (error) {
-      console.error('Error obteniendo cotización:', error);
+      console.error('PaymentModal: Error obteniendo cotización:', error);
     } finally {
       setLoadingQuote(false);
     }
@@ -102,10 +130,219 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setShowPaymentMethod(false);
     
     if (method === 'CASH') {
+      // Para efectivo, usar el flujo normal con modal de monto
       setShowAmountModal(true);
     } else if (method === 'CARD') {
-      // Para tarjeta, pedir código de autorización
-      setShowApprovalCodeModal(true);
+      // Para tarjeta, verificar si debemos usar TUU o el flujo normal
+      if (USE_TUU_POS_PAYMENT && type === 'checkout' && estimatedAmount && estimatedAmount > 0) {
+        // Usar TUU para procesar el pago con tarjeta
+        console.log('PaymentModal: Iniciando pago con TUU para tarjeta, monto:', estimatedAmount);
+        processPaymentWithTuu(estimatedAmount);
+      } else {
+        // Usar el flujo normal con código de autorización
+        setShowApprovalCodeModal(true);
+      }
+    }
+  };
+
+  // Función para procesar pago con TUU POS
+  const processPaymentWithTuu = async (amountOverride?: number) => {
+    // Usar el amount pasado como parámetro o el del estado
+    const paymentAmount = amountOverride || estimatedAmount;
+    
+    console.log('PaymentModal: processPaymentWithTuu llamado');
+    console.log('PaymentModal: data:', data ? 'existe' : 'no existe');
+    console.log('PaymentModal: paymentAmount:', paymentAmount);
+    console.log('PaymentModal: estimatedAmount (estado):', estimatedAmount);
+    console.log('PaymentModal: loadingQuote:', loadingQuote);
+    
+    if (!data || !paymentAmount) {
+      console.log('PaymentModal: Error - No hay datos suficientes para procesar el pago');
+      Alert.alert('Error', 'No hay datos suficientes para procesar el pago');
+      return;
+    }
+
+    // Esperar a que se obtenga la cotización
+    if (loadingQuote) {
+      console.log('PaymentModal: Esperando cotización...');
+      return;
+    }
+
+    console.log('PaymentModal: Iniciando procesamiento de pago con TUU');
+    setProcessingPayment(true);
+    try {
+      // Verificar que el servicio TUU esté disponible
+      const isAvailable = tuuPaymentsService.isAvailable();
+      console.log('PaymentModal: TUU disponible:', isAvailable);
+      
+      if (!isAvailable) {
+        console.log('PaymentModal: TUU no está disponible');
+        Alert.alert(
+          'Error',
+          'El servicio de pagos TUU no está disponible. Por favor, usa el método de pago manual.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setShowPaymentMethod(true);
+                setProcessingPayment(false);
+              }
+            }
+          ]
+        );
+        return;
+      }
+
+      // Preparar datos del pago para TUU
+      // Nota: installmentsQuantity DEBE ser 0 para débito (method: 2)
+      // El dispositivo no admite cuotas en transacciones de débito
+      // Según documentación: amount = netAmount + exemptAmount
+      // Como no usamos valores exentos, netAmount = amount
+      const tuuPaymentData = {
+        amount: paymentAmount,
+        tip: -1, // -1 = no utilizado (según documentación)
+        cashback: -1, // -1 = no utilizado (según documentación)
+        method: 0, // Método 2 = débito (según documentación: 0=Crédito, 1=Solicitar en APP, 2=Débito)
+        installmentsQuantity: -1, // DEBE ser 0 para débito - el dispositivo no admite cuotas en este tipo de transacción
+        printVoucherOnApp: false,
+        dteType: 48,
+        extraData: {
+          netAmount: paymentAmount, // netAmount debe ser igual a amount ya que no hay valores exentos
+          sourceName: 'STPark',
+          sourceVersion: '1.0.0',
+          customFields: [
+            { name: 'patente', value: data.plate, print: true },
+            { name: 'tipo', value: 'checkout', print: true },
+          ],
+        },
+      };
+
+      console.log('PaymentModal: Datos de pago TUU:', JSON.stringify(tuuPaymentData));
+      
+      // Iniciar pago con TUU
+      console.log('PaymentModal: Llamando a tuuPaymentsService.startPayment');
+      const tuuResult = await tuuPaymentsService.startPayment(tuuPaymentData);
+      console.log('PaymentModal: Resultado de TUU:', tuuResult);
+
+      if (!tuuResult) {
+        Alert.alert('Error', 'No se recibió respuesta del procesador de pagos');
+        setProcessingPayment(false);
+        return;
+      }
+
+      // Extraer información del resultado de TUU
+      // El resultado puede tener diferentes campos según la respuesta de TUU
+      const approvalCode = tuuResult.authCode;
+      
+      // Extraer método de transacción (puede venir como string o número)
+      let transactionMethod: string | undefined;
+      if (tuuResult.transactionMethod) {
+        transactionMethod = tuuResult.transactionMethod;
+      } else if (tuuResult.method !== undefined) {
+        // Convertir número a string según documentación: 0=Crédito, 2=Débito
+        const methodMap: { [key: number]: string } = {
+          0: 'CREDITO',
+          2: 'DEBITO',
+        };
+        transactionMethod = methodMap[tuuResult.method] || `METODO_${tuuResult.method}`;
+      }
+      
+      // Extraer últimos 4 dígitos de la tarjeta
+      const last4 = tuuResult.last4 || 
+                   tuuResult.cardLast4 || 
+                   tuuResult.lastFourDigits ||
+                   undefined;
+
+      console.log('PaymentModal: Datos extraídos de TUU:', {
+        approvalCode,
+        transactionMethod,
+        last4,
+        fullResult: tuuResult
+      });
+
+      // Procesar el checkout con el código de aprobación obtenido
+      const endedAt = getCurrentDateInSantiago();
+      const paymentData: any = {
+        payment_method: 'CARD',
+        amount: paymentAmount,
+        ended_at: endedAt,
+        approval_code: approvalCode || undefined,
+      };
+
+      const response = await apiService.checkoutSession(data.id, paymentData);
+
+      if (response.success) {
+        setPaymentSummary(response.data);
+
+        // Imprimir ticket
+        try {
+          const endTime = response.data.session?.ended_at || getCurrentDateInSantiago();
+          const startTime = data.started_at;
+          const duration = calculateElapsedTime(startTime, endTime);
+
+          const ticketData: CheckoutTicketData = {
+            type: 'CHECKOUT',
+            plate: data.plate,
+            sector: data.sector?.name,
+            street: data.street?.name,
+            sectorIsPrivate: data.sector?.is_private || false,
+            streetAddress: data.street?.full_address || data.street?.name,
+            startTime: startTime,
+            endTime: endTime,
+            duration: duration,
+            amount: paymentAmount || 0,
+            paymentMethod: 'CARD',
+            operatorName: operator?.name,
+            approvalCode: approvalCode,
+            // Datos adicionales de TUU para el ticket
+            authCode: approvalCode || undefined,
+            transactionMethod: transactionMethod,
+            last4: last4,
+          };
+
+          const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
+          if (printed) {
+            console.log('Ticket de checkout impreso exitosamente');
+          }
+        } catch (printError) {
+          console.error('Error imprimiendo ticket:', printError);
+        }
+
+        showSuccessAndClose();
+      } else {
+        Alert.alert('Error', response.message || 'Error al procesar el checkout');
+      }
+    } catch (error: any) {
+      console.error('Error procesando pago con TUU:', error);
+      
+      let errorMessage = 'Error al procesar el pago con TUU';
+      if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      Alert.alert(
+        'Error',
+        errorMessage,
+        [
+          {
+            text: 'Intentar con método manual',
+            onPress: () => {
+              setShowPaymentMethod(true);
+              setProcessingPayment(false);
+            }
+          },
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+            onPress: () => {
+              setProcessingPayment(false);
+              onClose();
+            }
+          }
+        ]
+      );
+    } finally {
+      setProcessingPayment(false);
     }
   };
 
@@ -597,6 +834,24 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         </View>
       </Modal>
 
+      {/* Modal de carga para pago con TUU */}
+      <Modal
+        visible={processingPayment && USE_TUU_POS_PAYMENT && type === 'checkout' && !showPaymentMethod}
+        transparent={true}
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Procesando pago con TUU...</Text>
+                <Text style={styles.loadingSubtext}>Por favor, completa el pago en la aplicación TUU</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal de Vuelto */}
       <Modal
         visible={showChangeModal}
@@ -722,8 +977,16 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: 18,
+    color: '#043476',
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  loadingSubtext: {
+    fontSize: 14,
     color: '#6c757d',
+    textAlign: 'center',
   },
   amountModalOverlay: {
     flex: 1,
