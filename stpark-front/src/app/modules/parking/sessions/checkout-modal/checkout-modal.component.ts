@@ -74,7 +74,7 @@ export class CheckoutModalComponent implements OnInit, OnDestroy {
   private createForm(): FormGroup {
     return this.fb.group({
       payment_method: ['CASH', Validators.required],
-      amount: ['0', [Validators.required, Validators.min(0)]],
+      amount: ['', [Validators.required, Validators.min(0)]],
       notes: ['']
     });
   }
@@ -83,7 +83,7 @@ export class CheckoutModalComponent implements OnInit, OnDestroy {
     if (this.quote) {
       const paymentMethod = this.checkoutForm.get('payment_method')?.value;
       if (paymentMethod === 'CASH') {
-        this.checkoutForm.patchValue({ amount: 0 });
+        this.checkoutForm.patchValue({ amount: '' });
       } else {
         this.checkoutForm.patchValue({ amount: this.quote.net_amount });
       }
@@ -111,7 +111,7 @@ export class CheckoutModalComponent implements OnInit, OnDestroy {
   onPaymentMethodChange(): void {
     const paymentMethod = this.checkoutForm.get('payment_method')?.value;
     if (paymentMethod === 'CASH') {
-      this.checkoutForm.patchValue({ amount: 0 });
+      this.checkoutForm.patchValue({ amount: '' });
     } else {
       this.checkoutForm.patchValue({ amount: this.quote?.net_amount || 0 });
     }
@@ -124,24 +124,36 @@ export class CheckoutModalComponent implements OnInit, OnDestroy {
 
   shouldShowChange(): boolean {
     const paymentMethod = this.checkoutForm.get('payment_method')?.value;
-    const amount = this.checkoutForm.get('amount')?.value || 0;
-    return paymentMethod === 'CASH' && amount > this.quote?.net_amount;
+    const amountValue = this.checkoutForm.get('amount')?.value;
+    const amount = amountValue === '' || amountValue === null || amountValue === undefined 
+      ? 0 
+      : (typeof amountValue === 'string' ? parseFloat(amountValue) || 0 : Number(amountValue) || 0);
+    return paymentMethod === 'CASH' && amount > (this.quote?.net_amount || 0);
   }
 
   shouldShowMissingAmount(): boolean {
     const paymentMethod = this.checkoutForm.get('payment_method')?.value;
-    const amount = this.checkoutForm.get('amount')?.value || 0;
-    return paymentMethod === 'CASH' && amount < this.quote?.net_amount;
+    const amountValue = this.checkoutForm.get('amount')?.value;
+    const amount = amountValue === '' || amountValue === null || amountValue === undefined 
+      ? 0 
+      : (typeof amountValue === 'string' ? parseFloat(amountValue) || 0 : Number(amountValue) || 0);
+    return paymentMethod === 'CASH' && amount < (this.quote?.net_amount || 0);
   }
 
   calculateChange(): number {
-    const amount = this.checkoutForm.get('amount')?.value || 0;
-    return amount - this.quote?.net_amount;
+    const amountValue = this.checkoutForm.get('amount')?.value;
+    const amount = amountValue === '' || amountValue === null || amountValue === undefined 
+      ? 0 
+      : (typeof amountValue === 'string' ? parseFloat(amountValue) || 0 : Number(amountValue) || 0);
+    return amount - (this.quote?.net_amount || 0);
   }
 
   calculateAmountMissing(): number {
-    const amount = this.checkoutForm.get('amount')?.value || 0;
-    return this.quote?.net_amount - amount;
+    const amountValue = this.checkoutForm.get('amount')?.value;
+    const amount = amountValue === '' || amountValue === null || amountValue === undefined 
+      ? 0 
+      : (typeof amountValue === 'string' ? parseFloat(amountValue) || 0 : Number(amountValue) || 0);
+    return (this.quote?.net_amount || 0) - amount;
   }
 
   formatAmount(amount: number): string {
@@ -156,12 +168,19 @@ export class CheckoutModalComponent implements OnInit, OnDestroy {
     this.processing = true;
 
     const formData = this.checkoutForm.value;
+    // Convertir amount vacío o string a número
+    let amountValue = 0;
+    if (formData.amount !== '' && formData.amount !== null && formData.amount !== undefined) {
+      amountValue = typeof formData.amount === 'string' 
+        ? parseFloat(formData.amount) || 0 
+        : Number(formData.amount) || 0;
+    }
+    
     const paymentData = {
-      session_id: this.session.id,
-      amount: formData.amount,
+      amount: amountValue,
       payment_method: formData.payment_method,
-      notes: formData.notes,
-      ended_at: new Date().toISOString()
+      notes: formData.notes || null,
+      operator_id: this.session.operator_in_id // Operador que cierra (mismo que abrió)
     };
 
     this.sessionService.checkoutSession(this.session.id, paymentData)

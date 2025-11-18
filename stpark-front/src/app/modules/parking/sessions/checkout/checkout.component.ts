@@ -210,7 +210,8 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       payment_method: this.checkoutForm.get('payment_method')?.value,
       amount: this.getNumericAmount(),
       discount_code: this.checkoutForm.get('discount_code')?.value || null,
-      notes: this.checkoutForm.get('notes')?.value || null
+      notes: this.checkoutForm.get('notes')?.value || null,
+      operator_id: this.session.operator_in_id // Operador que cierra (mismo que abrió)
     };
 
     this.sessionService.checkoutSession(this.session.id, checkoutData)

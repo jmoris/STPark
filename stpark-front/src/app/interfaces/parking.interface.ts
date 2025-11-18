@@ -273,6 +273,7 @@ export interface CheckoutRequest {
   amount: number;
   discount_code?: string;
   notes?: string;
+  operator_id: number; // Operador que cierra la sesión (obligatorio)
 }
 
 export interface PaymentRequest {
