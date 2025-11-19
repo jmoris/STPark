@@ -377,13 +377,24 @@ export class SessionsComponent implements OnInit, OnDestroy {
     this.applyFilters();
   }
 
+  /**
+   * Formatea una fecha a YYYY-MM-DD usando la zona horaria local (America/Santiago)
+   * Evita el problema de conversión a UTC que cambia el día después de las 21:00
+   */
+  private formatDateLocal(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   onDateFromChange(date: Date): void {
-    this.filters.date_from = date.toISOString().split('T')[0];
+    this.filters.date_from = this.formatDateLocal(date);
     this.applyFilters();
   }
 
   onDateToChange(date: Date): void {
-    this.filters.date_to = date.toISOString().split('T')[0];
+    this.filters.date_to = this.formatDateLocal(date);
     this.applyFilters();
   }
 
