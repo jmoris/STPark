@@ -41,6 +41,9 @@ fuse-vertical-navigation {
         position: fixed;
         top: 0;
         bottom: 0;
+        will-change: transform;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
     }
 
     /* Left position */
