@@ -18,6 +18,18 @@ use Barryvdh\DomPDF\Facade\Pdf;
 class ReportController extends Controller
 {
     /**
+     * Normaliza las fechas para los filtros de búsqueda
+     * Establece date_from a 00:00:00 y date_to a 23:59:59
+     */
+    private function normalizeDateRange($dateFrom, $dateTo): array
+    {
+        $from = Carbon::parse($dateFrom)->startOfDay();
+        $to = Carbon::parse($dateTo)->endOfDay();
+        
+        return [$from, $to];
+    }
+
+    /**
      * Reporte de ventas
      */
     public function salesReport(Request $request): JsonResponse
@@ -42,11 +54,14 @@ class ReportController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
+        [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+
         // Usar ParkingSession completadas en lugar de Sale
         // Filtrar por operator_out_id para mostrar sesiones cerradas por el operador
         $query = ParkingSession::with(['sector', 'operator', 'operatorOut', 'payments'])
                     ->where('status', 'COMPLETED')
-                    ->whereBetween('started_at', [$request->date_from, $request->date_to]);
+                    ->whereBetween('started_at', [$dateFrom, $dateTo]);
 
         if ($request->filled('sector_id')) {
             $query->where('sector_id', $request->sector_id);
@@ -183,8 +198,11 @@ class ReportController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
+        [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+
         $query = Payment::with(['parkingSession.sector', 'parkingSession.operator'])
-                       ->whereBetween('created_at', [$request->date_from, $request->date_to]);
+                       ->whereBetween('created_at', [$dateFrom, $dateTo]);
 
         if ($request->filled('method')) {
             $query->where('method', $request->method);
@@ -259,6 +277,9 @@ class ReportController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
+        [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+
         $query = Debt::with(['parkingSession.sector', 'parkingSession.operator', 'payments']);
 
         if ($request->filled('sector_id')) {
@@ -274,9 +295,7 @@ class ReportController extends Controller
         }
 
         // Filtrar por fecha con whereBetween
-        if ($request->filled('date_from') && $request->filled('date_to')) {
-            $query->whereBetween('created_at', [$request->date_from, $request->date_to]);
-        }
+        $query->whereBetween('created_at', [$dateFrom, $dateTo]);
 
         $debts = $query->orderBy('created_at', 'desc')->get();
 
@@ -332,6 +351,9 @@ class ReportController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
+        [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+
         $operator = Operator::findOrFail($request->operator_id);
 
         // Sesiones donde el operador hizo checkout (operator_out_id) o creó la sesión (operator_in_id)
@@ -343,7 +365,7 @@ class ReportController extends Controller
                                            ->where('operator_in_id', $request->operator_id);
                               });
                     })
-                                 ->whereBetween('started_at', [$request->date_from, $request->date_to])
+                                 ->whereBetween('started_at', [$dateFrom, $dateTo])
                                  ->with(['sector', 'street', 'operator', 'operatorOut'])
                                  ->get();
 
@@ -355,7 +377,7 @@ class ReportController extends Controller
                                            ->where('operator_in_id', $request->operator_id);
                               });
                     })
-                                 ->whereBetween('started_at', [$request->date_from, $request->date_to])
+                                 ->whereBetween('started_at', [$dateFrom, $dateTo])
                                  ->where('status', 'COMPLETED')
                                  ->with(['sector', 'payments', 'operator', 'operatorOut'])
                                  ->get();
@@ -386,9 +408,7 @@ class ReportController extends Controller
                                  })
                                  ->where('status', 'SETTLED');
 
-        if ($request->filled('date_from') && $request->filled('date_to')) {
-            $settledDebtsQuery->whereBetween('updated_at', [$request->date_from, $request->date_to]);
-        }
+        $settledDebtsQuery->whereBetween('updated_at', [$dateFrom, $dateTo]);
 
         $settledDebts = $settledDebtsQuery->orderBy('updated_at', 'desc')->get();
 
@@ -519,9 +539,12 @@ class ReportController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
+        [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+
         // Traer todas las sesiones independiente del estado
         $query = ParkingSession::with(['sector', 'operator', 'payments'])
-                    ->whereBetween('started_at', [$request->date_from, $request->date_to]);
+                    ->whereBetween('started_at', [$dateFrom, $dateTo]);
 
         if ($request->filled('sector_id')) {
             $query->where('sector_id', $request->sector_id);
@@ -702,9 +725,12 @@ class ReportController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
+        [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+
         $query = ParkingSession::with(['sector', 'operator', 'payments'])
                     ->where('status', 'COMPLETED')
-                    ->whereBetween('started_at', [$request->date_from, $request->date_to]);
+                    ->whereBetween('started_at', [$dateFrom, $dateTo]);
 
         if ($request->filled('sector_id')) {
             $query->where('sector_id', $request->sector_id);
@@ -830,6 +856,9 @@ class ReportController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
+        [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+
         $query = Debt::with(['parkingSession.sector', 'parkingSession.operator', 'payments']);
 
         if ($request->filled('sector_id')) {
@@ -844,9 +873,7 @@ class ReportController extends Controller
             });
         }
 
-        if ($request->filled('date_from') && $request->filled('date_to')) {
-            $query->whereBetween('created_at', [$request->date_from, $request->date_to]);
-        }
+        $query->whereBetween('created_at', [$dateFrom, $dateTo]);
 
         $debts = $query->orderBy('created_at', 'desc')->get();
 
@@ -929,8 +956,11 @@ class ReportController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
+        [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+
         $query = ParkingSession::with(['sector', 'operator', 'payments'])
-                    ->whereBetween('started_at', [$request->date_from, $request->date_to]);
+                    ->whereBetween('started_at', [$dateFrom, $dateTo]);
 
         if ($request->filled('sector_id')) {
             $query->where('sector_id', $request->sector_id);

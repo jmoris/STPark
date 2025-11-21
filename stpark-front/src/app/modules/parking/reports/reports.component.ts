@@ -133,30 +133,46 @@ export class ReportsComponent implements OnInit, OnDestroy {
   /**
    * Formatea una fecha a formato YYYY-MM-DD usando la zona horaria local (America/Santiago)
    * Evita el problema de conversión a UTC que cambia el día después de las 21:00
+   * @param date Fecha a formatear
+   * @param isEndDate Si es true, agrega 23:59:59, si es false agrega 00:00:00
    */
-  private formatDateForApi(date: Date | string): string {
+  private formatDateForApi(date: Date | string, isEndDate: boolean = false): string {
+    let year: string;
+    let month: string;
+    let day: string;
+    
     if (date instanceof Date) {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    }
-    // Si ya es string, intentar parsearlo
-    if (typeof date === 'string') {
-      // Si ya está en formato YYYY-MM-DD, devolverlo tal cual
+      year = String(date.getFullYear());
+      month = String(date.getMonth() + 1).padStart(2, '0');
+      day = String(date.getDate()).padStart(2, '0');
+    } else if (typeof date === 'string') {
+      // Si ya está en formato YYYY-MM-DD, extraer los componentes
       if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        return date;
+        const parts = date.split('-');
+        year = parts[0];
+        month = parts[1];
+        day = parts[2];
+      } else {
+        // Intentar parsear como fecha
+        const dateObj = new Date(date);
+        if (!isNaN(dateObj.getTime())) {
+          year = String(dateObj.getFullYear());
+          month = String(dateObj.getMonth() + 1).padStart(2, '0');
+          day = String(dateObj.getDate()).padStart(2, '0');
+        } else {
+          return date; // Si no se puede parsear, devolverlo tal cual
+        }
       }
-      const dateObj = new Date(date);
-      if (!isNaN(dateObj.getTime())) {
-        const year = dateObj.getFullYear();
-        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const day = String(dateObj.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      }
-      return date; // Si no se puede parsear, devolverlo tal cual
+    } else {
+      return '';
     }
-    return '';
+    
+    // Agregar hora según si es fecha de inicio o fin
+    if (isEndDate) {
+      return `${year}-${month}-${day} 23:59:59`;
+    } else {
+      return `${year}-${month}-${day} 00:00:00`;
+    }
   }
 
   generateReportFromFilters(): void {
@@ -168,8 +184,8 @@ export class ReportsComponent implements OnInit, OnDestroy {
     this.loading = true;
 
     const filters: any = {
-      date_from: this.formatDateForApi(this.filters.date_from),
-      date_to: this.formatDateForApi(this.filters.date_to)
+      date_from: this.formatDateForApi(this.filters.date_from, false),
+      date_to: this.formatDateForApi(this.filters.date_to, true)
     };
 
     // Solo agregar filtros opcionales si tienen valores
@@ -226,8 +242,8 @@ export class ReportsComponent implements OnInit, OnDestroy {
     this.loading = true;
 
     const filters: any = {
-      date_from: this.formatDateForApi(this.filters.date_from),
-      date_to: this.formatDateForApi(this.filters.date_to)
+      date_from: this.formatDateForApi(this.filters.date_from, false),
+      date_to: this.formatDateForApi(this.filters.date_to, true)
     };
 
     // Solo agregar filtros opcionales si tienen valores
@@ -279,8 +295,8 @@ export class ReportsComponent implements OnInit, OnDestroy {
 
     // Construir filtros para enviar al backend
     const filters: any = {
-      date_from: this.formatDateForApi(this.filters.date_from),
-      date_to: this.formatDateForApi(this.filters.date_to)
+      date_from: this.formatDateForApi(this.filters.date_from, false),
+      date_to: this.formatDateForApi(this.filters.date_to, true)
     };
 
     // Solo agregar filtros opcionales si tienen valores
