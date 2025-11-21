@@ -11,6 +11,7 @@ export interface SystemConfig {
   timezone: string;
   language: string;
   pos_tuu: boolean; // Configuración de POS TUU (solo lectura para usuarios, solo administradores pueden cambiar)
+  max_capacity?: number; // Capacidad máxima de vehículos en el estacionamiento
 }
 
 @Injectable({ providedIn: 'root' })
@@ -21,7 +22,8 @@ export class ConfigService {
     currency: 'CLP',
     timezone: 'America/Santiago',
     language: 'es',
-    pos_tuu: false
+    pos_tuu: false,
+    max_capacity: 0
   });
   private _configLoaded = false;
 
@@ -35,7 +37,8 @@ export class ConfigService {
       currency: 'CLP',
       timezone: 'America/Santiago',
       language: 'es',
-      pos_tuu: false
+      pos_tuu: false,
+      max_capacity: 0
     };
 
     return this._httpClient.get<{ success: boolean; data: SystemConfig }>(`${environment.apiUrl}/settings/general`)

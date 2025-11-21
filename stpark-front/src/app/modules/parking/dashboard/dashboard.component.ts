@@ -22,6 +22,8 @@ import { ParkingSessionService } from 'app/core/services/parking-session.service
 import { PaymentService } from 'app/core/services/payment.service';
 import { DebtService } from 'app/core/services/debt.service';
 import { DashboardData } from 'app/interfaces/parking.interface';
+import { HttpClient } from '@angular/common/http';
+import { environment } from 'environments/environment';
 
 // Configuración de formato de fecha para dd/mm/yyyy
 export const DATE_FORMATS = {
@@ -111,15 +113,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
     activeSessions: 0
   };
 
+  // Occupancy
+  maxCapacity = 0;
+  occupancyPercentage = 0;
+
   constructor(
     private reportService: ReportService,
     private sessionService: ParkingSessionService,
     private paymentService: PaymentService,
-    private debtService: DebtService
+    private debtService: DebtService,
+    private http: HttpClient
   ) {}
 
   ngOnInit(): void {
     this.loadDashboardData();
+    this.loadMaxCapacity();
     this.initializeCharts();
   }
 
@@ -178,6 +186,55 @@ export class DashboardComponent implements OnInit, OnDestroy {
       pendingDebts: this.dashboardData.pending_debts.total_amount,
       activeSessions: this.dashboardData.active_sessions.count
     };
+
+    // Calcular porcentaje de ocupación
+    this.calculateOccupancy();
+  }
+
+  private loadMaxCapacity(): void {
+    this.http.get<{ success: boolean; data: any }>(`${environment.apiUrl}/settings/general`)
+      .pipe(takeUntil(this._unsubscribeAll))
+      .subscribe({
+        next: (response) => {
+          if (response && response.success && response.data) {
+            this.maxCapacity = response.data.max_capacity || 0;
+            this.calculateOccupancy();
+          }
+        },
+        error: (error) => {
+          console.error('Error al cargar máxima capacidad:', error);
+          this.maxCapacity = 0;
+        }
+      });
+  }
+
+  private calculateOccupancy(): void {
+    if (this.maxCapacity > 0) {
+      this.occupancyPercentage = Math.round((this.stats.activeSessions / this.maxCapacity) * 100);
+    } else {
+      this.occupancyPercentage = 0;
+    }
+  }
+
+  getOccupancyColor(): string {
+    if (this.occupancyPercentage >= 90) return 'text-red-600';
+    if (this.occupancyPercentage >= 70) return 'text-orange-600';
+    if (this.occupancyPercentage >= 50) return 'text-yellow-600';
+    return 'text-green-600';
+  }
+
+  getOccupancyBgColor(): string {
+    if (this.occupancyPercentage >= 90) return 'bg-red-100';
+    if (this.occupancyPercentage >= 70) return 'bg-orange-100';
+    if (this.occupancyPercentage >= 50) return 'bg-yellow-100';
+    return 'bg-green-100';
+  }
+
+  getOccupancyIconColor(): string {
+    if (this.occupancyPercentage >= 90) return 'text-red-600';
+    if (this.occupancyPercentage >= 70) return 'text-orange-600';
+    if (this.occupancyPercentage >= 50) return 'text-yellow-600';
+    return 'text-green-600';
   }
 
   private updateCharts(): void {
@@ -202,7 +259,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       }],
       chart: {
         type: 'bar',
-        height: 300,
+        height: 400,
         toolbar: { show: false }
       },
       plotOptions: {
@@ -243,7 +300,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         series: Object.values(paymentsByMethod).map(data => (data as any).total),
       chart: {
         type: 'donut',
-        height: 300
+        height: 400
       },
       labels: Object.keys(paymentsByMethod).map(method => 
         this.paymentService.getPaymentMethodLabel(method)
@@ -274,25 +331,44 @@ export class DashboardComponent implements OnInit, OnDestroy {
         data: sessionData
       }],
       chart: {
-        type: 'area',
-        height: 300,
-        toolbar: { show: false }
+        type: 'line',
+        height: 400,
+        toolbar: { show: false },
+        zoom: {
+          enabled: false
+        }
+      },
+      stroke: {
+        curve: 'smooth',
+        width: 3
       },
       xaxis: {
-        categories: hourlyData.map(item => `${item.hour.toString().padStart(2, '0')}:00`)
+        categories: hourlyData.map(item => `${item.hour.toString().padStart(2, '0')}:00`),
+        labels: {
+          rotate: -45,
+          rotateAlways: false
+        }
       },
       yaxis: {
         title: {
           text: 'Sesiones'
+        },
+        min: 0
+      },
+      colors: ['#3B82F6'],
+      markers: {
+        size: 5,
+        hover: {
+          size: 7
         }
       },
-      colors: ['#10B981'],
-      fill: {
-        type: 'gradient',
-        gradient: {
-          shadeIntensity: 1,
-          opacityFrom: 0.7,
-          opacityTo: 0.3
+      grid: {
+        borderColor: '#e5e7eb',
+        strokeDashArray: 4
+      },
+      tooltip: {
+        y: {
+          formatter: (value: number) => `${value} sesiones`
         }
       }
     };

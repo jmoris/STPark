@@ -73,7 +73,8 @@ class SettingsController extends Controller
             'currency' => 'CLP',
             'timezone' => 'America/Santiago',
             'language' => 'es',
-            'pos_tuu' => false // Configuración de POS TUU (solo lectura para usuarios, solo administradores pueden cambiar)
+            'pos_tuu' => false, // Configuración de POS TUU (solo lectura para usuarios, solo administradores pueden cambiar)
+            'max_capacity' => 0 // Capacidad máxima de vehículos en el estacionamiento
         ];
         
         if (!$setting) {
@@ -118,7 +119,8 @@ class SettingsController extends Controller
             'currency' => !empty($config['currency']) ? $config['currency'] : $defaultConfig['currency'],
             'timezone' => !empty($config['timezone']) ? $config['timezone'] : $defaultConfig['timezone'],
             'language' => !empty($config['language']) ? $config['language'] : $defaultConfig['language'],
-            'pos_tuu' => isset($config['pos_tuu']) ? (bool) $config['pos_tuu'] : $defaultConfig['pos_tuu']
+            'pos_tuu' => isset($config['pos_tuu']) ? (bool) $config['pos_tuu'] : $defaultConfig['pos_tuu'],
+            'max_capacity' => isset($config['max_capacity']) ? (int) $config['max_capacity'] : $defaultConfig['max_capacity']
         ];
         
         \Log::info('Settings: Configuración general obtenida', [
@@ -145,7 +147,8 @@ class SettingsController extends Controller
             'name' => 'required|string|max:255',
             'currency' => 'required|string|max:10',
             'timezone' => 'required|string|max:50',
-            'language' => 'required|string|max:10'
+            'language' => 'required|string|max:10',
+            'max_capacity' => 'nullable|integer|min:0'
             // pos_tuu NO se incluye aquí - solo puede ser modificado por administradores directamente en la BD
         ]);
 
@@ -155,6 +158,13 @@ class SettingsController extends Controller
         
         // Preservar pos_tuu del valor actual (no permitir que usuarios lo cambien)
         $validated['pos_tuu'] = isset($currentConfig['pos_tuu']) ? (bool) $currentConfig['pos_tuu'] : false;
+        
+        // Si max_capacity no viene en la petición, preservar el valor actual o usar 0 por defecto
+        if (!isset($validated['max_capacity'])) {
+            $validated['max_capacity'] = isset($currentConfig['max_capacity']) ? (int) $currentConfig['max_capacity'] : 0;
+        } else {
+            $validated['max_capacity'] = (int) $validated['max_capacity'];
+        }
 
         \Log::info('Settings: Guardando configuración general', [
             'name' => $validated['name'],

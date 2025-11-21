@@ -64,7 +64,8 @@ export class SettingsComponent implements OnInit {
       currency: ['CLP', [Validators.required]],
       timezone: ['America/Santiago', [Validators.required]],
       language: ['es', [Validators.required]],
-      pos_tuu: [{ value: false, disabled: true }] // Solo lectura - solo administradores pueden cambiar
+      pos_tuu: [{ value: false, disabled: true }], // Solo lectura - solo administradores pueden cambiar
+      max_capacity: [0, [Validators.required, Validators.min(0)]]
     });
 
     this.pricingForm = this.fb.group({
@@ -225,7 +226,8 @@ export class SettingsComponent implements OnInit {
       currency: 'CLP',
       timezone: 'America/Santiago',
       language: 'es',
-      pos_tuu: false
+      pos_tuu: false,
+      max_capacity: 0
     });
     
     this.pricingForm.reset({
