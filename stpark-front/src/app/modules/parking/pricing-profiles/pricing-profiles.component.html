@@ -655,18 +655,14 @@
         <!-- Start Time -->
         <mat-form-field appearance="outline">
           <mat-label>Hora de Inicio</mat-label>
-          <input matInput formControlName="start_time" type="time" 
-                 [value]="getTimeValue(ruleForm.get('start_time')?.value)"
-                 (change)="onTimeChange('start_time', $event)">
+          <input matInput formControlName="start_time" type="time">
           <mat-hint>Dejar vacío para todo el día</mat-hint>
         </mat-form-field>
 
         <!-- End Time -->
         <mat-form-field appearance="outline">
           <mat-label>Hora de Fin</mat-label>
-          <input matInput formControlName="end_time" type="time" 
-                 [value]="getTimeValue(ruleForm.get('end_time')?.value)"
-                 (change)="onTimeChange('end_time', $event)">
+          <input matInput formControlName="end_time" type="time">
           <mat-hint>Dejar vacío para todo el día</mat-hint>
         </mat-form-field>
       </div>

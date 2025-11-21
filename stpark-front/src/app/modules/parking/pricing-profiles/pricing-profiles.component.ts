@@ -452,23 +452,36 @@ export class PricingProfilesComponent implements OnInit, OnDestroy {
 
   editRule(rule: PricingRule): void {
     console.log('Editando regla:', rule);
+    console.log('start_time raw:', rule.start_time);
+    console.log('end_time raw:', rule.end_time);
+    console.log('start_min:', (rule as any).start_min);
+    console.log('end_min:', (rule as any).end_min);
+    
     this.editingRule = rule;
     this.selectedDays = rule.days_of_week || [];
     
-    // Manejar valores de tiempo - solo cargar si realmente existen
+    // Manejar valores de tiempo - priorizar start_time y end_time sobre start_min y end_min
     let startTime = '';
     let endTime = '';
     
-    // Si tenemos start_min y end_min, convertirlos a formato HH:mm
-    if ((rule as any).start_min !== undefined && (rule as any).end_min !== undefined) {
+    // Priorizar start_time y end_time si están disponibles
+    if (rule.start_time) {
+      startTime = this.formatTimeForInput(rule.start_time);
+      console.log('start_time formateado:', startTime);
+    } else if ((rule as any).start_min !== undefined && (rule as any).start_min !== null) {
+      // Si no hay start_time, usar start_min como fallback
       startTime = this.minutesToTimeString((rule as any).start_min);
-      endTime = this.minutesToTimeString((rule as any).end_min);
-    } else if (rule.start_time && rule.end_time) {
-      // Solo usar start_time y end_time si ambos existen y no son null
-      startTime = rule.start_time;
-      endTime = rule.end_time;
+      console.log('start_min convertido:', startTime);
     }
-    // Si no hay valores válidos, mantener campos vacíos
+    
+    if (rule.end_time) {
+      endTime = this.formatTimeForInput(rule.end_time);
+      console.log('end_time formateado:', endTime);
+    } else if ((rule as any).end_min !== undefined && (rule as any).end_min !== null) {
+      // Si no hay end_time, usar end_min como fallback
+      endTime = this.minutesToTimeString((rule as any).end_min);
+      console.log('end_min convertido:', endTime);
+    }
     
     // Preparar los datos para el formulario
     const formData = {
@@ -487,10 +500,20 @@ export class PricingProfilesComponent implements OnInit, OnDestroy {
       is_active: rule.is_active !== undefined ? rule.is_active : true
     };
     
-    console.log('Datos del formulario:', formData);
+    console.log('Datos del formulario antes de setValue:', formData);
+    console.log('startTime final:', startTime);
+    console.log('endTime final:', endTime);
     
     // Usar setValue en lugar de patchValue para asegurar que todos los valores se apliquen
     this.ruleForm.setValue(formData);
+    
+    // Forzar actualización de los controles de tiempo
+    if (startTime) {
+      this.ruleForm.get('start_time')?.setValue(startTime, { emitEvent: false });
+    }
+    if (endTime) {
+      this.ruleForm.get('end_time')?.setValue(endTime, { emitEvent: false });
+    }
     
     // Debug: verificar que los valores se aplicaron correctamente
     console.log('Estado del formulario después de setValue:', this.ruleForm.value);
@@ -507,6 +530,8 @@ export class PricingProfilesComponent implements OnInit, OnDestroy {
     // Debug adicional después de mostrar el formulario
     setTimeout(() => {
       console.log('Estado del formulario después de mostrar:', this.ruleForm.value);
+      console.log('start_time control:', this.ruleForm.get('start_time')?.value);
+      console.log('end_time control:', this.ruleForm.get('end_time')?.value);
     }, 100);
   }
 
@@ -515,6 +540,79 @@ export class PricingProfilesComponent implements OnInit, OnDestroy {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+  }
+
+  // Método auxiliar para convertir formato de hora (H:i:s o HH:mm) a HH:mm para input type="time"
+  private formatTimeForInput(timeString: string | null | undefined): string {
+    if (!timeString) {
+      return '';
+    }
+    
+    // Convertir a string y limpiar espacios
+    const cleanTime = String(timeString).trim();
+    
+    if (!cleanTime || cleanTime === 'null' || cleanTime === 'undefined') {
+      return '';
+    }
+    
+    // Si ya está en formato HH:mm, retornarlo directamente
+    if (/^\d{2}:\d{2}$/.test(cleanTime)) {
+      return cleanTime;
+    }
+    
+    // Si está en formato H:i:s o HH:mm:ss, extraer solo HH:mm
+    // También maneja casos como "18:00:00", "8:00:00", "18:00", "8:00"
+    const timeMatch = cleanTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (timeMatch) {
+      const hours = timeMatch[1].padStart(2, '0');
+      const minutes = timeMatch[2];
+      return `${hours}:${minutes}`;
+    }
+    
+    // Si es un formato de fecha/hora ISO, intentar extraer la hora
+    if (cleanTime.includes('T') || cleanTime.includes(' ')) {
+      try {
+        const date = new Date(cleanTime);
+        if (!isNaN(date.getTime())) {
+          const hours = date.getHours().toString().padStart(2, '0');
+          const minutes = date.getMinutes().toString().padStart(2, '0');
+          return `${hours}:${minutes}`;
+        }
+      } catch (e) {
+        console.warn('Error parsing time string:', cleanTime, e);
+      }
+    }
+    
+    console.warn('No se pudo formatear el tiempo:', cleanTime);
+    return '';
+  }
+
+  // Método auxiliar para formatear hora para el backend (formato H:i sin segundos)
+  private formatTimeForBackend(timeString: string | null | undefined): string | null {
+    if (!timeString || timeString.trim() === '') {
+      return null;
+    }
+    
+    // Si ya está en formato HH:mm, retornarlo directamente
+    if (/^\d{2}:\d{2}$/.test(timeString)) {
+      return timeString;
+    }
+    
+    // Si está en formato H:mm (una sola cifra para horas), agregar el 0
+    if (/^\d{1}:\d{2}$/.test(timeString)) {
+      const parts = timeString.split(':');
+      return `${parts[0].padStart(2, '0')}:${parts[1]}`;
+    }
+    
+    // Si está en formato HH:mm:ss o H:mm:ss, extraer solo HH:mm
+    const timeMatch = timeString.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (timeMatch) {
+      const hours = timeMatch[1].padStart(2, '0');
+      const minutes = timeMatch[2];
+      return `${hours}:${minutes}`;
+    }
+    
+    return null;
   }
 
   saveRule(): void {
@@ -534,8 +632,8 @@ export class PricingProfilesComponent implements OnInit, OnDestroy {
         price_per_minute: this.ruleForm.value.price_per_minute, // Campo correcto para el backend
         fixed_price: this.ruleForm.value.fixed_price,
         days_of_week: this.selectedDays,
-        start_time: this.ruleForm.value.start_time || null,
-        end_time: this.ruleForm.value.end_time || null,
+        start_time: this.formatTimeForBackend(this.ruleForm.value.start_time),
+        end_time: this.formatTimeForBackend(this.ruleForm.value.end_time),
         priority: this.ruleForm.value.priority,
         is_active: this.ruleForm.value.is_active
       };
@@ -730,23 +828,20 @@ export class PricingProfilesComponent implements OnInit, OnDestroy {
 
   // Método para manejar valores de tiempo en campos type="time"
   getTimeValue(value: any): string {
-    // Si el valor es null, undefined, cadena vacía o "00:00", retornar cadena vacía
-    if (!value || value === '' || value === null || value === '00:00') {
-      return ''; // Retorna cadena vacía para campos vacíos
+    // Si el valor es null, undefined o cadena vacía, retornar cadena vacía
+    if (!value || value === '' || value === null) {
+      return '';
     }
     
-    // Si es un string en formato HH:MM válido (no 00:00), lo retorna tal como está
-    if (typeof value === 'string' && /^\d{2}:\d{2}$/.test(value) && value !== '00:00') {
-      return value;
+    // Convertir el valor a formato HH:mm usando el método auxiliar
+    const formatted = this.formatTimeForInput(value);
+    
+    // Si el resultado es "00:00", retornar cadena vacía (para permitir campos vacíos)
+    if (formatted === '00:00') {
+      return '';
     }
     
-    // Si es un objeto Date, lo convierte a formato HH:MM
-    if (value instanceof Date) {
-      const timeString = value.toTimeString().slice(0, 5);
-      return timeString === '00:00' ? '' : timeString;
-    }
-    
-    return '';
+    return formatted;
   }
 
   // Método para manejar cambios en campos de tiempo

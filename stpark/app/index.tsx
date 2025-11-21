@@ -1412,7 +1412,13 @@ export default function HomeScreen() {
         }}
         data={selectedSession}
         onSuccess={handlePaymentSuccess}
-        type={selectedSession?.debts ? "debt" : "checkout"}
+        type={
+          // Si tiene debts (múltiples deudas) o principal_amount (una sola deuda), es tipo debt
+          selectedSession?.debts || 
+          (selectedSession?.principal_amount !== undefined && !selectedSession?.started_at)
+            ? "debt" 
+            : "checkout"
+        }
         operator={operator}
       />
 

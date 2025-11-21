@@ -150,9 +150,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setShowAmountModal(true);
     } else if (method === 'CARD') {
       // Para tarjeta, verificar si debemos usar TUU o el flujo normal
-      if (useTuuPosPayment && type === 'checkout' && estimatedAmount && estimatedAmount > 0) {
-        // Usar TUU para procesar el pago con tarjeta
-        console.log('PaymentModal: Iniciando pago con TUU para tarjeta, monto:', estimatedAmount);
+      if (useTuuPosPayment && (type === 'checkout' || type === 'debt') && estimatedAmount && estimatedAmount > 0) {
+        // Usar TUU para procesar el pago con tarjeta (tanto para checkout como para deudas)
+        console.log('PaymentModal: Iniciando pago con TUU para tarjeta, monto:', estimatedAmount, 'tipo:', type);
         processPaymentWithTuu(estimatedAmount);
       } else {
         // Usar el flujo normal con código de autorización
@@ -227,8 +227,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           sourceName: 'STPark',
           sourceVersion: '1.0.0',
           customFields: [
-            { name: 'patente', value: data.plate, print: true },
-            { name: 'tipo', value: 'checkout', print: true },
+            { name: 'patente', value: data.plate || (data.debts && data.debts[0]?.plate) || 'N/A', print: true },
+            { name: 'tipo', value: type === 'debt' ? 'deuda' : 'checkout', print: true },
           ],
         },
       };
@@ -269,10 +269,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                    tuuResult.lastFourDigits ||
                    undefined;
 
+      // Extraer número de secuencia de la transacción
+      const sequenceNumber = tuuResult.sequenceNumber || undefined;
+
       console.log('PaymentModal: Datos extraídos de TUU:', {
         approvalCode,
         transactionMethod,
         last4,
+        sequenceNumber,
         fullResult: tuuResult
       });
 
@@ -283,51 +287,144 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         return;
       }
 
-      // Procesar el checkout con el código de aprobación obtenido
-      const endedAt = getCurrentDateInSantiago();
-      const paymentData: any = {
-        payment_method: 'CARD',
-        amount: paymentAmount,
-        ended_at: endedAt,
-        approval_code: approvalCode || undefined,
-        operator_id: operator.id, // Operador que hace el checkout (REQUERIDO)
-      };
+      // Procesar el pago según el tipo (checkout o deuda)
+      let response: any;
+      
+      if (type === 'checkout') {
+        // Procesar checkout de sesión
+        const endedAt = getCurrentDateInSantiago();
+        const paymentData: any = {
+          payment_method: 'CARD',
+          amount: paymentAmount,
+          ended_at: endedAt,
+          approval_code: approvalCode || undefined,
+          operator_id: operator.id, // Operador que hace el checkout (REQUERIDO)
+        };
 
-      const response = await apiService.checkoutSession(data.id, paymentData);
+        response = await apiService.checkoutSession(data.id, paymentData);
+      } else {
+        // Procesar pago de deuda
+        let firstDebtWithRelations = null;
+        
+        if (data.debts && data.debts.length > 0) {
+          // Si hay múltiples deudas, procesarlas una por una
+          for (const debt of data.debts) {
+            const paymentData = {
+              amount: parseFloat(debt.principal_amount),
+              method: 'CARD' as 'CASH' | 'CARD' | 'TRANSFER',
+              cashier_operator_id: operator?.id || 1,
+              approval_code: approvalCode || undefined,
+            };
+            
+            const debtResponse = await apiService.payDebt(debt.id, paymentData);
+            if (!debtResponse.success) {
+              throw new Error(`Error al liquidar deuda ID ${debt.id}`);
+            }
+            
+            // Guardar la primera respuesta que tiene las relaciones
+            if (!firstDebtWithRelations) {
+              firstDebtWithRelations = debtResponse.data;
+            }
+          }
+          
+          // Crear respuesta agregada usando la primera deuda para las relaciones
+          response = {
+            success: true,
+            data: {
+              ...firstDebtWithRelations,
+              plate: data.plate,
+              debts_paid: data.debts.length,
+              total_amount: paymentAmount,
+            },
+          };
+        } else {
+          // Una sola deuda
+          const paymentData = {
+            amount: paymentAmount || 0,
+            method: 'CARD' as 'CASH' | 'CARD' | 'TRANSFER',
+            cashier_operator_id: operator?.id || 1,
+            approval_code: approvalCode || undefined,
+          };
+
+          response = await apiService.payDebt(data.id, paymentData);
+        }
+      }
 
       if (response.success) {
         setPaymentSummary(response.data);
 
         // Imprimir ticket
         try {
-          const endTime = response.data.session?.ended_at || getCurrentDateInSantiago();
-          const startTime = data.started_at;
-          const duration = calculateElapsedTime(startTime, endTime);
+          if (type === 'checkout') {
+            // Ticket para checkout de sesión
+            const endTime = response.data.session?.ended_at || getCurrentDateInSantiago();
+            const startTime = data.started_at;
+            const duration = calculateElapsedTime(startTime, endTime);
 
-          const ticketData: CheckoutTicketData = {
-            type: 'CHECKOUT',
-            plate: data.plate,
-            sector: data.sector?.name,
-            street: data.street?.name,
-            sectorIsPrivate: data.sector?.is_private || false,
-            streetAddress: data.street?.full_address || data.street?.name,
-            startTime: startTime,
-            endTime: endTime,
-            duration: duration,
-            amount: paymentAmount || 0,
-            paymentMethod: 'CARD',
-            operatorName: operator?.name,
-            approvalCode: approvalCode,
-            // Datos adicionales de TUU para el ticket
-            authCode: approvalCode || undefined,
-            transactionMethod: transactionMethod,
-            last4: last4,
-            minAmount: getMinAmountFromBreakdown(),
-          };
+            const ticketData: CheckoutTicketData = {
+              type: 'CHECKOUT',
+              plate: data.plate,
+              sector: data.sector?.name,
+              street: data.street?.name,
+              sectorIsPrivate: data.sector?.is_private || false,
+              streetAddress: data.street?.full_address || data.street?.name,
+              startTime: startTime,
+              endTime: endTime,
+              duration: duration,
+              amount: paymentAmount || 0,
+              paymentMethod: 'CARD',
+              operatorName: operator?.name,
+              approvalCode: approvalCode,
+              // Datos adicionales de TUU para el ticket
+              authCode: approvalCode || undefined,
+              transactionMethod: transactionMethod,
+              last4: last4,
+              sequenceNumber: sequenceNumber,
+              minAmount: getMinAmountFromBreakdown(),
+            };
 
-          const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
-          if (printed) {
-            console.log('Ticket de checkout impreso exitosamente');
+            const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
+            if (printed) {
+              console.log('Ticket de checkout impreso exitosamente');
+            }
+          } else {
+            // Ticket para liquidación de deuda
+            const debt = data.debts && data.debts.length > 0 ? data.debts[0] : data;
+            const settledDebt = response.data;
+            const parkingSession = settledDebt.parking_session || debt.parking_session;
+            
+            if (parkingSession && parkingSession.started_at) {
+              const startTime = parkingSession.started_at;
+              const endTime = debt.created_at || new Date().toISOString();
+              const duration = calculateElapsedTime(startTime, endTime);
+              
+              const ticketData: CheckoutTicketData = {
+                type: 'CHECKOUT',
+                plate: data.plate || (data.debts && data.debts[0]?.plate) || 'N/A',
+                sector: parkingSession?.sector?.name || 'N/A',
+                street: parkingSession?.street?.name || 'N/A',
+                sectorIsPrivate: parkingSession?.sector?.is_private || false,
+                streetAddress: parkingSession?.street?.full_address || parkingSession?.street?.name || 'N/A',
+                startTime: startTime,
+                endTime: endTime,
+                duration: duration,
+                amount: paymentAmount || 0,
+                paymentMethod: 'CARD',
+                operatorName: operator?.name,
+                approvalCode: approvalCode,
+                // Datos adicionales de TUU para el ticket
+                authCode: approvalCode || undefined,
+                transactionMethod: transactionMethod,
+                last4: last4,
+                sequenceNumber: sequenceNumber,
+                minAmount: getMinAmountFromBreakdown(),
+              };
+              
+              const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
+              if (printed) {
+                console.log('Ticket de liquidación de deuda impreso exitosamente');
+              }
+            }
           }
         } catch (printError) {
           console.error('Error imprimiendo ticket:', printError);
@@ -335,7 +432,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
         showSuccessAndClose();
       } else {
-        Alert.alert('Error', response.message || 'Error al procesar el checkout');
+        Alert.alert('Error', response.message || `Error al procesar el ${type === 'checkout' ? 'checkout' : 'pago de deuda'}`);
       }
     } catch (error: any) {
       console.error('Error procesando pago con TUU:', error);
@@ -896,7 +993,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
       {/* Modal de carga para pago con TUU */}
       <Modal
-        visible={processingPayment && useTuuPosPayment && type === 'checkout' && !showPaymentMethod}
+        visible={processingPayment && useTuuPosPayment && (type === 'checkout' || type === 'debt') && !showPaymentMethod}
         transparent={true}
         animationType="fade"
       >

@@ -29,6 +29,7 @@ export interface CheckoutTicketData extends TicketData {
   authCode?: string; // Código de autorización de TUU
   transactionMethod?: string; // Método de transacción (ej: "DEBITO", "CREDITO")
   last4?: string; // Últimos 4 dígitos de la tarjeta
+  sequenceNumber?: string; // Número de secuencia de la transacción TUU
   minAmount?: number; // Monto mínimo configurado en el perfil de precios
 }
 
@@ -130,19 +131,16 @@ class TicketPrinterService {
       // Si el pago fue con TUU, mostrar información adicional
       if (data.authCode || data.transactionMethod || data.last4) {
         await TuuPrinter.addBlankLines(1);
-        await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
-        if (data.authCode) {
-          await TuuPrinter.addTextLine(`Cod. Autorizacion: ${data.authCode}`, {align: 0, size: 24, bold: false, italic: false});
+        await TuuPrinter.addTextLine('------------------------------------------------------', {align: 1, size: 24, bold: false, italic: false});
+        await TuuPrinter.addTextLine(`Fecha: ${new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}`, {align: 0, size: 18, bold: false, italic: false});
+        if (data.last4 && data.transactionMethod) {
+          await TuuPrinter.addColumns([{text: data.transactionMethod, align: 0, size: 18}, {text: "****" + data.last4, align: 2, size: 18}]);
         }
-        if (data.transactionMethod) {
-          await TuuPrinter.addTextLine(`Metodo: ${data.transactionMethod}`, {align: 0, size: 24, bold: false, italic: false});
-        }
-        if (data.last4) {
-          await TuuPrinter.addTextLine(`Tarjeta: ****${data.last4}`, {align: 0, size: 24, bold: false, italic: false});
+        if (data.authCode && data.sequenceNumber) {
+          await TuuPrinter.addColumns([{text: "ID: " + data.sequenceNumber, align: 0, size: 18}, {text: "Cód. Aut: " + data.authCode, align: 2, size: 18}]);
         }
       }
       
-      await TuuPrinter.addBlankLines(1);
       await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('   Gracias por su preferencia', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});

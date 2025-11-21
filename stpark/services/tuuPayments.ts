@@ -154,7 +154,7 @@ class TuuPaymentsService {
       cashback: options?.cashback || 0,
       method,
       installmentsQuantity: options?.installmentsQuantity || 1,
-      printVoucherOnApp: options?.printVoucherOnApp !== undefined ? options.printVoucherOnApp : true,
+      printVoucherOnApp: options?.printVoucherOnApp || true,
       dteType: options?.dteType || 48,
       extraData: {
         taxIdnValidation: options?.taxIdnValidation,

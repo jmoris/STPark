@@ -70,7 +70,22 @@ class PricingService
         $totalAmount = 0;
         $dailyMaxAmount = $this->getDailyMaxAmount($pricingRules);
         
+        // Identificar la primera regla que aplica al horario de entrada
+        $firstRule = $this->findRuleAtTime($startTime, $pricingRules);
+        $minAmountApplied = false;
+        $minDurationUsed = 0;
+        $minAmountValue = null;
+        
+        // Si la primera regla tiene tarifa mínima base, preparar para aplicarla
+        if ($firstRule && $firstRule->min_amount_is_base && $firstRule->min_amount) {
+            $minDurationUsed = $firstRule->min_duration_minutes ?? 0;
+            $minAmountValue = $firstRule->min_amount;
+        }
+        
         // Calcular minutos y costo para cada regla aplicable
+        $remainingMinDuration = $minDurationUsed; // Minutos de tarifa mínima que quedan por aplicar
+        $currentTime = $startTime->copy();
+        
         foreach ($pricingRules as $rule) {
             $minutes = $this->calculateMinutesInRule($startTime, $endTime, $rule);
             
@@ -84,41 +99,64 @@ class PricingService
                 'minutes_calculated' => $minutes,
                 'session_start' => $startTime->format('Y-m-d H:i:s'),
                 'session_end' => $endTime->format('Y-m-d H:i:s'),
-                'rule_start_time_raw' => $rule->start_time,
-                'rule_end_time_raw' => $rule->end_time,
-                'rule_start_time_type' => gettype($rule->start_time),
-                'rule_end_time_type' => gettype($rule->end_time)
+                'is_first_rule' => $rule->id === $firstRule?->id,
+                'remaining_min_duration' => $remainingMinDuration
             ]);
             
             if ($minutes > 0) {
-                // NO verificar duración mínima aquí - la duración mínima se refiere a la duración total
-                // de la sesión, no a los minutos dentro del horario de esta regla específica
-                
-                // Calcular el costo base para esta regla
-                $baseAmountCalculated = $this->calculateRuleAmount($rule, $minutes);
-                
-                // Aplicar monto mínimo si existe (solo para esta regla específica)
+                $ruleAmount = 0;
+                $baseAmountCalculated = 0;
                 $minAmount = $rule->min_amount;
-                $ruleAmount = $baseAmountCalculated;
+                $isFirstRule = ($rule->id === $firstRule?->id);
                 
-                // Si min_amount_is_base está activo, aplicar lógica especial
-                if ($rule->min_amount_is_base && $minAmount) {
-                    $minDuration = $rule->min_duration_minutes ?? 0;
-                    if ($minutes <= $minDuration) {
-                        $ruleAmount = $minAmount;
-                    } else {
-                        $extraMinutes = $minutes - $minDuration;
-                        $pricePerMin = (float) $rule->price_per_min;
-                        $ruleAmount = $minAmount + ($extraMinutes * $pricePerMin);
+                // Si esta es la primera regla y tiene tarifa mínima base, aplicar lógica especial
+                if ($isFirstRule && $rule->min_amount_is_base && $minAmountValue && $remainingMinDuration > 0) {
+                    // Calcular cuántos minutos de esta regla están cubiertos por la tarifa mínima
+                    $minutesInMinRate = min($minutes, $remainingMinDuration);
+                    $minutesAfterMinRate = max(0, $minutes - $minutesInMinRate);
+                    
+                    if ($minutesInMinRate > 0) {
+                        // Los primeros minutos tienen tarifa mínima
+                        $ruleAmount = $minAmountValue;
+                        $minAmountApplied = true;
+                        $remainingMinDuration -= $minutesInMinRate;
+                        
+                        Log::info('Aplicando tarifa mínima a primera regla', [
+                            'rule_name' => $rule->name,
+                            'minutes_in_min_rate' => $minutesInMinRate,
+                            'min_amount' => $minAmountValue,
+                            'remaining_min_duration' => $remainingMinDuration
+                        ]);
                     }
-                } elseif ($minAmount && $ruleAmount < $minAmount) {
-                    // Solo aplicar mínimo si el monto calculado es menor
-                    // Pero esto podría no tener sentido para reglas parciales
-                    // $ruleAmount = $minAmount;
+                    
+                    // Calcular el costo de los minutos restantes de esta regla
+                    if ($minutesAfterMinRate > 0) {
+                        $pricePerMin = (float) $rule->price_per_min;
+                        $additionalAmount = $minutesAfterMinRate * $pricePerMin;
+                        $ruleAmount += $additionalAmount;
+                        $baseAmountCalculated = $additionalAmount;
+                        
+                        Log::info('Calculando minutos adicionales después de tarifa mínima', [
+                            'rule_name' => $rule->name,
+                            'minutes_after_min_rate' => $minutesAfterMinRate,
+                            'price_per_min' => $pricePerMin,
+                            'additional_amount' => $additionalAmount
+                        ]);
+                    } else {
+                        // Si todos los minutos están cubiertos por la tarifa mínima
+                        $baseAmountCalculated = $this->calculateRuleAmount($rule, $minutes);
+                    }
+                } else {
+                    // Para reglas que no son la primera, o si ya se aplicó toda la tarifa mínima
+                    // Calcular normalmente sin tarifa mínima
+                    $baseAmountCalculated = $this->calculateRuleAmount($rule, $minutes);
+                    $ruleAmount = $baseAmountCalculated;
+                    
+                    // Aplicar monto mínimo tradicional si existe (solo si no es tarifa base)
+                    if ($minAmount && !$rule->min_amount_is_base && $ruleAmount < $minAmount) {
+                        $ruleAmount = $minAmount;
+                    }
                 }
-                
-                // NO aplicar máximo diario individualmente a cada regla
-                // El máximo diario se aplica al total final
                 
                 $breakdown[] = [
                     'rule_name' => $rule->name,
@@ -127,9 +165,9 @@ class PricingService
                     'amount' => $ruleAmount,
                     'base_amount' => $baseAmountCalculated,
                     'min_amount' => $minAmount,
-                    'daily_max_amount' => null, // No aplicar por regla individual
+                    'daily_max_amount' => null,
                     'final_amount' => $ruleAmount,
-                    'min_amount_applied' => $minAmount && $ruleAmount == $minAmount,
+                    'min_amount_applied' => $minAmountApplied && $rule->id === $firstRule?->id,
                     'daily_max_applied' => false
                 ];
                 
@@ -158,7 +196,7 @@ class PricingService
             'breakdown' => $breakdown,
             'duration_minutes' => $durationMinutes,
             'pricing_profile' => $pricingProfile->name,
-            'min_amount_applied' => false,
+            'min_amount_applied' => $minAmountApplied,
             'daily_max_applied' => $dailyMaxApplied
         ];
     }
@@ -248,6 +286,70 @@ class PricingService
             'min_amount_applied' => $minAmount && $baseAmount == $minAmount,
             'daily_max_applied' => $dailyMaxAmount && $baseAmount == $dailyMaxAmount
         ];
+    }
+
+    /**
+     * Encontrar la regla que aplica a un momento específico
+     */
+    private function findRuleAtTime(Carbon $time, $pricingRules): ?PricingRule
+    {
+        $timeOfDay = $time->format('H:i:s');
+        $dayOfWeek = $time->dayOfWeek; // 0 = domingo, 6 = sábado
+        
+        foreach ($pricingRules as $rule) {
+            if (!$rule->start_time || !$rule->end_time) {
+                continue;
+            }
+            
+            // Verificar días de la semana si están configurados
+            if ($rule->days_of_week && is_array($rule->days_of_week) && !empty($rule->days_of_week)) {
+                if (!in_array($dayOfWeek, $rule->days_of_week)) {
+                    continue;
+                }
+            }
+            
+            $ruleStartTime = is_string($rule->start_time) ? $rule->start_time : 
+                (($rule->start_time instanceof \DateTime || $rule->start_time instanceof \Carbon\Carbon) 
+                    ? $rule->start_time->format('H:i:s') : (string) $rule->start_time);
+            $ruleEndTime = is_string($rule->end_time) ? $rule->end_time : 
+                (($rule->end_time instanceof \DateTime || $rule->end_time instanceof \Carbon\Carbon) 
+                    ? $rule->end_time->format('H:i:s') : (string) $rule->end_time);
+            
+            // Normalizar formato
+            if (strlen($ruleStartTime) == 5) {
+                $ruleStartTime .= ':00';
+            }
+            if (strlen($ruleEndTime) == 5) {
+                $ruleEndTime .= ':00';
+            }
+            
+            // Verificar si el tiempo está dentro del rango de la regla
+            // Nota: end_time es exclusivo (no incluye ese momento)
+            $timeInRange = false;
+            
+            if ($ruleStartTime <= $ruleEndTime) {
+                // Rango normal (no cruza medianoche)
+                // El tiempo debe ser >= start_time y < end_time
+                $timeInRange = ($timeOfDay >= $ruleStartTime && $timeOfDay < $ruleEndTime);
+            } else {
+                // Rango que cruza medianoche (ej: 18:00 a 03:00)
+                // El tiempo debe ser >= start_time (hasta 23:59:59) O < end_time (desde 00:00:00)
+                $timeInRange = ($timeOfDay >= $ruleStartTime || $timeOfDay < $ruleEndTime);
+            }
+            
+            if ($timeInRange) {
+                Log::info('Regla encontrada para tiempo', [
+                    'time' => $time->format('Y-m-d H:i:s'),
+                    'rule_name' => $rule->name,
+                    'rule_start' => $ruleStartTime,
+                    'rule_end' => $ruleEndTime
+                ]);
+                return $rule;
+            }
+        }
+        
+        // Si no se encuentra ninguna regla específica, retornar la primera por prioridad
+        return $pricingRules->first();
     }
 
     /**

@@ -136,8 +136,8 @@ class PricingRuleController extends Controller
                 'fixed_price' => 'nullable|numeric|min:0',
                 'days_of_week' => 'nullable|array',
                 'days_of_week.*' => 'integer|min:0|max:6',
-                'start_time' => 'nullable|date_format:H:i',
-                'end_time' => 'nullable|date_format:H:i',
+                'start_time' => 'nullable|date_format:H:i:s',
+                'end_time' => 'nullable|date_format:H:i:s',
                 'priority' => 'integer|min:0',
                 'is_active' => 'boolean',
             ]);
