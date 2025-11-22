@@ -57,13 +57,47 @@ class PricingService
      */
     private function calculatePriceByTimeRange(int $sectorId, ?int $streetId, $startedAt, $endedAt, $pricingProfile, $pricingRules): array
     {
-        // Asegurar que las fechas estén en timezone America/Santiago
-        $startTime = $startedAt instanceof Carbon 
-            ? $startedAt->setTimezone('America/Santiago') 
-            : Carbon::parse($startedAt)->setTimezone('America/Santiago');
-        $endTime = $endedAt instanceof Carbon 
-            ? $endedAt->setTimezone('America/Santiago') 
-            : Carbon::parse($endedAt)->setTimezone('America/Santiago');
+        // Parsear started_at: si viene como string ISO con 'Z' (UTC), 
+        // interpretar los componentes como hora local de America/Santiago
+        // Esto es porque el frontend/envío puede marcar como UTC pero realmente representa la hora local
+        if ($startedAt instanceof Carbon) {
+            $startTime = $startedAt->copy()->setTimezone('America/Santiago');
+        } elseif (is_string($startedAt) && (str_ends_with($startedAt, 'Z') || str_contains($startedAt, '+00:00'))) {
+            // Extraer componentes de la fecha UTC pero crear en America/Santiago
+            $parsedDate = Carbon::parse($startedAt, 'UTC');
+            $startTime = Carbon::create(
+                $parsedDate->year,
+                $parsedDate->month,
+                $parsedDate->day,
+                $parsedDate->hour,
+                $parsedDate->minute,
+                $parsedDate->second,
+                'America/Santiago'
+            );
+        } else {
+            $startTime = Carbon::parse($startedAt)->setTimezone('America/Santiago');
+        }
+
+        // Parsear ended_at: si viene como string ISO con 'Z' (UTC), 
+        // interpretar los componentes como hora local de America/Santiago
+        if ($endedAt instanceof Carbon) {
+            $endTime = $endedAt->copy()->setTimezone('America/Santiago');
+        } elseif (is_string($endedAt) && (str_ends_with($endedAt, 'Z') || str_contains($endedAt, '+00:00'))) {
+            // Extraer componentes de la fecha UTC pero crear en America/Santiago
+            $parsedDate = Carbon::parse($endedAt, 'UTC');
+            $endTime = Carbon::create(
+                $parsedDate->year,
+                $parsedDate->month,
+                $parsedDate->day,
+                $parsedDate->hour,
+                $parsedDate->minute,
+                $parsedDate->second,
+                'America/Santiago'
+            );
+        } else {
+            $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
+        }
+        
         $durationMinutes = $startTime->diffInMinutes($endTime);
         
         $breakdown = [];

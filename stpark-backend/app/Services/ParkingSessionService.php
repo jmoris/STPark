@@ -103,23 +103,8 @@ class ParkingSessionService
             throw new \Exception('La sesión ya ha terminado');
         }
 
-        // Parsear started_at: si viene de la BD en UTC, interpretar los componentes como hora local de America/Santiago
-        $startTime = Carbon::parse($session->started_at);
-        // Si la fecha tiene timezone UTC o no tiene timezone, crear en America/Santiago
-        if ($startTime->timezone->getName() === 'UTC' || $startTime->timezone->getName() === '+00:00') {
-            $startTime = Carbon::create(
-                $startTime->year,
-                $startTime->month,
-                $startTime->day,
-                $startTime->hour,
-                $startTime->minute,
-                $startTime->second,
-                'America/Santiago'
-            );
-        } else {
-            $startTime = $startTime->setTimezone('America/Santiago');
-        }
-
+        $startTime = Carbon::parse($session->started_at)->setTimezone('America/Santiago');
+        
         // Parsear ended_at: si viene como string ISO con 'Z' (UTC), 
         // interpretar los componentes como hora local de America/Santiago
         // Esto es porque el frontend envía new Date().toISOString() que marca como UTC
