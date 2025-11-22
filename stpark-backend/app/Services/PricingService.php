@@ -388,8 +388,6 @@ class PricingService
 
     /**
      * Calcular cuántos minutos de la sesión caen dentro del horario de una regla
-     * Solución simplificada: para cada día que cubre la sesión, crear instancias del horario de la regla
-     * y calcular la intersección directa con el periodo de la sesión
      */
     private function calculateMinutesInRule(Carbon $sessionStart, Carbon $sessionEnd, PricingRule $rule): int
     {
@@ -418,56 +416,88 @@ class PricingService
             $ruleEndTimeStr .= ':00';
         }
         
-        $totalMinutes = 0;
+        // Determinar si la regla cruza medianoche
+        $ruleStartHour = (int) substr($ruleStartTimeStr, 0, 2);
+        $ruleStartMin = (int) substr($ruleStartTimeStr, 3, 2);
+        $ruleEndHour = (int) substr($ruleEndTimeStr, 0, 2);
+        $ruleEndMin = (int) substr($ruleEndTimeStr, 3, 2);
+        $ruleCrossesMidnight = ($ruleEndHour < $ruleStartHour || ($ruleEndHour == $ruleStartHour && $ruleEndMin < $ruleStartMin));
         
-        // Obtener todos los días que cubre la sesión (incluso si cruza medianoche)
+        $totalMinutes = 0;
         $startDay = $sessionStart->copy()->startOfDay();
         $endDay = $sessionEnd->copy()->startOfDay();
-        
-        // Iterar por cada día desde el inicio hasta el fin de la sesión
         $currentDay = $startDay->copy();
         
-        // Usar lte() de Carbon para comparación correcta, y asegurar que incluimos el día siguiente
+        // Iterar por cada día desde el inicio hasta el fin de la sesión (inclusive)
         do {
-            // Crear instancias del horario de la regla para este día
-            $ruleStart = $currentDay->copy()->setTimeFromTimeString($ruleStartTimeStr);
-            $ruleEnd = $currentDay->copy()->setTimeFromTimeString($ruleEndTimeStr);
-            
-            // Determinar si la regla cruza medianoche (end_time < start_time)
-            $ruleStartHour = (int) $ruleStart->format('H');
-            $ruleStartMin = (int) $ruleStart->format('i');
-            $ruleEndHour = (int) $ruleEnd->format('H');
-            $ruleEndMin = (int) $ruleEnd->format('i');
-            
-            if ($ruleEndHour < $ruleStartHour || ($ruleEndHour == $ruleStartHour && $ruleEndMin < $ruleStartMin)) {
-                // La regla cruza medianoche, el fin está al día siguiente
-                $ruleEnd->addDay();
+            // Verificar días de la semana si están configurados
+            $dayOfWeek = $currentDay->dayOfWeek; // 0 = domingo, 6 = sábado
+            if ($rule->days_of_week && is_array($rule->days_of_week) && !empty($rule->days_of_week)) {
+                if (!in_array($dayOfWeek, $rule->days_of_week)) {
+                    $currentDay->addDay();
+                    continue;
+                }
             }
             
             // Determinar el periodo de la sesión en este día
-            $sessionPeriodStart = $currentDay->copy();
-            $sessionPeriodEnd = $currentDay->copy()->endOfDay();
-            
-            if ($currentDay->isSameDay($sessionStart)) {
+            if ($currentDay->isSameDay($sessionStart) && $currentDay->isSameDay($sessionEnd)) {
                 $sessionPeriodStart = $sessionStart->copy();
-            }
-            if ($currentDay->isSameDay($sessionEnd)) {
                 $sessionPeriodEnd = $sessionEnd->copy();
-            } elseif ($sessionEnd->gt($currentDay->copy()->endOfDay())) {
+            } elseif ($currentDay->isSameDay($sessionStart)) {
+                $sessionPeriodStart = $sessionStart->copy();
+                $sessionPeriodEnd = $currentDay->copy()->endOfDay();
+            } elseif ($currentDay->isSameDay($sessionEnd)) {
+                $sessionPeriodStart = $currentDay->copy()->startOfDay();
+                $sessionPeriodEnd = $sessionEnd->copy();
+            } else {
+                $sessionPeriodStart = $currentDay->copy()->startOfDay();
                 $sessionPeriodEnd = $currentDay->copy()->endOfDay();
             }
             
-            // Calcular la intersección entre el periodo de la sesión y el horario de la regla
-            $intersectionStart = $sessionPeriodStart->copy()->max($ruleStart);
-            $intersectionEnd = $sessionPeriodEnd->copy()->min($ruleEnd);
-            
-            // Si hay intersección válida, calcular los minutos
-            if ($intersectionStart->lt($intersectionEnd)) {
-                $dayMinutes = (int) round($intersectionStart->diffInMinutes($intersectionEnd));
-                $totalMinutes += $dayMinutes;
+            if ($ruleCrossesMidnight) {
+                // La regla cruza medianoche: considerar la parte que termina en este día (del día anterior)
+                // y la parte que comienza en este día
+                
+                // Parte 1: Continuación de la regla del día anterior (00:00 hasta ruleEnd)
+                $ruleEndFromPrevious = $currentDay->copy()->setTimeFromTimeString($ruleEndTimeStr);
+                $intersectionStart1 = $sessionPeriodStart->copy()->max($currentDay->copy()->startOfDay());
+                $intersectionEnd1 = $sessionPeriodEnd->copy()->min($ruleEndFromPrevious);
+                
+                if ($intersectionStart1->lt($intersectionEnd1)) {
+                    $minutes1 = (int) round($intersectionStart1->diffInMinutes($intersectionEnd1));
+                    if ($minutes1 > 0) {
+                        $totalMinutes += $minutes1;
+                    }
+                }
+                
+                // Parte 2: Regla que comienza en este día (ruleStart hasta medianoche del día siguiente)
+                $ruleStartThisDay = $currentDay->copy()->setTimeFromTimeString($ruleStartTimeStr);
+                $ruleEndThisDay = $currentDay->copy()->addDay()->setTimeFromTimeString($ruleEndTimeStr);
+                $intersectionStart2 = $sessionPeriodStart->copy()->max($ruleStartThisDay);
+                $intersectionEnd2 = $sessionPeriodEnd->copy()->min($ruleEndThisDay);
+                
+                if ($intersectionStart2->lt($intersectionEnd2)) {
+                    $minutes2 = (int) round($intersectionStart2->diffInMinutes($intersectionEnd2));
+                    if ($minutes2 > 0) {
+                        $totalMinutes += $minutes2;
+                    }
+                }
+            } else {
+                // La regla no cruza medianoche: comportamiento normal
+                $ruleStart = $currentDay->copy()->setTimeFromTimeString($ruleStartTimeStr);
+                $ruleEnd = $currentDay->copy()->setTimeFromTimeString($ruleEndTimeStr);
+                
+                $intersectionStart = $sessionPeriodStart->copy()->max($ruleStart);
+                $intersectionEnd = $sessionPeriodEnd->copy()->min($ruleEnd);
+                
+                if ($intersectionStart->lt($intersectionEnd)) {
+                    $dayMinutes = (int) round($intersectionStart->diffInMinutes($intersectionEnd));
+                    if ($dayMinutes > 0) {
+                        $totalMinutes += $dayMinutes;
+                    }
+                }
             }
             
-            // Avanzar al siguiente día
             $currentDay->addDay();
         } while ($currentDay->lte($endDay));
         
