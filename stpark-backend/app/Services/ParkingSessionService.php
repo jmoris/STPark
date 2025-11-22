@@ -103,8 +103,54 @@ class ParkingSessionService
             throw new \Exception('La sesión ya ha terminado');
         }
 
-        $startTime = Carbon::parse($session->started_at)->setTimezone('America/Santiago');
-        $endTime = isset($params['ended_at']) ? Carbon::parse($params['ended_at'])->setTimezone('America/Santiago') : Carbon::now('America/Santiago');
+        // Parsear started_at: si viene de la BD en UTC, interpretar los componentes como hora local de America/Santiago
+        $startTime = Carbon::parse($session->started_at);
+        // Si la fecha tiene timezone UTC o no tiene timezone, crear en America/Santiago
+        if ($startTime->timezone->getName() === 'UTC' || $startTime->timezone->getName() === '+00:00') {
+            $startTime = Carbon::create(
+                $startTime->year,
+                $startTime->month,
+                $startTime->day,
+                $startTime->hour,
+                $startTime->minute,
+                $startTime->second,
+                'America/Santiago'
+            );
+        } else {
+            $startTime = $startTime->setTimezone('America/Santiago');
+        }
+
+        // Parsear ended_at: si viene como string ISO con 'Z' (UTC), 
+        // interpretar los componentes como hora local de America/Santiago
+        // Esto es porque el frontend envía new Date().toISOString() que marca como UTC
+        // pero realmente representa la hora local
+        if (isset($params['ended_at'])) {
+            $endedAt = $params['ended_at'];
+            if (is_string($endedAt) && (str_ends_with($endedAt, 'Z') || str_contains($endedAt, '+00:00'))) {
+                // Extraer componentes de la fecha UTC pero crear en America/Santiago
+                $parsedDate = Carbon::parse($endedAt, 'UTC');
+                $endTime = Carbon::create(
+                    $parsedDate->year,
+                    $parsedDate->month,
+                    $parsedDate->day,
+                    $parsedDate->hour,
+                    $parsedDate->minute,
+                    $parsedDate->second,
+                    'America/Santiago'
+                );
+            } elseif (is_string($endedAt)) {
+                // Si no es UTC, parsear y establecer timezone
+                $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
+            } else {
+                // Si ya es un objeto Carbon, asegurar timezone
+                $endTime = $endedAt instanceof Carbon 
+                    ? $endedAt->copy()->setTimezone('America/Santiago')
+                    : Carbon::parse($endedAt)->setTimezone('America/Santiago');
+            }
+        } else {
+            $endTime = Carbon::now('America/Santiago');
+        }
+        
         $duration = $startTime->diffInMinutes($endTime);
 
         $quote = $this->pricingService->calculatePrice(
