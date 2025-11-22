@@ -103,60 +103,18 @@ class ParkingSessionService
             throw new \Exception('La sesión ya ha terminado');
         }
 
-        // Parsear started_at: Laravel guarda timestamps en UTC pero representan hora local
-        // Si viene de la BD como UTC, extraer componentes y crear en America/Santiago
-        $startTimeRaw = $session->started_at;
-        if ($startTimeRaw instanceof Carbon) {
-            // Si ya es Carbon, verificar su timezone
-            if ($startTimeRaw->timezone->getName() === 'UTC' || $startTimeRaw->timezone->getName() === '+00:00') {
-                // Extraer componentes y crear en America/Santiago (sin conversión)
-                $startTime = Carbon::create(
-                    $startTimeRaw->year,
-                    $startTimeRaw->month,
-                    $startTimeRaw->day,
-                    $startTimeRaw->hour,
-                    $startTimeRaw->minute,
-                    $startTimeRaw->second,
-                    'America/Santiago'
-                );
-            } else {
-                $startTime = $startTimeRaw->copy()->setTimezone('America/Santiago');
-            }
-        } else {
-            // Si es string, parsear y manejar como UTC pero crear en America/Santiago
-            $parsedStart = Carbon::parse($startTimeRaw, 'UTC');
-            $startTime = Carbon::create(
-                $parsedStart->year,
-                $parsedStart->month,
-                $parsedStart->day,
-                $parsedStart->hour,
-                $parsedStart->minute,
-                $parsedStart->second,
-                'America/Santiago'
-            );
-        }
+        // Parsear started_at: Laravel guarda timestamps en UTC en la BD
+        // Cuando se creó la sesión con Carbon::now('America/Santiago'), Laravel lo convirtió a UTC
+        // Entonces al leer, debemos convertir de UTC a America/Santiago
+        $startTime = Carbon::parse($session->started_at, 'UTC')->setTimezone('America/Santiago');
         
-        // Parsear ended_at: si viene como string ISO con 'Z' (UTC), 
-        // interpretar los componentes como hora local de America/Santiago
-        // Esto es porque el frontend envía new Date().toISOString() que marca como UTC
-        // pero realmente representa la hora local
+        // Parsear ended_at: el frontend envía new Date().toISOString() que convierte la hora local a UTC
+        // Entonces debemos parsear como UTC y convertir a America/Santiago
         if (isset($params['ended_at'])) {
             $endedAt = $params['ended_at'];
-            if (is_string($endedAt) && (str_ends_with($endedAt, 'Z') || str_contains($endedAt, '+00:00'))) {
-                // Extraer componentes de la fecha UTC pero crear en America/Santiago
-                $parsedDate = Carbon::parse($endedAt, 'UTC');
-                $endTime = Carbon::create(
-                    $parsedDate->year,
-                    $parsedDate->month,
-                    $parsedDate->day,
-                    $parsedDate->hour,
-                    $parsedDate->minute,
-                    $parsedDate->second,
-                    'America/Santiago'
-                );
-            } elseif (is_string($endedAt)) {
-                // Si no es UTC, parsear y establecer timezone
-                $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
+            if (is_string($endedAt)) {
+                // Parsear como UTC y convertir a America/Santiago
+                $endTime = Carbon::parse($endedAt, 'UTC')->setTimezone('America/Santiago');
             } else {
                 // Si ya es un objeto Carbon, asegurar timezone
                 $endTime = $endedAt instanceof Carbon 
@@ -215,25 +173,11 @@ class ParkingSessionService
         DB::beginTransaction();
 
         try {
-            // Parsear ended_at: si viene como string ISO con 'Z' (UTC), 
-            // interpretar los componentes como hora local de America/Santiago
-            // Esto es porque el frontend envía new Date().toISOString() que marca como UTC
-            // pero realmente representa la hora local
-            if (is_string($endedAt) && (str_ends_with($endedAt, 'Z') || str_contains($endedAt, '+00:00'))) {
-                // Extraer componentes de la fecha UTC pero crear en America/Santiago
-                $parsedDate = Carbon::parse($endedAt, 'UTC');
-                $endTime = Carbon::create(
-                    $parsedDate->year,
-                    $parsedDate->month,
-                    $parsedDate->day,
-                    $parsedDate->hour,
-                    $parsedDate->minute,
-                    $parsedDate->second,
-                    'America/Santiago'
-                );
-            } elseif (is_string($endedAt)) {
-                // Si no es UTC, parsear y establecer timezone
-                $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
+            // Parsear ended_at: el frontend envía new Date().toISOString() que convierte la hora local a UTC
+            // Entonces debemos parsear como UTC y convertir a America/Santiago
+            if (is_string($endedAt)) {
+                // Parsear como UTC y convertir a America/Santiago
+                $endTime = Carbon::parse($endedAt, 'UTC')->setTimezone('America/Santiago');
             } else {
                 // Si ya es un objeto Carbon, asegurar timezone
                 $endTime = $endedAt instanceof Carbon 
@@ -250,37 +194,10 @@ class ParkingSessionService
             ]);
 
             // Calcular el precio real
-            // Parsear started_at: Laravel guarda timestamps en UTC pero representan hora local
-            $startTimeRaw = $session->started_at;
-            if ($startTimeRaw instanceof Carbon) {
-                // Si ya es Carbon, verificar su timezone
-                if ($startTimeRaw->timezone->getName() === 'UTC' || $startTimeRaw->timezone->getName() === '+00:00') {
-                    // Extraer componentes y crear en America/Santiago (sin conversión)
-                    $startTime = Carbon::create(
-                        $startTimeRaw->year,
-                        $startTimeRaw->month,
-                        $startTimeRaw->day,
-                        $startTimeRaw->hour,
-                        $startTimeRaw->minute,
-                        $startTimeRaw->second,
-                        'America/Santiago'
-                    );
-                } else {
-                    $startTime = $startTimeRaw->copy()->setTimezone('America/Santiago');
-                }
-            } else {
-                // Si es string, parsear y manejar como UTC pero crear en America/Santiago
-                $parsedStart = Carbon::parse($startTimeRaw, 'UTC');
-                $startTime = Carbon::create(
-                    $parsedStart->year,
-                    $parsedStart->month,
-                    $parsedStart->day,
-                    $parsedStart->hour,
-                    $parsedStart->minute,
-                    $parsedStart->second,
-                    'America/Santiago'
-                );
-            }
+            // Parsear started_at: Laravel guarda timestamps en UTC en la BD
+            // Cuando se creó la sesión con Carbon::now('America/Santiago'), Laravel lo convirtió a UTC
+            // Entonces al leer, debemos convertir de UTC a America/Santiago
+            $startTime = Carbon::parse($session->started_at, 'UTC')->setTimezone('America/Santiago');
             $duration = $startTime->diffInMinutes($endTime);
 
             $quote = $this->pricingService->calculatePrice(
@@ -422,37 +339,10 @@ class ParkingSessionService
             ]);
 
             // Calcular el precio
-            // Parsear started_at: Laravel guarda timestamps en UTC pero representan hora local
-            $startTimeRaw = $session->started_at;
-            if ($startTimeRaw instanceof Carbon) {
-                // Si ya es Carbon, verificar su timezone
-                if ($startTimeRaw->timezone->getName() === 'UTC' || $startTimeRaw->timezone->getName() === '+00:00') {
-                    // Extraer componentes y crear en America/Santiago (sin conversión)
-                    $startTime = Carbon::create(
-                        $startTimeRaw->year,
-                        $startTimeRaw->month,
-                        $startTimeRaw->day,
-                        $startTimeRaw->hour,
-                        $startTimeRaw->minute,
-                        $startTimeRaw->second,
-                        'America/Santiago'
-                    );
-                } else {
-                    $startTime = $startTimeRaw->copy()->setTimezone('America/Santiago');
-                }
-            } else {
-                // Si es string, parsear y manejar como UTC pero crear en America/Santiago
-                $parsedStart = Carbon::parse($startTimeRaw, 'UTC');
-                $startTime = Carbon::create(
-                    $parsedStart->year,
-                    $parsedStart->month,
-                    $parsedStart->day,
-                    $parsedStart->hour,
-                    $parsedStart->minute,
-                    $parsedStart->second,
-                    'America/Santiago'
-                );
-            }
+            // Parsear started_at: Laravel guarda timestamps en UTC en la BD
+            // Cuando se creó la sesión con Carbon::now('America/Santiago'), Laravel lo convirtió a UTC
+            // Entonces al leer, debemos convertir de UTC a America/Santiago
+            $startTime = Carbon::parse($session->started_at, 'UTC')->setTimezone('America/Santiago');
             $duration = $startTime->diffInMinutes($endTime);
 
             $quote = $this->pricingService->calculatePrice(
