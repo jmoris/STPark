@@ -35,7 +35,7 @@ const Features = () => {
     {
       icon: '🖨️',
       title: 'Impresión de Tickets',
-      description: 'Impresión automática con impresoras térmicas Bluetooth.'
+      description: 'Impresión automática con impresoras Bluetooth o integradas en POS.'
     },
     {
       icon: '📱',

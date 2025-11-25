@@ -30,6 +30,16 @@ const Header = () => {
           <a href="#funcionalidades" onClick={() => setIsMobileMenuOpen(false)}>Funcionalidades</a>
           <a href="#precios" onClick={() => setIsMobileMenuOpen(false)}>Precios</a>
           <a href="#contacto" onClick={() => setIsMobileMenuOpen(false)}>Contacto</a>
+          <a 
+            href="https://panel.stpark.cl/" 
+            className="btn-login mobile-login" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            onClick={() => setIsMobileMenuOpen(false)}
+          >
+            <span className="btn-login-text">Iniciar Sesión</span>
+            <span className="btn-login-badge">→</span>
+          </a>
         </nav>
 
         <div className="header-actions">

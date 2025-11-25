@@ -13,11 +13,8 @@ const Hero = () => {
             planificar, analizar y administrar las tareas diarias de manera eficiente.
           </p>
           <div className="hero-actions">
-            <a href="#login" className="btn-hero-primary">
-              Iniciar Sesión →
-            </a>
-            <a href="#funcionalidades" className="btn-hero-secondary">
-              Ver Funcionalidades
+            <a href="#funcionalidades" className="btn-hero-primary">
+              Ver Funcionalidades →
             </a>
           </div>
         </div>

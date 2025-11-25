@@ -9,6 +9,7 @@ import Pricing from './components/Pricing';
 import Contact from './components/Contact';
 import Footer from './components/Footer';
 import Loading from './components/Loading';
+import ScrollToTop from './components/ScrollToTop';
 import SEO from './components/SEO';
 import './App.css';
 
@@ -30,6 +31,7 @@ function App() {
         <Contact selectedPlan={selectedPlan} onPlanApplied={() => setSelectedPlan(null)} />
       </main>
       <Footer />
+      <ScrollToTop />
     </div>
   );
 }
