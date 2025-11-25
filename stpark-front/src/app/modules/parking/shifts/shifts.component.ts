@@ -226,7 +226,28 @@ export class ShiftsComponent implements OnInit, OnDestroy {
 
   formatDate(date: string | null | undefined): string {
     if (!date) return '-';
-    return new Date(date).toLocaleString('es-CL');
+    const dateObj = new Date(date);
+    
+    // Verificar si la fecha es válida
+    if (isNaN(dateObj.getTime())) {
+      return '-';
+    }
+    
+    // Formatear fecha en formato DD/MM/YYYY
+    const dateStr = dateObj.toLocaleDateString('es-CL', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+    
+    // Formatear hora en formato 24 horas HH:mm
+    const timeStr = dateObj.toLocaleTimeString('es-CL', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false 
+    });
+    
+    return `${dateStr} ${timeStr}`;
   }
 
   abs(value: number | null | undefined): number {
