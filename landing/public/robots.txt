@@ -1,0 +1,11 @@
+# robots.txt para STPark
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://stpark.cl/sitemap.xml
+
+# Disallow admin or private areas if any
+# Disallow: /admin/
+# Disallow: /private/
+

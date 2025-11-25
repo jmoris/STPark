@@ -9,6 +9,7 @@ import Pricing from './components/Pricing';
 import Contact from './components/Contact';
 import Footer from './components/Footer';
 import Loading from './components/Loading';
+import SEO from './components/SEO';
 import './App.css';
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
 
   return (
     <div className="App">
+      <SEO />
       <Loading />
       <Header />
       <main>

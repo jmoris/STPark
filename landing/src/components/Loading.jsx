@@ -22,7 +22,7 @@ const Loading = () => {
           <div className="loading-spinner-ring"></div>
           <img 
             src="/images/stpark-blue.png" 
-            alt="STPark" 
+            alt="STPark - Sistema de Gestión de Estacionamientos" 
             className="loading-logo"
           />
         </div>

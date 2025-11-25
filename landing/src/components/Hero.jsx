@@ -24,7 +24,7 @@ const Hero = () => {
         <div className="hero-illustration">
           <img 
             src="/images/dashboardweb2.png" 
-            alt="Dashboard STPark" 
+            alt="Dashboard de STPark - Sistema de gestión de estacionamientos en tiempo real" 
             className="hero-image"
           />
         </div>
