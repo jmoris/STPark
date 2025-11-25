@@ -1,0 +1,121 @@
+.how-it-works {
+  background: var(--white);
+}
+
+.how-it-works-header {
+  text-align: center;
+  margin-bottom: 64px;
+}
+
+.steps-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 32px;
+  position: relative;
+}
+
+.step-card {
+  position: relative;
+  background: var(--white);
+  border: 2px solid var(--gray-200);
+  border-radius: 16px;
+  padding: 40px 32px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.step-card:hover {
+  border-color: var(--hero-blue-dark);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+}
+
+.step-number {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 40px;
+  background: var(--hero-blue-dark);
+  color: var(--white);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 700;
+  border: 4px solid var(--white);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.step-icon {
+  font-size: 64px;
+  margin: 24px 0 20px;
+  display: block;
+}
+
+.step-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.step-description {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.step-connector {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .steps-container {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .step-connector {
+    display: block;
+    position: absolute;
+    top: 50%;
+    right: -16px;
+    width: 32px;
+    height: 2px;
+    background: var(--gray-200);
+    z-index: 0;
+  }
+
+  .step-card:last-child .step-connector {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .steps-container {
+    grid-template-columns: 1fr;
+    gap: 48px;
+  }
+
+  .step-card {
+    padding: 32px 24px;
+  }
+
+  .step-connector {
+    display: block;
+    position: absolute;
+    bottom: -24px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 48px;
+    background: var(--gray-200);
+  }
+
+  .step-card:last-child .step-connector {
+    display: none;
+  }
+}
+
