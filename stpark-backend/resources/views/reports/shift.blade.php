@@ -89,7 +89,6 @@
             margin-bottom: 5pt;
             padding: 5pt;
             background-color: #f9fafb;
-            border-left: 3pt solid #3b82f6;
         }
         .amount-label {
             display: inline-block;
@@ -115,8 +114,7 @@
             width: 100%;
             margin-top: 8pt;
             padding: 8pt;
-            background-color: #eff6ff;
-            border: 2pt solid #3b82f6;
+            background-color: #f0f4ff;
             border-radius: 4pt;
         }
         .total-label {
@@ -256,7 +254,7 @@
             </div>
             @endif
             @if(isset($data['cash_summary']['cash_over_short']) && $data['cash_summary']['cash_over_short'] !== null)
-            <div class="amount-row" style="margin-top: 5pt; background-color: {{ $data['cash_summary']['cash_over_short'] < 0 ? '#fef2f2' : '#f0fdf4' }}; border-left-color: {{ $data['cash_summary']['cash_over_short'] < 0 ? '#dc2626' : '#059669' }};">
+            <div class="amount-row" style="margin-top: 5pt; background-color: {{ $data['cash_summary']['cash_over_short'] < 0 ? '#fef2f2' : '#f0fdf4' }};">
                 <span class="amount-label">Diferencia:</span>
                 <span class="amount-value {{ $data['cash_summary']['cash_over_short'] < 0 ? 'amount-negative' : 'amount-positive' }}">${{ number_format($data['cash_summary']['cash_over_short'], 0, ',', '.') }}</span>
             </div>
