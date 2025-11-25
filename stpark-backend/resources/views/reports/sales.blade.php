@@ -26,7 +26,7 @@
             margin-bottom: 8pt;
         }
         .logo-container img {
-            max-width: 100pt;
+            max-width: 85pt;
             height: auto;
         }
         .header-text {

@@ -7,7 +7,7 @@
         @page { margin: 12mm; }
         body { 
             font-family: 'DejaVu Sans', sans-serif; 
-            font-size: 8pt; 
+            font-size: 9pt; 
             color: #333; 
             line-height: 1.3;
         }
@@ -26,7 +26,7 @@
             margin-bottom: 6pt;
         }
         .logo-container img {
-            max-width: 100pt;
+            max-width: 85pt;
             height: auto;
         }
         .header-text {
@@ -76,12 +76,12 @@
             width: 120pt;
             font-weight: bold;
             color: #666;
-            font-size: 7.5pt;
+            font-size: 8pt;
         }
         .info-value {
             display: inline-block;
             color: #333;
-            font-size: 7.5pt;
+            font-size: 8pt;
         }
         .amount-row {
             display: table;
@@ -96,11 +96,11 @@
             width: 120pt;
             font-weight: bold;
             color: #374151;
-            font-size: 7.5pt;
+            font-size: 8pt;
         }
         .amount-value {
             display: inline-block;
-            font-size: 9pt;
+            font-size: 10pt;
             font-weight: bold;
             color: #1f2937;
         }
@@ -122,13 +122,13 @@
         .total-label {
             display: inline-block;
             width: 120pt;
-            font-size: 10pt;
+            font-size: 11pt;
             font-weight: bold;
             color: #1d4ed8;
         }
         .total-value {
             display: inline-block;
-            font-size: 12pt;
+            font-size: 13pt;
             font-weight: bold;
             color: #1d4ed8;
         }
@@ -143,12 +143,12 @@
             padding: 5pt 8pt; 
             text-align: left; 
             font-weight: bold; 
-            font-size: 7.5pt; 
+            font-size: 8pt; 
         }
         td { 
             padding: 4pt 8pt; 
             border-bottom: 1pt solid #e0e0e0; 
-            font-size: 7.5pt; 
+            font-size: 8pt; 
         }
         tr:nth-child(even) { 
             background: #f8f9fa; 
@@ -165,7 +165,7 @@
             color: #666; 
         }
         .section-title { 
-            font-size: 11pt; 
+            font-size: 12pt; 
             font-weight: bold; 
             margin: 10pt 0 6pt 0; 
             color: #043476; 
@@ -306,7 +306,7 @@
             @endif
             <div class="info-row last">
                 <span class="info-label">Total:</span>
-                <span class="info-value" style="font-weight: bold; font-size: 9pt;">${{ number_format($data['sales_summary']['total'] ?? 0, 0, ',', '.') }}</span>
+                <span class="info-value" style="font-weight: bold; font-size: 10pt;">${{ number_format($data['sales_summary']['total'] ?? 0, 0, ',', '.') }}</span>
             </div>
         </div>
     </div>
