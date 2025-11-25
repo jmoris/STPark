@@ -92,6 +92,17 @@ export class ShiftService {
   }
 
   /**
+   * Descargar reporte de turno en formato PDF
+   */
+  downloadShiftReportPdf(shiftId: string): Observable<Blob> {
+    const params = new HttpParams().set('format', 'pdf');
+    return this.http.get(`${this.baseUrl}/${shiftId}/report`, { 
+      params,
+      responseType: 'blob'
+    });
+  }
+
+  /**
    * Obtener turnos del día actual
    */
   getTodayShifts(operatorId?: number): Observable<ApiResponse<Shift[]>> {

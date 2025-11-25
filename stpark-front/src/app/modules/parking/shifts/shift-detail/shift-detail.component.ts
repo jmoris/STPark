@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTableModule } from '@angular/material/table';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { Subject, takeUntil } from 'rxjs';
 import { ShiftService } from '../../../../core/services/shift.service';
 import { Shift, ShiftTotals, ShiftReport } from '../../../../interfaces/parking.interface';
@@ -21,7 +22,8 @@ import { Shift, ShiftTotals, ShiftReport } from '../../../../interfaces/parking.
     MatIconModule,
     MatProgressSpinnerModule,
     MatChipsModule,
-    MatTableModule
+    MatTableModule,
+    MatSnackBarModule
   ],
   templateUrl: './shift-detail.component.html',
   styleUrls: ['./shift-detail.component.scss']
@@ -40,7 +42,8 @@ export class ShiftDetailComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private shiftService: ShiftService
+    private shiftService: ShiftService,
+    private snackBar: MatSnackBar
   ) {}
 
   ngOnInit(): void {
@@ -94,28 +97,7 @@ export class ShiftDetailComponent implements OnInit, OnDestroy {
 
   formatDate(date: string | null | undefined): string {
     if (!date) return '-';
-    const dateObj = new Date(date);
-    
-    // Verificar si la fecha es válida
-    if (isNaN(dateObj.getTime())) {
-      return '-';
-    }
-    
-    // Formatear fecha en formato DD/MM/YYYY
-    const dateStr = dateObj.toLocaleDateString('es-CL', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric' 
-    });
-    
-    // Formatear hora en formato 24 horas HH:mm
-    const timeStr = dateObj.toLocaleTimeString('es-CL', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    });
-    
-    return `${dateStr} ${timeStr}`;
+    return new Date(date).toLocaleString('es-CL');
   }
 
   getMethodIcon(method: string): string {
@@ -142,17 +124,50 @@ export class ShiftDetailComponent implements OnInit, OnDestroy {
     this.router.navigate(['/parking/shifts']);
   }
 
-  downloadReport(format: 'json' | 'pdf' | 'excel' = 'json'): void {
-    this.shiftService.getShiftReport(this.shiftId, format)
-      .subscribe({
-        next: (response) => {
-          if (response.success) {
-            // TODO: Implementar descarga
-            console.log('Report:', response.data);
+  downloadReport(format: 'json' | 'pdf' | 'excel' = 'pdf'): void {
+    if (format === 'pdf') {
+      this.shiftService.downloadShiftReportPdf(this.shiftId)
+        .pipe(takeUntil(this._unsubscribeAll))
+        .subscribe({
+          next: (blob: Blob) => {
+            // Crear un enlace temporal para descargar el archivo
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            
+            // Generar nombre de archivo con ID del turno y fecha
+            const shiftIdShort = this.shiftId.substring(0, 8);
+            const dateStr = new Date().toISOString().split('T')[0];
+            link.download = `reporte-turno-${shiftIdShort}-${dateStr}.pdf`;
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            this.snackBar.open('Reporte descargado exitosamente', 'Cerrar', { duration: 3000 });
+          },
+          error: (error) => {
+            console.error('Error downloading report:', error);
+            this.snackBar.open('Error al descargar el reporte', 'Cerrar', { duration: 3000 });
           }
-        },
-        error: (error) => console.error('Error downloading report:', error)
-      });
+        });
+    } else {
+      // Para otros formatos, mantener el comportamiento anterior
+      this.shiftService.getShiftReport(this.shiftId, format)
+        .pipe(takeUntil(this._unsubscribeAll))
+        .subscribe({
+          next: (response) => {
+            if (response.success) {
+              console.log('Report:', response.data);
+            }
+          },
+          error: (error) => {
+            console.error('Error downloading report:', error);
+            this.snackBar.open('Error al obtener el reporte', 'Cerrar', { duration: 3000 });
+          }
+        });
+    }
   }
 }
 

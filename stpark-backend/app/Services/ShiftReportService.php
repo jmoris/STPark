@@ -7,6 +7,7 @@ use App\Models\ShiftOperation;
 use App\Services\ShiftService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ShiftReportService
 {
@@ -155,13 +156,9 @@ class ShiftReportService
      */
     private function generatePdf(Shift $shift, array $data): \Illuminate\Http\Response
     {
-        // Por ahora retornamos JSON, pero se puede implementar con barryvdh/laravel-dompdf
-        // TODO: Implementar generación de PDF
-        return response()->json([
-            'success' => true,
-            'message' => 'Generación de PDF pendiente de implementar',
-            'data' => $data
-        ]);
+        $pdf = Pdf::loadView('reports.shift', ['data' => $data]);
+        $filename = 'reporte-turno-' . substr($shift->id, 0, 8) . '-' . now()->format('Y-m-d') . '.pdf';
+        return $pdf->download($filename);
     }
 
     /**

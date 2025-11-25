@@ -10,10 +10,6 @@
       <mat-icon>picture_as_pdf</mat-icon>
       Descargar PDF
     </button>
-    <button mat-stroked-button (click)="downloadReport('json')" *ngIf="shift?.status === 'CLOSED'" class="rounded-sm">
-      <mat-icon>description</mat-icon>
-      JSON
-    </button>
   </div>
 
   <div *ngIf="loading" class="flex justify-center items-center h-64">
