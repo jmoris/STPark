@@ -14,6 +14,7 @@ import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { ShiftService } from '../../../core/services/shift.service';
@@ -44,7 +45,8 @@ import { CashAdjustmentModalComponent } from './cash-adjustment-modal/cash-adjus
     MatPaginatorModule,
     MatChipsModule,
     MatMenuModule,
-    MatDialogModule
+    MatDialogModule,
+    MatSnackBarModule
   ],
   templateUrl: './shifts.component.html',
   styleUrls: ['./shifts.component.scss']
@@ -86,7 +88,8 @@ export class ShiftsComponent implements OnInit, OnDestroy {
     private operatorService: OperatorService,
     private sectorService: SectorService,
     private router: Router,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private snackBar: MatSnackBar
   ) {}
 
   ngOnInit(): void {
@@ -352,17 +355,32 @@ export class ShiftsComponent implements OnInit, OnDestroy {
     }
   }
 
-  downloadReport(shift: Shift, format: 'json' | 'pdf' | 'excel' = 'json'): void {
-    this.shiftService.getShiftReport(shift.id, format)
+  downloadReport(shift: Shift): void {
+    this.shiftService.downloadShiftReportPdf(shift.id)
       .pipe(takeUntil(this._unsubscribeAll))
       .subscribe({
-        next: (response) => {
-          if (response.success) {
-            // TODO: Implementar descarga de archivo
-            console.log('Report generated:', response.data);
-          }
+        next: (blob: Blob) => {
+          // Crear un enlace temporal para descargar el archivo
+          const downloadUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          
+          // Generar nombre de archivo con ID del turno y fecha
+          const shiftIdShort = shift.id.substring(0, 8);
+          const dateStr = new Date().toISOString().split('T')[0];
+          link.download = `reporte-turno-${shiftIdShort}-${dateStr}.pdf`;
+          
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(downloadUrl);
+          
+          this.snackBar.open('Reporte descargado exitosamente', 'Cerrar', { duration: 3000 });
         },
-        error: (error) => console.error('Error generating report:', error)
+        error: (error) => {
+          console.error('Error downloading report:', error);
+          this.snackBar.open('Error al descargar el reporte', 'Cerrar', { duration: 3000 });
+        }
       });
   }
 }

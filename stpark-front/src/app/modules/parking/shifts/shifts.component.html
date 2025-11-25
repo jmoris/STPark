@@ -184,11 +184,7 @@
                   <mat-icon>visibility</mat-icon>
                   Ver detalles
                 </button>
-                <button mat-menu-item (click)="downloadReport(shift, 'json')" *ngIf="shift.status === 'CLOSED'">
-                  <mat-icon>description</mat-icon>
-                  Reporte JSON
-                </button>
-                <button mat-menu-item (click)="downloadReport(shift, 'pdf')" *ngIf="shift.status === 'CLOSED'">
+                <button mat-menu-item (click)="downloadReport(shift)" *ngIf="shift.status === 'CLOSED'">
                   <mat-icon>picture_as_pdf</mat-icon>
                   Reporte PDF
                 </button>
