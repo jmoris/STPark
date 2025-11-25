@@ -4,34 +4,41 @@
     <meta charset="utf-8">
     <title>Reporte de Turno</title>
     <style>
-        @page { margin: 15mm; }
+        @page { margin: 12mm; }
         body { 
             font-family: 'DejaVu Sans', sans-serif; 
-            font-size: 10pt; 
+            font-size: 8pt; 
             color: #333; 
-            line-height: 1.4;
+            line-height: 1.3;
         }
         .header { 
             background-color: white;
             color: black; 
-            padding: 15pt; 
-            margin-bottom: 15pt;
+            padding: 10pt; 
+            margin-bottom: 10pt;
             border: none;
             text-align: center;
         }
         .header-content {
             display: block;
         }
+        .logo-container {
+            margin-bottom: 6pt;
+        }
+        .logo-container img {
+            max-width: 100pt;
+            height: auto;
+        }
         .header-text {
             display: block;
         }
         .header h1 { 
-            font-size: 20pt; 
-            margin-bottom: 5pt; 
+            font-size: 16pt; 
+            margin-bottom: 4pt; 
             color: #333;
         }
         .header p { 
-            font-size: 8pt; 
+            font-size: 7pt; 
             color: #666;
         }
         .info-box { 
@@ -39,58 +46,61 @@
             border: 1pt solid #e0e0e0;
             border-radius: 5pt;
             padding: 0;
-            margin-bottom: 15pt;
+            margin-bottom: 10pt;
             overflow: hidden;
         }
         .info-box h2 { 
-            font-size: 13pt; 
+            font-size: 10pt; 
             margin: 0;
-            padding: 12pt; 
+            padding: 8pt; 
             color: white;
             background-color: #043476;
             font-weight: bold;
         }
         .info-box-content {
-            padding: 12pt;
+            padding: 8pt;
         }
         .info-row { 
-            margin-bottom: 8pt;
+            margin-bottom: 5pt;
             display: table;
             width: 100%;
         }
         .info-row.last {
-            padding-top: 8pt;
-            margin-top: 8pt;
+            padding-top: 5pt;
+            margin-top: 5pt;
             margin-bottom: 0;
             border-top: 1pt solid #e0e0e0;
         }
         .info-label {
             display: inline-block;
-            width: 140pt;
+            width: 120pt;
             font-weight: bold;
             color: #666;
+            font-size: 7.5pt;
         }
         .info-value {
             display: inline-block;
             color: #333;
+            font-size: 7.5pt;
         }
         .amount-row {
             display: table;
             width: 100%;
-            margin-bottom: 8pt;
-            padding: 8pt;
+            margin-bottom: 5pt;
+            padding: 5pt;
             background-color: #f9fafb;
             border-left: 3pt solid #3b82f6;
         }
         .amount-label {
             display: inline-block;
-            width: 140pt;
+            width: 120pt;
             font-weight: bold;
             color: #374151;
+            font-size: 7.5pt;
         }
         .amount-value {
             display: inline-block;
-            font-size: 12pt;
+            font-size: 9pt;
             font-weight: bold;
             color: #1f2937;
         }
@@ -103,42 +113,42 @@
         .total-row {
             display: table;
             width: 100%;
-            margin-top: 15pt;
-            padding: 12pt;
+            margin-top: 8pt;
+            padding: 8pt;
             background-color: #eff6ff;
             border: 2pt solid #3b82f6;
             border-radius: 4pt;
         }
         .total-label {
             display: inline-block;
-            width: 140pt;
-            font-size: 14pt;
+            width: 120pt;
+            font-size: 10pt;
             font-weight: bold;
             color: #1d4ed8;
         }
         .total-value {
             display: inline-block;
-            font-size: 16pt;
+            font-size: 12pt;
             font-weight: bold;
             color: #1d4ed8;
         }
         table { 
             width: 100%; 
             border-collapse: collapse; 
-            margin-bottom: 15pt;
+            margin-bottom: 10pt;
         }
         th { 
             background: #043476; 
             color: white; 
-            padding: 8pt 10pt; 
+            padding: 5pt 8pt; 
             text-align: left; 
             font-weight: bold; 
-            font-size: 9pt; 
+            font-size: 7.5pt; 
         }
         td { 
-            padding: 7pt 10pt; 
+            padding: 4pt 8pt; 
             border-bottom: 1pt solid #e0e0e0; 
-            font-size: 9pt; 
+            font-size: 7.5pt; 
         }
         tr:nth-child(even) { 
             background: #f8f9fa; 
@@ -147,17 +157,17 @@
             text-align: right; 
         }
         .footer { 
-            margin-top: 25pt; 
-            padding-top: 12pt; 
+            margin-top: 15pt; 
+            padding-top: 8pt; 
             border-top: 2pt solid #043476; 
             text-align: center; 
-            font-size: 8pt; 
+            font-size: 7pt; 
             color: #666; 
         }
         .section-title { 
-            font-size: 14pt; 
+            font-size: 11pt; 
             font-weight: bold; 
-            margin: 18pt 0 8pt 0; 
+            margin: 10pt 0 6pt 0; 
             color: #043476; 
         }
     </style>
@@ -165,6 +175,9 @@
 <body>
     <div class="header">
         <div class="header-content">
+            <div class="logo-container">
+                <img src="{{ public_path('images/logo/stpark-blue.png') }}" alt="STPark Logo">
+            </div>
             <div class="header-text">
                 <h1>Reporte de Turno</h1>
                 <p>Sistema de Gestión de Estacionamiento STPark</p>
@@ -237,13 +250,13 @@
                 <span class="total-value">${{ number_format($data['cash_summary']['cash_expected'], 0, ',', '.') }}</span>
             </div>
             @if(isset($data['cash_summary']['cash_declared']) && $data['cash_summary']['cash_declared'] !== null)
-            <div class="amount-row" style="margin-top: 10pt;">
+            <div class="amount-row" style="margin-top: 5pt;">
                 <span class="amount-label">Efectivo Declarado:</span>
                 <span class="amount-value">${{ number_format($data['cash_summary']['cash_declared'], 0, ',', '.') }}</span>
             </div>
             @endif
             @if(isset($data['cash_summary']['cash_over_short']) && $data['cash_summary']['cash_over_short'] !== null)
-            <div class="amount-row" style="margin-top: 10pt; background-color: {{ $data['cash_summary']['cash_over_short'] < 0 ? '#fef2f2' : '#f0fdf4' }}; border-left-color: {{ $data['cash_summary']['cash_over_short'] < 0 ? '#dc2626' : '#059669' }};">
+            <div class="amount-row" style="margin-top: 5pt; background-color: {{ $data['cash_summary']['cash_over_short'] < 0 ? '#fef2f2' : '#f0fdf4' }}; border-left-color: {{ $data['cash_summary']['cash_over_short'] < 0 ? '#dc2626' : '#059669' }};">
                 <span class="amount-label">Diferencia:</span>
                 <span class="amount-value {{ $data['cash_summary']['cash_over_short'] < 0 ? 'amount-negative' : 'amount-positive' }}">${{ number_format($data['cash_summary']['cash_over_short'], 0, ',', '.') }}</span>
             </div>
@@ -293,7 +306,7 @@
             @endif
             <div class="info-row last">
                 <span class="info-label">Total:</span>
-                <span class="info-value" style="font-weight: bold; font-size: 12pt;">${{ number_format($data['sales_summary']['total'] ?? 0, 0, ',', '.') }}</span>
+                <span class="info-value" style="font-weight: bold; font-size: 9pt;">${{ number_format($data['sales_summary']['total'] ?? 0, 0, ',', '.') }}</span>
             </div>
         </div>
     </div>
