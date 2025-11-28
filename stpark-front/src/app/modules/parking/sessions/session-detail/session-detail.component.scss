@@ -356,6 +356,66 @@ mat-chip {
   color: var(--fuse-error-800) !important;
 }
 
+/* Tipo de Ingreso - Chips */
+.chip-full-day {
+  background-color: var(--fuse-primary-100) !important;
+  color: var(--fuse-primary-800) !important;
+  font-weight: 600;
+}
+
+.chip-time {
+  background-color: var(--fuse-success-100) !important;
+  color: var(--fuse-success-800) !important;
+  font-weight: 600;
+}
+
+/* Información de Día Completo */
+.full-day-info {
+  flex-direction: column;
+  align-items: flex-start !important;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--fuse-primary-50);
+  border-radius: 0.5rem;
+  border: 1px solid var(--fuse-primary-200);
+  margin-top: 0.5rem;
+}
+
+.full-day-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--fuse-primary-700);
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.full-day-badge mat-icon {
+  font-size: 1.125rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--fuse-primary-600);
+}
+
+.full-day-details {
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--fuse-primary-200);
+  width: 100%;
+}
+
+.full-day-text {
+  font-size: 0.8125rem;
+  color: var(--fuse-text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.full-day-text strong {
+  color: var(--fuse-primary-700);
+  font-weight: 600;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .session-detail-container {
@@ -386,5 +446,9 @@ mat-chip {
   .status-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .full-day-info {
+    padding: 0.75rem;
   }
 }

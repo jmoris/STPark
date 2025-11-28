@@ -75,6 +75,7 @@ class ParkingSessionController extends Controller
             'sector_id' => 'required|exists:sectors,id',
             'street_id' => 'required|exists:streets,id',
             'operator_id' => 'required|exists:operators,id',
+            'is_full_day' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -88,7 +89,8 @@ class ParkingSessionController extends Controller
                 $request->plate,
                 $request->sector_id,
                 $request->street_id,
-                $request->operator_id
+                $request->operator_id,
+                $request->boolean('is_full_day', false)
             );
 
             DB::commit();
@@ -361,6 +363,7 @@ class ParkingSessionController extends Controller
             'sector_id' => 'required|exists:sectors,id',
             'street_id' => 'required|exists:streets,id',
             'operator_id' => 'required|exists:operators,id',
+            'is_full_day' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -374,7 +377,8 @@ class ParkingSessionController extends Controller
                 $request->plate,
                 $request->sector_id,
                 $request->street_id,
-                $request->operator_id
+                $request->operator_id,
+                $request->boolean('is_full_day', false)
             );
 
             DB::commit();

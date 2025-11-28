@@ -7,6 +7,8 @@ import {
   Modal,
   TextInput,
   Alert,
+  Linking,
+  Platform,
 } from 'react-native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { apiService } from '@/services/api';
@@ -210,34 +212,40 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       }
 
       // Preparar datos del pago para TUU
-      // Nota: installmentsQuantity DEBE ser 0 para débito (method: 2)
-      // El dispositivo no admite cuotas en transacciones de débito
-      // Según documentación: amount = netAmount + exemptAmount
-      // Como no usamos valores exentos, netAmount = amount
-      const tuuPaymentData = {
-        amount: paymentAmount,
-        tip: -1, // -1 = no utilizado (según documentación)
-        cashback: -1, // -1 = no utilizado (según documentación)
-        method: 0, // Método 2 = débito (según documentación: 0=Crédito, 1=Solicitar en APP, 2=Débito)
-        installmentsQuantity: -1, // DEBE ser 0 para débito - el dispositivo no admite cuotas en este tipo de transacción
-        printVoucherOnApp: false,
-        dteType: 48,
-        extraData: {
-          netAmount: paymentAmount, // netAmount debe ser igual a amount ya que no hay valores exentos
-          sourceName: 'STPark',
-          sourceVersion: '1.0.0',
-          customFields: [
-            { name: 'patente', value: data.plate || (data.debts && data.debts[0]?.plate) || 'N/A', print: true },
-            { name: 'tipo', value: type === 'debt' ? 'deuda' : 'checkout', print: true },
-          ],
-        },
-      };
+      // Construir el objeto de forma completamente limpia usando solo valores primitivos
+      // para evitar referencias problemáticas que causan el error "Map already consumed"
+      const plateValue = data?.plate || (data?.debts && data.debts[0]?.plate) || 'N/A';
+      const tipoValue = type === 'debt' ? 'deuda' : 'checkout';
+      
+      // Construir el objeto paso a paso usando solo valores primitivos
+      const tuuPaymentData: any = {};
+      tuuPaymentData.amount = Number(paymentAmount);
+      tuuPaymentData.tip = 0; // 0 = solicitar en app
+      tuuPaymentData.cashback = 0; // 0 = solicitar en app
+      tuuPaymentData.method = 0; // 0 = Solicitar en APP (puede funcionar mejor en desarrollo que method: 2)
+      tuuPaymentData.installmentsQuantity = 0; // Solo aplica a crédito
+      tuuPaymentData.printVoucherOnApp = false;
+      tuuPaymentData.dteType = 48;
+      
+      // Construir extraData de forma completamente nueva
+      tuuPaymentData.extraData = {};
+      tuuPaymentData.extraData.netAmount = Number(paymentAmount);
+      tuuPaymentData.extraData.sourceName = 'STPark';
+      tuuPaymentData.extraData.sourceVersion = '1.0.0';
+      tuuPaymentData.extraData.customFields = [
+        { name: 'patente', value: String(plateValue), print: true },
+        { name: 'tipo', value: String(tipoValue), print: true },
+      ];
 
       console.log('PaymentModal: Datos de pago TUU:', JSON.stringify(tuuPaymentData));
       
-      // Iniciar pago con TUU
-      console.log('PaymentModal: Llamando a tuuPaymentsService.startPayment');
-      const tuuResult = await tuuPaymentsService.startPayment(tuuPaymentData);
+      // Iniciar pago con TUU directamente (sin reintentos)
+      // Por el momento siempre usar modo desarrollo
+      console.log('PaymentModal: Llamando a tuuPaymentsService.startPayment (modo DEV)');
+      const tuuResult = await tuuPaymentsService.startPayment(
+        tuuPaymentData, 
+        true  // true = DEV, false = PROD
+      );
       console.log('PaymentModal: Resultado de TUU:', tuuResult);
 
       if (!tuuResult) {
@@ -246,9 +254,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         return;
       }
 
+      // Verificar que el pago fue exitoso
+      if (tuuResult.status !== 'success') {
+        const errorMsg = tuuResult.errorMessage || tuuResult.message || 'El pago no fue exitoso';
+        Alert.alert('Error', errorMsg);
+        setProcessingPayment(false);
+        return;
+      }
+
       // Extraer información del resultado de TUU
-      // El resultado puede tener diferentes campos según la respuesta de TUU
-      const approvalCode = tuuResult.authCode;
+      // El resultado ahora tiene la estructura: { status, transactionId, authorizationCode, ... }
+      const approvalCode = tuuResult.authorizationCode || tuuResult.authCode;
       
       // Extraer método de transacción (puede venir como string o número)
       let transactionMethod: string | undefined;
@@ -359,7 +375,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             // Ticket para checkout de sesión
             const endTime = response.data.session?.ended_at || getCurrentDateInSantiago();
             const startTime = data.started_at;
-            const duration = calculateElapsedTime(startTime, endTime);
+            const isFullDay = data.is_full_day || response.data.session?.is_full_day || false;
+            const duration = isFullDay ? 'Día completo' : calculateElapsedTime(startTime, endTime);
 
             const ticketData: CheckoutTicketData = {
               type: 'CHECKOUT',
@@ -381,6 +398,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               last4: last4,
               sequenceNumber: sequenceNumber,
               minAmount: getMinAmountFromBreakdown(),
+              isFullDay: isFullDay,
             };
 
             const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
@@ -396,7 +414,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             if (parkingSession && parkingSession.started_at) {
               const startTime = parkingSession.started_at;
               const endTime = debt.created_at || new Date().toISOString();
-              const duration = calculateElapsedTime(startTime, endTime);
+              const isFullDay = parkingSession?.is_full_day || false;
+              const duration = isFullDay ? 'Día completo' : calculateElapsedTime(startTime, endTime);
               
               const ticketData: CheckoutTicketData = {
                 type: 'CHECKOUT',
@@ -418,6 +437,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 last4: last4,
                 sequenceNumber: sequenceNumber,
                 minAmount: getMinAmountFromBreakdown(),
+                isFullDay: isFullDay,
               };
               
               const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
@@ -437,32 +457,193 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     } catch (error: any) {
       console.error('Error procesando pago con TUU:', error);
       
+      // Resetear el estado del servicio TUU si hay un error
+      tuuPaymentsService.resetPaymentState();
+      
       let errorMessage = 'Error al procesar el pago con TUU';
       if (error?.message) {
         errorMessage = error.message;
       }
 
-      Alert.alert(
-        'Error',
-        errorMessage,
-        [
-          {
-            text: 'Intentar con método manual',
-            onPress: () => {
-              setShowPaymentMethod(true);
-              setProcessingPayment(false);
+      // Detectar errores específicos según la documentación de la librería
+      const isAppNotInstalled = error?.code === 'APP_NOT_INSTALLED' || 
+                                errorMessage.includes('no está instalada');
+      const isUserCancelled = error?.code === 'USER_CANCELLED' || 
+                              errorMessage.includes('cancelado');
+      const isPaymentInProgress = error?.code === 'PAYMENT_IN_PROGRESS' || 
+                                  errorMessage.includes('Ya hay un pago en curso');
+      const isPaymentError = error?.code === 'PAYMENT_ERROR';
+      const isMapConsumedError = errorMessage.includes('Map already consumed');
+
+      if (isAppNotInstalled) {
+        // App TUU no está instalada
+        Alert.alert(
+          'App No Instalada',
+          'La aplicación TUU Negocio no está instalada en el dispositivo.\n\nPor favor instala la aplicación desde la tienda de aplicaciones.',
+          [
+            {
+              text: 'Usar método manual',
+              onPress: () => {
+                tuuPaymentsService.resetPaymentState();
+                setShowPaymentMethod(true);
+                setProcessingPayment(false);
+              }
+            },
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+              onPress: () => {
+                tuuPaymentsService.resetPaymentState();
+                setProcessingPayment(false);
+                onClose();
+              }
             }
-          },
-          {
-            text: 'Cancelar',
-            style: 'cancel',
-            onPress: () => {
-              setProcessingPayment(false);
-              onClose();
+          ]
+        );
+      } else if (isUserCancelled) {
+        // Usuario canceló el pago
+        Alert.alert(
+          'Pago Cancelado',
+          'El pago fue cancelado por el usuario.',
+          [
+            {
+              text: 'Intentar nuevamente',
+              onPress: () => {
+                tuuPaymentsService.resetPaymentState();
+                setShowPaymentMethod(true);
+                setProcessingPayment(false);
+              }
+            },
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+              onPress: () => {
+                tuuPaymentsService.resetPaymentState();
+                setProcessingPayment(false);
+                onClose();
+              }
             }
-          }
-        ]
-      );
+          ]
+        );
+      } else if (isMapConsumedError) {
+        // Error específico de serialización - puede ser un problema con la librería
+        Alert.alert(
+          'Error de Comunicación',
+          'Hubo un problema al comunicarse con el procesador de pagos. Esto puede ser un problema temporal.\n\nPor favor intenta:\n\n1. Reiniciar la aplicación\n2. Usar el método de pago manual\n3. Contactar al soporte técnico si el problema persiste',
+          [
+            {
+              text: 'Usar método manual',
+              onPress: () => {
+                tuuPaymentsService.resetPaymentState();
+                setShowPaymentMethod(true);
+                setProcessingPayment(false);
+              }
+            },
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+              onPress: () => {
+                tuuPaymentsService.resetPaymentState();
+                setProcessingPayment(false);
+                onClose();
+              }
+            }
+          ]
+        );
+      } else if (isPaymentInProgress) {
+        // Mostrar un alert específico para este error con opciones más claras
+        Alert.alert(
+          'Pago en Curso',
+          'Después de varios intentos, aún hay un pago pendiente en la aplicación TUU Negocio.\n\nPor favor:\n\n1. Abre la aplicación TUU Negocio\n2. Completa o cancela el pago pendiente\n3. Vuelve aquí y presiona "Reintentar"',
+          [
+            {
+              text: 'Abrir TUU Negocio',
+              onPress: async () => {
+                try {
+                  // Intentar abrir la aplicación TUU Negocio
+                  // Package names correctos: com.haulmer.paymentapp.dev (dev) o com.haulmer.paymentapp (prod)
+                  // Por el momento siempre usar modo desarrollo
+                  const tuuPackage = Platform.OS === 'android' 
+                    ? 'com.haulmer.paymentapp.dev' 
+                    : 'tuu-negocio';
+                  
+                  const url = Platform.OS === 'android'
+                    ? `intent://#Intent;package=${tuuPackage};scheme=tuu;end`
+                    : `tuu://`;
+                  
+                  const canOpen = await Linking.canOpenURL(url);
+                  if (canOpen) {
+                    await Linking.openURL(url);
+                  } else {
+                    // Si no se puede abrir con el intent, intentar abrir el package directamente
+                    if (Platform.OS === 'android') {
+                      await Linking.openURL(`market://details?id=${tuuPackage}`);
+                    } else {
+                      Alert.alert('Error', 'No se pudo abrir la aplicación TUU Negocio. Por favor ábrela manualmente.');
+                    }
+                  }
+                } catch (linkError) {
+                  console.error('Error abriendo aplicación TUU:', linkError);
+                  Alert.alert('Error', 'No se pudo abrir la aplicación TUU Negocio. Por favor ábrela manualmente desde el menú de aplicaciones.');
+                }
+                setProcessingPayment(false);
+              }
+            },
+            {
+              text: 'Reintentar',
+              onPress: () => {
+                tuuPaymentsService.resetPaymentState();
+                // Reintentar el pago después de un breve delay
+                setTimeout(() => {
+                  processPaymentWithTuu(paymentAmount);
+                }, 1000);
+              }
+            },
+            {
+              text: 'Usar método manual',
+              onPress: () => {
+                tuuPaymentsService.resetPaymentState();
+                setShowPaymentMethod(true);
+                setProcessingPayment(false);
+              }
+            },
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+              onPress: () => {
+                tuuPaymentsService.resetPaymentState();
+                setProcessingPayment(false);
+                onClose();
+              }
+            }
+          ]
+        );
+      } else {
+        // Para otros errores, mostrar el alert normal
+        Alert.alert(
+          'Error',
+          errorMessage,
+          [
+            {
+              text: 'Intentar con método manual',
+              onPress: () => {
+                tuuPaymentsService.resetPaymentState();
+                setShowPaymentMethod(true);
+                setProcessingPayment(false);
+              }
+            },
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+              onPress: () => {
+                tuuPaymentsService.resetPaymentState();
+                setProcessingPayment(false);
+                onClose();
+              }
+            }
+          ]
+        );
+      }
     } finally {
       setProcessingPayment(false);
     }
@@ -560,7 +741,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             // o la fecha actual en timezone Santiago
             const endTime = response.data.session?.ended_at || getCurrentDateInSantiago();
             const startTime = data.started_at;
-            const duration = calculateElapsedTime(startTime, endTime);
+            const isFullDay = data.is_full_day || response.data.session?.is_full_day || false;
+            const duration = isFullDay ? 'Día completo' : calculateElapsedTime(startTime, endTime);
             
             const ticketData: CheckoutTicketData = {
               type: 'CHECKOUT',
@@ -579,6 +761,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               change: selectedPaymentMethod === 'CASH' && amountPaid ? 
                 parseFloat(amountPaid) - (estimatedAmount || 0) : undefined,
               minAmount: getMinAmountFromBreakdown(),
+              isFullDay: isFullDay,
             };
             
             const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
@@ -603,7 +786,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               const startTime = parkingSession.started_at;
               // Usar la fecha de creación de la deuda como fecha de salida, no la hora actual
               const endTime = debt.created_at || new Date().toISOString();
-              const duration = calculateElapsedTime(startTime, endTime);
+              const isFullDay = parkingSession?.is_full_day || false;
+              const duration = isFullDay ? 'Día completo' : calculateElapsedTime(startTime, endTime);
               
               const ticketData: CheckoutTicketData = {
                 type: 'CHECKOUT',
@@ -622,6 +806,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 change: selectedPaymentMethod === 'CASH' && amountPaid ? 
                   parseFloat(amountPaid) - (estimatedAmount || 0) : undefined,
                 minAmount: getMinAmountFromBreakdown(), // Puede ser undefined para deudas
+                isFullDay: isFullDay,
               };
               
               const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
@@ -747,11 +932,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const getDataInfo = () => {
     
     if (type === 'checkout') {
+      // Si es día completo, mostrar "Día completo", sino calcular el tiempo transcurrido
+      const isFullDay = data.is_full_day || false;
+      const timeDisplay = isFullDay ? 'Día completo' : calculateElapsedTime(data.started_at);
+      
       return {
         title: 'Resumen de Sesión',
         plate: data.plate,
         location: `${data.sector?.name || 'N/A'} - ${data.street?.name || 'N/A'}`,
-        time: calculateElapsedTime(data.started_at),
+        time: timeDisplay,
         amount: loadingQuote ? 'Calculando...' : 
                 estimatedAmount ? `$${estimatedAmount.toLocaleString('es-CL')}` : 
                 '$0'

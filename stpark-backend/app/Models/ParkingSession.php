@@ -23,12 +23,14 @@ class ParkingSession extends Model
         'operator_out_id',
         'started_at',
         'ended_at',
-        'status'
+        'status',
+        'is_full_day'
     ];
 
     protected $casts = [
         'started_at' => 'datetime',
         'ended_at' => 'datetime',
+        'is_full_day' => 'boolean',
     ];
 
     /**

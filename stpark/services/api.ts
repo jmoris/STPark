@@ -286,6 +286,7 @@ class ApiService {
     sector_id: number;
     street_id?: number;
     operator_id: number;
+    is_full_day?: boolean;
   }): Promise<ApiResponse<any>> {
     try {
       const response = await makeRequest('/sessions', {

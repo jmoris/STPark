@@ -888,12 +888,12 @@ correctamente.
 
   const handleSaveTenant = async () => {
     if (!newTenant.trim()) {
-      Alert.alert('Error', 'El tenant es requerido');
+      Alert.alert('Error', 'El estacionamiento es requerido');
       return;
     }
 
     if (newTenant.trim().length < 2) {
-      Alert.alert('Error', 'El tenant debe tener al menos 2 caracteres');
+      Alert.alert('Error', 'El estacionamiento debe tener al menos 2 caracteres');
       return;
     }
 
@@ -908,30 +908,19 @@ correctamente.
       const success = await setTenant(newTenant.trim());
       if (success) {
         Alert.alert(
-          'Tenant Actualizado',
-          `El tenant se ha cambiado a: ${newTenant.trim()}\n\nSe ha cerrado la sesión del operador para reconectarse con el nuevo tenant.`,
+          'Estacionamiento Actualizado',
+          `El estacionamiento se ha cambiado a: ${newTenant.trim()}\n\nSe ha cerrado la sesión del operador para reconectarse con el nuevo estacionamiento.`,
           [{ text: 'OK', onPress: () => setShowTenantModal(false) }]
         );
         setNewTenant('');
       } else {
-        Alert.alert('Error', 'No se pudo guardar la configuración del tenant');
+        Alert.alert('Error', 'No se pudo guardar la configuración del estacionamiento');
       }
     } catch (error) {
-      Alert.alert('Error', 'No se pudo guardar la configuración del tenant');
+      Alert.alert('Error', 'No se pudo guardar la configuración del estacionamiento');
     }
   };
 
-  const handleExportarDatos = () => {
-    Alert.alert(
-      'Exportar Datos',
-      '¿Qué tipo de datos deseas exportar?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Sesiones del día', onPress: () => Alert.alert('Exportar', 'Exportando sesiones del día...') },
-        { text: 'Reporte completo', onPress: () => Alert.alert('Exportar', 'Exportando reporte completo...') },
-      ]
-    );
-  };
 
   const styles = StyleSheet.create({
     container: {
@@ -1371,6 +1360,118 @@ correctamente.
       fontSize: 16,
       fontWeight: '600',
     },
+    // Estilos para modal de cambiar estacionamiento (compacto)
+    tenantModalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    tenantModalContainer: {
+      backgroundColor: '#ffffff',
+      borderRadius: 20,
+      padding: 24,
+      marginHorizontal: 20,
+      maxWidth: 400,
+      width: '100%',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 12,
+    },
+    tenantModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    tenantModalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#043476',
+      flex: 1,
+    },
+    tenantModalCloseButton: {
+      padding: 4,
+    },
+    tenantModalBody: {
+      marginBottom: 20,
+    },
+    tenantModalDescription: {
+      fontSize: 14,
+      color: '#666',
+      marginBottom: 16,
+      lineHeight: 20,
+    },
+    tenantInputLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#333',
+      marginBottom: 8,
+    },
+    tenantInput: {
+      backgroundColor: '#f8f9fa',
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderWidth: 1,
+      borderColor: '#e0e0e0',
+      fontSize: 16,
+      color: '#333',
+      marginBottom: 12,
+    },
+    tenantCurrentText: {
+      fontSize: 14,
+      color: '#666',
+      fontStyle: 'italic',
+      textAlign: 'center',
+    },
+    tenantModalFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: 12,
+      marginTop: 8,
+    },
+    tenantModalButton: {
+      flex: 1,
+      padding: 14,
+      borderRadius: 8,
+      alignItems: 'center',
+    },
+    tenantModalButtonFullWidth: {
+      width: '100%',
+      padding: 14,
+      borderRadius: 8,
+      alignItems: 'center',
+    },
+    tenantModalCancelButton: {
+      backgroundColor: '#F8F9FA',
+      borderWidth: 1,
+      borderColor: '#DDD',
+    },
+    tenantModalSaveButton: {
+      backgroundColor: '#4CAF50',
+    },
+    tenantModalCancelButtonText: {
+      color: '#666',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    tenantModalSaveButtonText: {
+      color: '#FFF',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    tenantModalResetButton: {
+      backgroundColor: '#FF9800',
+    },
+    tenantModalResetButtonText: {
+      color: '#FFF',
+      fontSize: 14,
+      fontWeight: '600',
+    },
   });
 
   return (
@@ -1529,7 +1630,7 @@ correctamente.
           
 
           <View style={styles.configItem}>
-            <Text style={styles.configLabel}>Tenant</Text>
+            <Text style={styles.configLabel}>Estacionamiento</Text>
             <TouchableOpacity
               style={styles.configButton}
               onPress={() => {
@@ -1552,31 +1653,6 @@ correctamente.
           </View>
         </View>
 
-        {/* Sección de Datos */}
-        <View style={styles.configSection}>
-          <Text style={styles.sectionTitle}>Datos</Text>
-          
-          <View style={styles.configItem}>
-            <Text style={styles.configLabel}>Exportar datos</Text>
-            <TouchableOpacity
-              style={styles.configButton}
-              onPress={handleExportarDatos}
-            >
-              <Text style={styles.configButtonText}>Exportar</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={[styles.configItem, styles.configItemLast]}>
-            <Text style={styles.configLabel}>Limpiar caché</Text>
-            <TouchableOpacity
-              style={styles.configButton}
-              onPress={() => Alert.alert('Limpiar Caché', 'Caché limpiado exitosamente')}
-            >
-              <Text style={styles.configButtonText}>Limpiar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* Información de la App */}
         <View style={styles.configSection}>
           <Text style={styles.sectionTitle}>Información</Text>
@@ -1587,7 +1663,7 @@ correctamente.
           </View>
 
           <View style={styles.configItem}>
-            <Text style={styles.configLabel}>Tenant</Text>
+            <Text style={styles.configLabel}>Estacionamiento</Text>
             <Text style={styles.configValue}>{tenantConfig.tenant || 'No configurado'}</Text>
           </View>
 
@@ -1816,26 +1892,26 @@ correctamente.
         transparent={true}
         onRequestClose={() => setShowServerModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Cambiar Servidor</Text>
+        <View style={styles.tenantModalOverlay}>
+          <View style={styles.tenantModalContainer}>
+            <View style={styles.tenantModalHeader}>
+              <Text style={styles.tenantModalTitle}>Cambiar Servidor</Text>
               <TouchableOpacity
-                style={styles.closeButton}
+                style={styles.tenantModalCloseButton}
                 onPress={() => setShowServerModal(false)}
               >
-                <Text style={styles.closeButtonText}>✕</Text>
+                <IconSymbol size={24} name="xmark.circle.fill" color="#6c757d" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              <Text style={styles.modalDescription}>
+            <View style={styles.tenantModalBody}>
+              <Text style={styles.tenantModalDescription}>
                 Ingresa la nueva URL del servidor. Debe comenzar con http:// o https://
               </Text>
               
-              <Text style={styles.inputLabel}>URL del Servidor:</Text>
+              <Text style={styles.tenantInputLabel}>URL del Servidor:</Text>
               <TextInput
-                style={styles.textInput}
+                style={styles.tenantInput}
                 value={newServerUrl}
                 onChangeText={setNewServerUrl}
                 placeholder="https://mi-servidor.com"
@@ -1845,32 +1921,34 @@ correctamente.
                 keyboardType="url"
               />
 
-              <Text style={styles.currentServerText}>
+              <Text style={styles.tenantCurrentText}>
                 Servidor actual: {CONFIG.API_BASE_URL}
               </Text>
             </View>
 
-            <View style={styles.modalFooter}>
+            <View>
               <TouchableOpacity
-                style={[styles.modalButton, styles.resetButton]}
-                onPress={handleResetServer}
-              >
-                <Text style={styles.resetButtonText}>Restaurar Original</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setShowServerModal(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
+                style={[styles.tenantModalButtonFullWidth, styles.tenantModalSaveButton, { marginBottom: 12 }]}
                 onPress={handleSaveServer}
               >
-                <Text style={styles.saveButtonText}>Guardar</Text>
+                <Text style={styles.tenantModalSaveButtonText}>Guardar</Text>
               </TouchableOpacity>
+              
+              <View style={styles.tenantModalFooter}>
+                <TouchableOpacity
+                  style={[styles.tenantModalButton, styles.tenantModalResetButton]}
+                  onPress={handleResetServer}
+                >
+                  <Text style={styles.tenantModalResetButtonText}>Restaurar</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.tenantModalButton, styles.tenantModalCancelButton]}
+                  onPress={() => setShowServerModal(false)}
+                >
+                  <Text style={styles.tenantModalCancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
@@ -1883,26 +1961,26 @@ correctamente.
         transparent={true}
         onRequestClose={() => setShowTenantModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Cambiar Tenant</Text>
+        <View style={styles.tenantModalOverlay}>
+          <View style={styles.tenantModalContainer}>
+            <View style={styles.tenantModalHeader}>
+              <Text style={styles.tenantModalTitle}>Cambiar Estacionamiento</Text>
               <TouchableOpacity
-                style={styles.closeButton}
+                style={styles.tenantModalCloseButton}
                 onPress={() => setShowTenantModal(false)}
               >
-                <Text style={styles.closeButtonText}>✕</Text>
+                <IconSymbol size={24} name="xmark.circle.fill" color="#6c757d" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              <Text style={styles.modalDescription}>
-                Ingresa el nuevo nombre del tenant. Solo se permiten letras, números y guiones.
+            <View style={styles.tenantModalBody}>
+              <Text style={styles.tenantModalDescription}>
+                Ingresa el nuevo nombre del estacionamiento. Solo se permiten letras, números y guiones.
               </Text>
               
-              <Text style={styles.inputLabel}>Nombre del Tenant:</Text>
+              <Text style={styles.tenantInputLabel}>Nombre del Estacionamiento:</Text>
               <TextInput
-                style={styles.textInput}
+                style={styles.tenantInput}
                 value={newTenant}
                 onChangeText={setNewTenant}
                 placeholder="Ej: acme, empresa1, etc."
@@ -1911,24 +1989,24 @@ correctamente.
                 autoCorrect={false}
               />
 
-              <Text style={styles.currentServerText}>
-                Tenant actual: {tenantConfig.tenant || 'No configurado'}
+              <Text style={styles.tenantCurrentText}>
+                Estacionamiento actual: {tenantConfig.tenant || 'No configurado'}
               </Text>
             </View>
 
-            <View style={styles.modalFooter}>
+            <View style={styles.tenantModalFooter}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
+                style={[styles.tenantModalButton, styles.tenantModalCancelButton]}
                 onPress={() => setShowTenantModal(false)}
               >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
+                <Text style={styles.tenantModalCancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
+                style={[styles.tenantModalButton, styles.tenantModalSaveButton]}
                 onPress={handleSaveTenant}
               >
-                <Text style={styles.saveButtonText}>Guardar</Text>
+                <Text style={styles.tenantModalSaveButtonText}>Guardar</Text>
               </TouchableOpacity>
             </View>
           </View>

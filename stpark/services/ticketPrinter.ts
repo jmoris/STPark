@@ -21,6 +21,7 @@ export interface TicketData {
 
 export interface SessionTicketData extends TicketData {
   type: 'INGRESO';
+  isFullDay?: boolean; // Indica si es un ticket de ingreso diario
 }
 
 export interface CheckoutTicketData extends TicketData {
@@ -31,6 +32,7 @@ export interface CheckoutTicketData extends TicketData {
   last4?: string; // Últimos 4 dígitos de la tarjeta
   sequenceNumber?: string; // Número de secuencia de la transacción TUU
   minAmount?: number; // Monto mínimo configurado en el perfil de precios
+  isFullDay?: boolean; // Indica si es un ticket de ingreso diario
 }
 
 export interface ShiftCloseTicketData {
@@ -87,6 +89,11 @@ class TicketPrinterService {
       await TuuPrinter.addBlankLines(1);
       await TuuPrinter.addTextLine(`Hora Ingreso: ${startTime}`, {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addBlankLines(1);
+      // Si es ingreso diario, mostrar el texto centrado
+      if (data.isFullDay) {
+        await TuuPrinter.addTextLine('** Ticket de ingreso diario **', {align: 1, size: 24, bold: false, italic: false});
+        await TuuPrinter.addBlankLines(1);
+      }
       await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('Gracias por su preferencia', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
@@ -103,8 +110,14 @@ class TicketPrinterService {
   private async printCheckoutTicketWithTuu(data: CheckoutTicketData): Promise<boolean> {
     try {
       await TuuPrinter.init();
-      const startTime = this.formatDateTime(data.startTime);
-      const endTime = this.formatDateTime(data.endTime);
+      // Si es día completo, usar solo fecha (sin hora), sino usar fecha y hora
+      const startTime = data.isFullDay 
+        ? this.formatDateOnly(data.startTime) 
+        : this.formatDateTime(data.startTime);
+      const endTime = data.isFullDay 
+        ? this.formatDateOnly(data.endTime) 
+        : this.formatDateTime(data.endTime);
+      const duration = data.isFullDay ? 'Día completo' : (data.duration || 'N/A');
       const locationInfo = this.getLocationInfo(data);
       const systemName = await this.getSystemName();
       
@@ -119,7 +132,7 @@ class TicketPrinterService {
       await TuuPrinter.addTextLine(locationInfo, {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine(`Ingreso: ${startTime}`, {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine(`Salida: ${endTime}`, {align: 0, size: 24, bold: false, italic: false});
-      await TuuPrinter.addTextLine(`Duracion: ${data.duration || 'N/A'}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Duracion: ${duration}`, {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addBlankLines(1);
       // Mostrar monto mínimo primero si está disponible
       if (data.minAmount && data.minAmount > 0) {
@@ -127,6 +140,12 @@ class TicketPrinterService {
         await TuuPrinter.addBlankLines(1);
       }
       await TuuPrinter.addTextLine(`Monto a pagar: ${this.formatAmount(data.amount)}`, {align: 0, size: 24, bold: false, italic: false});
+      
+      // Si es ingreso diario, mostrar el texto centrado debajo del monto
+      if (data.isFullDay) {
+        await TuuPrinter.addBlankLines(1);
+        await TuuPrinter.addTextLine('** Ticket de ingreso diario **', {align: 1, size: 24, bold: false, italic: false});
+      }
       
       // Si el pago fue con TUU, mostrar información adicional
       if (data.authCode || data.transactionMethod || data.last4) {
@@ -333,6 +352,23 @@ class TicketPrinterService {
     }
   }
 
+  // Formatear solo fecha (sin hora) en zona horaria America/Santiago
+  private formatDateOnly(dateString?: string): string {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      // Convertir a zona horaria America/Santiago, solo fecha
+      return date.toLocaleDateString('es-CL', {
+        timeZone: 'America/Santiago',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch (error) {
+      return 'N/A';
+    }
+  }
+
   // Formatear monto
   private formatAmount(amount?: number): string {
     if (!amount && amount !== 0) return '$0';
@@ -387,7 +423,9 @@ ${systemName}
 Patente: ${data.plate}
 ${locationInfo}
 Hora Ingreso: ${startTime}
-
+${data.isFullDay ? `
+   ** Ticket de ingreso diario **
+` : ''}
 ================================
    Gracias por su preferencia
 ================================
@@ -397,8 +435,14 @@ Hora Ingreso: ${startTime}
 
   // Generar ticket de checkout
   private async generateCheckoutTicket(data: CheckoutTicketData): Promise<string> {
-    const startTime = this.formatDateTime(data.startTime);
-    const endTime = this.formatDateTime(data.endTime);
+    // Si es día completo, usar solo fecha (sin hora), sino usar fecha y hora
+    const startTime = data.isFullDay 
+      ? this.formatDateOnly(data.startTime) 
+      : this.formatDateTime(data.startTime);
+    const endTime = data.isFullDay 
+      ? this.formatDateOnly(data.endTime) 
+      : this.formatDateTime(data.endTime);
+    const duration = data.isFullDay ? 'Día completo' : (data.duration || 'N/A');
     const locationInfo = this.getLocationInfo(data);
     
     // Obtener nombre del sistema
@@ -416,10 +460,13 @@ Patente: ${data.plate}
 ${locationInfo}
 Ingreso: ${startTime}
 Salida: ${endTime}
-Duracion: ${data.duration || 'N/A'}
+Duracion: ${duration}
 
 ${data.minAmount && data.minAmount > 0 ? `Monto minimo: ${this.formatAmount(data.minAmount)}\n` : ''}
 Monto a pagar: ${this.formatAmount(data.amount)}
+${data.isFullDay ? `
+   ** Ticket de ingreso diario **
+` : ''}
 ${data.authCode || data.transactionMethod || data.last4 ? `
 --- Pago con TUU ---
 ${data.authCode ? `Cod. Autorizacion: ${data.authCode}` : ''}

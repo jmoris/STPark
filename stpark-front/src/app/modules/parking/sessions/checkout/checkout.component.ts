@@ -513,8 +513,13 @@ export class CheckoutComponent implements OnInit, OnDestroy {
    * Obtener tarifa por minuto desde el breakdown
    */
   getRatePerMinute(): string {
+    // Si es día completo, no hay tarifa por minuto
+    if (this.session?.is_full_day || this.quote?.is_full_day) {
+      return '-';
+    }
+    
     if (!this.quote?.breakdown || this.quote.breakdown.length === 0) {
-      return 'N/A';
+      return '-';
     }
     
     // Buscar la primera regla con rate_per_minute válido
@@ -524,7 +529,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       return this.formatAmount(ruleWithRate.rate_per_minute) + '/min';
     }
     
-    return 'N/A';
+    return '-';
   }
 
   /**

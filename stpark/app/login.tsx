@@ -8,8 +8,9 @@ import {
   Alert,
   Modal,
   ScrollView,
+  BackHandler,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { STParkLogo } from '@/components/STParkLogo';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { KeyboardAwareScrollView } from '@/components/KeyboardAwareScrollView';
@@ -40,8 +41,9 @@ export default function LoginScreen() {
   const [tenantInput, setTenantInput] = useState('');
   const [tenantConfigLoading, setTenantConfigLoading] = useState(false);
   const [serviceCheckTimer, setServiceCheckTimer] = useState<ReturnType<typeof setInterval> | null>(null);
-  const { login, operator } = useAuth();
+  const { login, operator, logout } = useAuth();
   const { tenantConfig, isLoading: tenantLoading, setTenant } = useTenant();
+  const insets = useSafeAreaInsets();
   const pinInputRef = useRef<TextInput>(null);
   const tenantConfigRef = useRef({ isValid: tenantConfig.isValid, loading: tenantLoading });
   const serviceCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -120,6 +122,13 @@ export default function LoginScreen() {
     React.useCallback(() => {
       console.log('=== PANTALLA DE LOGIN ENFOCADA ===');
       
+      // Prevenir que el botón atrás de Android retroceda desde el login
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        // Retornar true previene la acción por defecto (retroceder)
+        // Esto hace que el login sea la primera página y no se pueda retroceder más atrás
+        return true;
+      });
+      
       // Verificar estado de red inmediatamente
       NetInfo.fetch().then((state: any) => {
         const isConnected = state.isConnected && state.isInternetReachable;
@@ -136,6 +145,8 @@ export default function LoginScreen() {
       
       return () => {
         console.log('=== PANTALLA DE LOGIN PERDIÓ EL FOCO ===');
+        // Remover el listener cuando la pantalla pierde el foco
+        backHandler.remove();
       };
     }, [tenantConfig.isValid, tenantConfig.tenant])
   );
@@ -198,6 +209,18 @@ export default function LoginScreen() {
   const navigateToConfig = () => {
     hideFloatingButton();
     router.push('/configuracion');
+  };
+
+  // Función para manejar logout
+  const handleLogout = async () => {
+    hideFloatingButton();
+    try {
+      await logout();
+      // El logout ya limpia la sesión, solo necesitamos navegar al login
+      router.replace('/login');
+    } catch (error) {
+      console.error('Error en logout:', error);
+    }
   };
 
   // Función para manejar el guardado del tenant
@@ -316,8 +339,9 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAwareScrollView>
+    <>
+      <SafeAreaView style={styles.container}>
+        <KeyboardAwareScrollView>
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.iconContainer}>
@@ -532,22 +556,14 @@ export default function LoginScreen() {
 
       {/* Área invisible para detectar presión larga en esquina inferior derecha */}
       <TouchableOpacity
-        style={styles.longPressArea}
+        style={[
+          styles.longPressArea,
+          { bottom: insets.bottom, right: 0 }
+        ]}
         onPressIn={handleLongPressStart}
         onPressOut={handleLongPressEnd}
         activeOpacity={1}
       />
-
-      {/* Botón flotante de configuración */}
-      {showFloatingButton && (
-        <TouchableOpacity
-          style={styles.floatingConfigButton}
-          onPress={navigateToConfig}
-          activeOpacity={0.8}
-        >
-          <IconSymbol size={24} name="gear" color="#ffffff" />
-        </TouchableOpacity>
-      )}
 
       {/* Modal de configuración de tenant */}
       <Modal
@@ -597,7 +613,42 @@ export default function LoginScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
+
+      {/* Botones flotantes de configuración y logout - Fijos en pantalla completamente fuera de cualquier contenedor */}
+      {showFloatingButton && (
+        <View style={styles.fixedButtonsWrapper} pointerEvents="box-none">
+          <TouchableOpacity
+            style={[
+              styles.floatingButton,
+              styles.floatingConfigButton,
+              { 
+                bottom: insets.bottom + 100, 
+                right: 30
+              }
+            ]}
+            onPress={navigateToConfig}
+            activeOpacity={0.8}
+          >
+            <IconSymbol size={24} name="gear" color="#ffffff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.floatingButton,
+              styles.floatingLogoutButton,
+              { 
+                bottom: insets.bottom + 20, 
+                right: 30
+              }
+            ]}
+            onPress={handleLogout}
+            activeOpacity={0.8}
+          >
+            <IconSymbol size={24} name="rectangle.portrait.and.arrow.right" color="#ffffff" />
+          </TouchableOpacity>
+        </View>
+      )}
+    </>
   );
 }
 
@@ -605,6 +656,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#043476',
+  },
+  fixedButtonsWrapper: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 10000,
+    pointerEvents: 'box-none',
   },
   content: {
     flex: 1,
@@ -887,21 +943,16 @@ const styles = StyleSheet.create({
   // Estilos para área de presión larga y botón flotante
   longPressArea: {
     position: 'absolute',
-    bottom: 120, // Aumentado para evitar la barra de navegación
-    right: 20,
-    width: 120,
-    height: 120,
+    width: 144, // Aumentado 20% (de 120 a 144)
+    height: 144, // Aumentado 20% (de 120 a 144)
     backgroundColor: 'transparent',
     zIndex: 9999,
   },
-  floatingConfigButton: {
+  floatingButton: {
     position: 'absolute',
-    bottom: 140, // Aumentado para evitar la barra de navegación
-    right: 30,
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
@@ -913,6 +964,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
     zIndex: 10000,
+  },
+  floatingConfigButton: {
+    backgroundColor: '#007AFF',
+  },
+  floatingLogoutButton: {
+    backgroundColor: '#dc3545',
   },
   // Estilos para modal de tenant
   tenantModalOverlay: {

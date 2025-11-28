@@ -65,7 +65,7 @@
           </mat-form-field>
 
           <!-- Operator Selection -->
-          <mat-form-field appearance="outline" class="w-full mb-6" [class.mat-form-field-disabled]="!hasOperators()">
+          <mat-form-field appearance="outline" class="w-full mb-4" [class.mat-form-field-disabled]="!hasOperators()">
             <mat-label>Operador</mat-label>
             <mat-select formControlName="operator_id" [disabled]="!hasOperators() || !sessionForm.value.sector_id || !sessionForm.value.street_id">
               <mat-option *ngFor="let operator of operators" [value]="operator.id">
@@ -78,6 +78,21 @@
             </mat-error>
             <mat-hint *ngIf="!sessionForm.value.sector_id">Selecciona primero un sector y una calle</mat-hint>
             <mat-hint *ngIf="sessionForm.value.sector_id && sessionForm.value.street_id && !hasOperators()">No hay operadores disponibles para este sector y calle</mat-hint>
+          </mat-form-field>
+
+          <!-- Tipo de Ingreso -->
+          <mat-form-field appearance="outline" class="w-full mb-6">
+            <mat-label>Tipo de Ingreso</mat-label>
+            <mat-select formControlName="is_full_day">
+              <mat-option [value]="false">
+                Por Tiempo
+              </mat-option>
+              <mat-option [value]="true">
+                Día Completo
+              </mat-option>
+            </mat-select>
+            <mat-icon matPrefix>schedule</mat-icon>
+            <mat-hint>Selecciona si el ingreso es por tiempo o por día completo</mat-hint>
           </mat-form-field>
 
           <!-- Info Card -->
@@ -115,6 +130,16 @@
                   <div>
                     <p class="text-sm text-gray-600">Operador</p>
                     <p class="font-medium text-gray-900">{{ getOperatorName(sessionForm.value.operator_id) }}</p>
+                  </div>
+                </div>
+
+                <div *ngIf="sessionForm.value.is_full_day !== undefined" class="flex items-center">
+                  <mat-icon class="text-gray-500 mr-2">schedule</mat-icon>
+                  <div>
+                    <p class="text-sm text-gray-600">Tipo de Ingreso</p>
+                    <p class="font-medium text-gray-900">
+                      {{ sessionForm.value.is_full_day ? 'Día Completo' : 'Por Tiempo' }}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -158,6 +183,8 @@
           <p>• Solo se pueden crear sesiones en sectores donde el operador tenga acceso</p>
           <p>• Una vez creada la sesión, el vehículo estará registrado como estacionado</p>
           <p>• El sistema validará automáticamente que no exista otra sesión activa para la misma placa en el sector</p>
+          <p>• <strong>Por Tiempo:</strong> El cobro se calcula según la duración real del estacionamiento</p>
+          <p>• <strong>Día Completo:</strong> Se cobra la tarifa máxima diaria del perfil de precios, independientemente del tiempo. El vehículo permanece ocupando el espacio hasta el checkout</p>
         </div>
       </div>
     </fuse-card>

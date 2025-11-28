@@ -60,6 +60,14 @@
             <span class="info-label">Operador que cerró</span>
             <span class="info-value">{{ session.operator_out?.name || 'N/A' }}</span>
           </div>
+          <div class="info-entry" *ngIf="session.is_full_day !== undefined">
+            <span class="info-label">Tipo de Ingreso</span>
+            <span class="info-value">
+              <mat-chip [class]="session.is_full_day ? 'chip-full-day' : 'chip-time'">
+                {{ session.is_full_day ? 'Día Completo' : 'Por Tiempo' }}
+              </mat-chip>
+            </span>
+          </div>
         </div>
       </div>
 
@@ -67,11 +75,11 @@
         <h3>Tiempo</h3>
         <div class="info-list">
           <div class="info-entry">
-            <span class="info-label">Inicio</span>
+            <span class="info-label">Entrada</span>
             <span class="info-value">{{ formatDate(session.started_at) }}</span>
           </div>
           <div class="info-entry" *ngIf="session.ended_at">
-            <span class="info-label">Fin</span>
+            <span class="info-label">Salida</span>
             <span class="info-value">{{ formatDate(session.ended_at) }}</span>
           </div>
           <div class="info-entry" *ngIf="session.duration_formatted && !isActiveSession">
@@ -82,9 +90,28 @@
             <span class="info-label">Duración</span>
             <span class="info-value">{{ formatDuration(session.seconds_total) }}</span>
           </div>
-          <div class="info-entry" *ngIf="isActiveSession">
+          <div class="info-entry" *ngIf="isActiveSession && !session.is_full_day">
             <span class="info-label">Duración Actual</span>
             <span class="info-value real-time">{{ getCurrentDurationFormatted() }}</span>
+          </div>
+          <div class="info-entry full-day-info" *ngIf="session.is_full_day && isActiveSession">
+            <span class="info-label">Validez del Ticket</span>
+            <span class="info-value full-day-badge">
+              <mat-icon>event</mat-icon>
+              Válido solo por el día de hoy
+            </span>
+            <div class="full-day-details">
+              <p class="full-day-text">
+                Este ticket es válido hasta las <strong>{{ getEndOfDayTime() }}</strong> del día de hoy.
+                El vehículo permanece ocupando el espacio hasta realizar el checkout.
+              </p>
+            </div>
+          </div>
+          <div class="info-entry full-day-info" *ngIf="session.is_full_day && !isActiveSession && session.ended_at">
+            <span class="info-label">Tipo de Sesión</span>
+            <span class="info-value">
+              Sesión por día completo - Tarifa máxima aplicada
+            </span>
           </div>
         </div>
       </div>
@@ -125,8 +152,13 @@
           <span class="amount-value">{{ formatAmount(session.net_amount) }}</span>
         </div>
         <div class="amount-item estimated" *ngIf="isActiveSession">
-          <span class="amount-label">Costo Estimado</span>
-          <span class="amount-value">{{ getEstimatedCostFormatted() }}</span>
+          <span class="amount-label">
+            {{ session.is_full_day ? 'Tarifa Máxima Diaria' : 'Costo Estimado' }}
+          </span>
+          <span class="amount-value">
+            <span *ngIf="loadingQuote">Calculando...</span>
+            <span *ngIf="!loadingQuote">{{ getEstimatedCostFormatted() }}</span>
+          </span>
         </div>
       </div>
     </div>

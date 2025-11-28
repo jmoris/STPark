@@ -112,6 +112,7 @@ export interface ParkingSession {
   duration_formatted?: string;
   total_paid?: number;
   total_paid_formatted?: string;
+  is_full_day?: boolean; // Indica si la sesión es por día completo
 }
 
 export interface PricingProfile {
@@ -261,6 +262,7 @@ export interface CreateSessionRequest {
   sector_id: number;
   street_id: number;
   operator_id: number;
+  is_full_day?: boolean;
 }
 
 export interface QuoteRequest {

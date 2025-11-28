@@ -41,6 +41,10 @@ export class SessionDetailComponent implements OnInit, OnDestroy {
   currentDuration = 0;
   estimatedCost = 0;
   isActiveSession = false;
+  quote: any = null;
+  loadingQuote = false;
+  private _quoteIntervalId: any;
+  private _lastQuoteUpdate: Date | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -82,6 +86,8 @@ export class SessionDetailComponent implements OnInit, OnDestroy {
           if (this.session?.status === 'ACTIVE') {
             this.isActiveSession = true;
             this.startRealTimeCalculation();
+            // Cargar cotización para calcular costo estimado
+            this.loadQuote();
           } else {
             this.isActiveSession = false;
             this.stopRealTimeCalculation();
@@ -231,6 +237,35 @@ export class SessionDetailComponent implements OnInit, OnDestroy {
     this._intervalId = setInterval(() => {
       this.calculateCurrentDuration();
     }, 1000);
+
+    // Para sesiones por tiempo, actualizar cotización cada 30 segundos
+    if (this.session && !this.session.is_full_day) {
+      this.startQuoteRefresh();
+    }
+  }
+
+  /**
+   * Iniciar actualización periódica de cotización
+   */
+  startQuoteRefresh(): void {
+    this.stopQuoteRefresh();
+    
+    // Actualizar cotización cada 30 segundos para sesiones por tiempo
+    this._quoteIntervalId = setInterval(() => {
+      if (this.session && !this.session.is_full_day && this.isActiveSession) {
+        this.loadQuote();
+      }
+    }, 30000); // 30 segundos
+  }
+
+  /**
+   * Detener actualización periódica de cotización
+   */
+  stopQuoteRefresh(): void {
+    if (this._quoteIntervalId) {
+      clearInterval(this._quoteIntervalId);
+      this._quoteIntervalId = null;
+    }
   }
 
   /**
@@ -241,6 +276,44 @@ export class SessionDetailComponent implements OnInit, OnDestroy {
       clearInterval(this._intervalId);
       this._intervalId = null;
     }
+    this.stopQuoteRefresh();
+  }
+
+  /**
+   * Cargar cotización para calcular costo estimado
+   */
+  loadQuote(): void {
+    if (!this.session || this.session.status !== 'ACTIVE') {
+      return;
+    }
+
+    this.loadingQuote = true;
+    const endedAt = new Date().toISOString();
+    
+    this.sessionService.getQuote(this.session.id!, { ended_at: endedAt })
+      .pipe(takeUntil(this._unsubscribeAll))
+      .subscribe({
+        next: (response) => {
+          this.quote = response.data;
+          this.loadingQuote = false;
+          
+          // Actualizar costo estimado basado en la cotización
+          if (this.quote) {
+            this.estimatedCost = this.quote.net_amount || this.quote.gross_amount || 0;
+          }
+        },
+        error: (error) => {
+          console.error('Error loading quote:', error);
+          this.loadingQuote = false;
+          // En caso de error, usar cálculo básico como fallback
+          if (this.session) {
+            const startTime = new Date(this.session.started_at);
+            const currentTime = new Date();
+            const durationInSeconds = Math.floor((currentTime.getTime() - startTime.getTime()) / 1000);
+            this.estimatedCost = this.calculateEstimatedCostFallback(durationInSeconds);
+          }
+        }
+      });
   }
 
   /**
@@ -256,13 +329,15 @@ export class SessionDetailComponent implements OnInit, OnDestroy {
     const durationInSeconds = Math.floor((currentTime.getTime() - startTime.getTime()) / 1000);
     
     this.currentDuration = durationInSeconds;
-    this.estimatedCost = this.calculateEstimatedCost(durationInSeconds);
+    
+    // El costo estimado se actualiza mediante la cotización periódica
+    // No es necesario recalcular aquí
   }
 
   /**
-   * Calcular costo estimado basado en la duración
+   * Calcular costo estimado basado en la duración (fallback)
    */
-  calculateEstimatedCost(durationInSeconds: number): number {
+  calculateEstimatedCostFallback(durationInSeconds: number): number {
     // Tarifa básica por hora (ejemplo: $1000 CLP por hora)
     const hourlyRate = 1000;
     
@@ -291,5 +366,22 @@ export class SessionDetailComponent implements OnInit, OnDestroy {
    */
   getEstimatedCostFormatted(): string {
     return this.formatAmount(this.estimatedCost);
+  }
+
+  /**
+   * Obtener hora de fin del día (23:59:59)
+   */
+  getEndOfDayTime(): string {
+    const today = new Date();
+    const endOfDay = new Date(today);
+    endOfDay.setHours(23, 59, 59, 999);
+    return endOfDay.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  /**
+   * Verificar si la sesión es por día completo
+   */
+  isFullDaySession(): boolean {
+    return this.session?.is_full_day === true;
   }
 }

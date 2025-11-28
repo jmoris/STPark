@@ -26,6 +26,9 @@ export default function NuevaSesionScreen() {
   const [calle, setCalle] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedStreetId, setSelectedStreetId] = useState<number | null>(null);
+  const [tipoIngreso, setTipoIngreso] = useState<'tiempo' | 'dia_completo'>('tiempo');
+  const [showTipoIngresoDropdown, setShowTipoIngresoDropdown] = useState(false);
+  const [showStreetDropdown, setShowStreetDropdown] = useState(false);
   const [showDebtModal, setShowDebtModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [pendingDebts, setPendingDebts] = useState<any[]>([]);
@@ -135,6 +138,7 @@ export default function NuevaSesionScreen() {
         sector_id: activeSector?.id || 0,
         street_id: selectedStreetId || 0,
         operator_id: operator?.id || 0,
+        is_full_day: tipoIngreso === 'dia_completo',
       });
 
       console.log('Respuesta del servidor:', response);
@@ -153,7 +157,8 @@ export default function NuevaSesionScreen() {
             sectorIsPrivate: activeSector?.is_private || false,
             streetAddress: selectedStreet?.full_address || selectedStreet?.name,
             startTime: new Date().toISOString(),
-            operatorName: operator?.name
+            operatorName: operator?.name,
+            isFullDay: tipoIngreso === 'dia_completo'
           };
           
           console.log('Datos del ticket:', ticketData);
@@ -175,7 +180,9 @@ export default function NuevaSesionScreen() {
             {
               text: 'OK',
               onPress: () => {
+                // Resetear todos los campos a sus valores por defecto
                 setPatente('');
+                setTipoIngreso('tiempo');
                 setSelectedStreetId(null);
                 setCalle('');
               },
@@ -268,6 +275,7 @@ export default function NuevaSesionScreen() {
     content: {
       flexGrow: 1,
       padding: 20,
+      paddingBottom: 0,
     },
     header: {
       alignItems: 'center',
@@ -283,6 +291,24 @@ export default function NuevaSesionScreen() {
       fontSize: 16,
       color: '#b3d9ff',
       textAlign: 'center',
+      marginBottom: 4,
+    },
+    sectorInfoContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 8,
+    },
+    sectorLabel: {
+      fontSize: 14,
+      color: '#b3d9ff',
+      marginRight: 8,
+      fontWeight: '500',
+    },
+    sectorValue: {
+      fontSize: 14,
+      color: '#ffffff',
+      fontWeight: '600',
     },
     iconContainer: {
       alignItems: 'center',
@@ -355,27 +381,51 @@ export default function NuevaSesionScreen() {
       fontSize: 16,
       color: '#6c757d',
     },
-    streetsContainer: {
-      maxHeight: 150,
+    selectInput: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
       borderWidth: 1,
       borderColor: '#dee2e6',
       borderRadius: 8,
+      padding: 12,
       backgroundColor: '#ffffff',
     },
-    streetButton: {
-      padding: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: '#e9ecef',
-    },
-    streetButtonSelected: {
-      backgroundColor: '#043476',
-    },
-    streetButtonText: {
+    selectInputText: {
       fontSize: 16,
       color: '#000000',
     },
-    streetButtonTextSelected: {
-      color: '#ffffff',
+    dropdownOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    dropdownContainer: {
+      backgroundColor: '#ffffff',
+      borderRadius: 8,
+      minWidth: 200,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 4,
+      elevation: 5,
+      overflow: 'hidden',
+    },
+    dropdownOption: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: '#e9ecef',
+    },
+    dropdownOptionText: {
+      fontSize: 16,
+      color: '#000000',
+    },
+    dropdownOptionTextSelected: {
+      color: '#043476',
       fontWeight: '600',
     },
     noStreetsContainer: {
@@ -390,12 +440,6 @@ export default function NuevaSesionScreen() {
       fontSize: 14,
       color: '#6c757d',
       textAlign: 'center',
-    },
-    selectedStreetInfo: {
-      fontSize: 12,
-      color: '#28a745',
-      marginTop: 8,
-      fontWeight: '600',
     },
     // Estilos para modales
     modalOverlay: {
@@ -585,7 +629,10 @@ export default function NuevaSesionScreen() {
         <IconSymbol size={24} name="arrow.left" color="#ffffff" />
       </TouchableOpacity>
       
-      <KeyboardAwareScrollView>
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ paddingBottom: 0 }}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.iconContainer}>
@@ -593,6 +640,13 @@ export default function NuevaSesionScreen() {
             </View>
             <Text style={styles.title}>Ingreso Vehiculo</Text>
             <Text style={styles.subtitle}>Iniciar estacionamiento</Text>
+            
+            <View style={styles.sectorInfoContainer}>
+              <Text style={styles.sectorLabel}>Sector:</Text>
+              <Text style={styles.sectorValue}>
+                {activeSector?.name || 'No asignado'}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.formContainer}>
@@ -611,12 +665,16 @@ export default function NuevaSesionScreen() {
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Sector</Text>
-              <View style={styles.readOnlyInput}>
-                <Text style={styles.readOnlyText}>
-                  {activeSector?.name || 'No asignado'}
+              <Text style={styles.label}>Tipo de Ingreso</Text>
+              <TouchableOpacity
+                style={styles.selectInput}
+                onPress={() => setShowTipoIngresoDropdown(true)}
+              >
+                <Text style={styles.selectInputText}>
+                  {tipoIngreso === 'tiempo' ? 'Por Tiempo' : 'Día Completo'}
                 </Text>
-              </View>
+                <IconSymbol size={20} name="chevron.down" color="#6c757d" />
+              </TouchableOpacity>
             </View>
 
             <View style={styles.inputContainer}>
@@ -628,34 +686,15 @@ export default function NuevaSesionScreen() {
                   </Text>
                 </View>
               ) : (
-                <ScrollView style={styles.streetsContainer} nestedScrollEnabled>
-                  {streets.map((street) => (
-                    <TouchableOpacity
-                      key={street.id}
-                      style={[
-                        styles.streetButton,
-                        selectedStreetId === street.id && styles.streetButtonSelected
-                      ]}
-                      onPress={() => {
-                        setSelectedStreetId(street.id);
-                        setCalle(street.name);
-                        console.log('Calle seleccionada:', street.name, 'ID:', street.id);
-                      }}
-                    >
-                      <Text style={[
-                        styles.streetButtonText,
-                        selectedStreetId === street.id && styles.streetButtonTextSelected
-                      ]}>
-                        {street.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              )}
-              {selectedStreetId && (
-                <Text style={styles.selectedStreetInfo}>
-                  Calle seleccionada: {calle}
-                </Text>
+                <TouchableOpacity
+                  style={styles.selectInput}
+                  onPress={() => setShowStreetDropdown(true)}
+                >
+                  <Text style={styles.selectInputText}>
+                    {calle || 'Selecciona una calle'}
+                  </Text>
+                  <IconSymbol size={20} name="chevron.down" color="#6c757d" />
+                </TouchableOpacity>
               )}
             </View>
 
@@ -810,6 +849,98 @@ export default function NuevaSesionScreen() {
         onOpen={handleOpenShift}
         loading={openingShift}
       />
+
+      {/* Modal para selector de Tipo de Ingreso */}
+      <Modal
+        visible={showTipoIngresoDropdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowTipoIngresoDropdown(false)}
+      >
+        <TouchableOpacity
+          style={styles.dropdownOverlay}
+          activeOpacity={1}
+          onPress={() => setShowTipoIngresoDropdown(false)}
+        >
+          <View style={styles.dropdownContainer}>
+            <TouchableOpacity
+              style={styles.dropdownOption}
+              onPress={() => {
+                setTipoIngreso('tiempo');
+                setShowTipoIngresoDropdown(false);
+              }}
+            >
+              <Text style={[
+                styles.dropdownOptionText,
+                tipoIngreso === 'tiempo' && styles.dropdownOptionTextSelected
+              ]}>
+                Por Tiempo
+              </Text>
+              {tipoIngreso === 'tiempo' && (
+                <IconSymbol size={20} name="checkmark" color="#043476" />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.dropdownOption}
+              onPress={() => {
+                setTipoIngreso('dia_completo');
+                setShowTipoIngresoDropdown(false);
+              }}
+            >
+              <Text style={[
+                styles.dropdownOptionText,
+                tipoIngreso === 'dia_completo' && styles.dropdownOptionTextSelected
+              ]}>
+                Día Completo
+              </Text>
+              {tipoIngreso === 'dia_completo' && (
+                <IconSymbol size={20} name="checkmark" color="#043476" />
+              )}
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Modal para selector de Calle */}
+      <Modal
+        visible={showStreetDropdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowStreetDropdown(false)}
+      >
+        <TouchableOpacity
+          style={styles.dropdownOverlay}
+          activeOpacity={1}
+          onPress={() => setShowStreetDropdown(false)}
+        >
+          <View style={[styles.dropdownContainer, { maxHeight: 400 }]}>
+            <ScrollView nestedScrollEnabled>
+              {streets.map((street) => (
+                <TouchableOpacity
+                  key={street.id}
+                  style={styles.dropdownOption}
+                  onPress={() => {
+                    setSelectedStreetId(street.id);
+                    setCalle(street.name);
+                    setShowStreetDropdown(false);
+                    console.log('Calle seleccionada:', street.name, 'ID:', street.id);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownOptionText,
+                    selectedStreetId === street.id && styles.dropdownOptionTextSelected
+                  ]}>
+                    {street.name}
+                  </Text>
+                  {selectedStreetId === street.id && (
+                    <IconSymbol size={20} name="checkmark" color="#043476" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }

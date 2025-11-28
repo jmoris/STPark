@@ -100,7 +100,8 @@ export class NewSessionComponent implements OnInit, OnDestroy {
       plate: ['', [Validators.required, Validators.pattern(/^[A-Z0-9]+$/i)]],
       sector_id: ['', Validators.required],
       street_id: [null, Validators.required],
-      operator_id: ['', Validators.required]
+      operator_id: ['', Validators.required],
+      is_full_day: [false]
     });
   }
 
@@ -343,7 +344,8 @@ export class NewSessionComponent implements OnInit, OnDestroy {
       plate: plate,
       sector_id: this.sessionForm.value.sector_id,
       street_id: streetId,
-      operator_id: this.sessionForm.value.operator_id
+      operator_id: this.sessionForm.value.operator_id,
+      is_full_day: this.sessionForm.value.is_full_day || false
     };
 
     this.sessionService.createSession(request)

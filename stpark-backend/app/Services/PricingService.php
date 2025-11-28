@@ -602,6 +602,35 @@ class PricingService
     }
 
     /**
+     * Obtener la tarifa máxima diaria para un sector
+     * Método público para ser usado desde otros servicios
+     */
+    public function getMaxDailyAmount(int $sectorId): ?float
+    {
+        $sector = Sector::findOrFail($sectorId);
+        
+        // Obtener el perfil de precios activo para el sector
+        $pricingProfile = PricingProfile::where('sector_id', $sectorId)
+            ->where('is_active', true)
+            ->first();
+
+        if (!$pricingProfile) {
+            return null;
+        }
+
+        // Obtener las reglas de precios activas
+        $pricingRules = PricingRule::where('profile_id', $pricingProfile->id)
+            ->where('is_active', true)
+            ->get();
+
+        if ($pricingRules->isEmpty()) {
+            return null;
+        }
+
+        return $this->getDailyMaxAmount($pricingRules);
+    }
+
+    /**
      * Aplicar el máximo diario al breakdown
      */
     private function applyDailyMaxToBreakdown(array &$breakdown, float $dailyMaxAmount): void
