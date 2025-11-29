@@ -222,13 +222,10 @@ class ParkingSessionService
                     : Carbon::parse($endedAt)->setTimezone('America/Santiago');
             }
             
-            // Actualizar la sesión con el objeto Carbon (Laravel lo guardará correctamente)
-            // Guardar el operador que hizo el checkout (operator_out_id)
-            $session->update([
-                'ended_at' => $endTime,
-                'status' => 'COMPLETED',
-                'operator_out_id' => $operatorOutId
-            ]);
+            // Parsear started_at: Laravel guarda timestamps en UTC en la BD
+            // Cuando se creó la sesión con Carbon::now('America/Santiago'), Laravel lo convirtió a UTC
+            // Entonces al leer, debemos convertir de UTC a America/Santiago
+            $startTime = Carbon::parse($session->started_at, 'UTC')->setTimezone('America/Santiago');
 
             // Calcular el precio real
             // Si es sesión por día completo, usar la tarifa máxima del perfil de precios
@@ -259,10 +256,6 @@ class ParkingSessionService
                     'pricing_profile' => 'Tarifa máxima diaria'
                 ];
             } else {
-                // Parsear started_at: Laravel guarda timestamps en UTC en la BD
-                // Cuando se creó la sesión con Carbon::now('America/Santiago'), Laravel lo convirtió a UTC
-                // Entonces al leer, debemos convertir de UTC a America/Santiago
-                $startTime = Carbon::parse($session->started_at, 'UTC')->setTimezone('America/Santiago');
                 $duration = $startTime->diffInMinutes($endTime);
 
                 $quote = $this->pricingService->calculatePrice(
@@ -273,6 +266,23 @@ class ParkingSessionService
                     $endTime
                 );
             }
+
+            // Calcular valores para guardar en la sesión
+            $grossAmount = $quote['total'];
+            $discountAmount = 0; // Se puede calcular si hay descuento
+            $netAmount = $grossAmount - $discountAmount;
+            $secondsTotal = isset($quote['duration_minutes']) ? $quote['duration_minutes'] * 60 : $startTime->diffInSeconds($endTime);
+
+            // Actualizar la sesión con todos los valores calculados
+            $session->update([
+                'ended_at' => $endTime,
+                'status' => 'COMPLETED',
+                'operator_out_id' => $operatorOutId,
+                'seconds_total' => $secondsTotal,
+                'gross_amount' => $grossAmount,
+                'discount_amount' => $discountAmount,
+                'net_amount' => $netAmount
+            ]);
 
             $result = [
                 'session' => $session->load(['sector', 'street', 'operator', 'operatorOut', 'payments']),
