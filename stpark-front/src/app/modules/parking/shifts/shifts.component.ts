@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
+import { MatTableModule } from '@angular/material/table';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -63,7 +63,6 @@ export class ShiftsComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild(MatSort) sort!: MatSort;
   
   shifts: Shift[] = [];
-  dataSource = new MatTableDataSource<Shift>([]);
   loading = false;
   displayedColumns: string[] = ['id', 'operator', 'sector', 'opened_at', 'closed_at', 'status', 'totals', 'actions'];
   
@@ -72,6 +71,10 @@ export class ShiftsComponent implements OnInit, OnDestroy, AfterViewInit {
   pageSize = 15;
   currentPage = 0;
   pageSizeOptions = [10, 15, 25, 50];
+
+  // Ordenamiento
+  sortBy: string = 'opened_at';
+  sortOrder: 'asc' | 'desc' = 'desc';
   
   // Filtros
   filters: ShiftFilters = {
@@ -109,7 +112,17 @@ export class ShiftsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
+    // Suscribirse a cambios de ordenamiento
+    if (this.sort) {
+      this.sort.sortChange
+        .pipe(takeUntil(this._unsubscribeAll))
+        .subscribe(sort => {
+          this.sortBy = sort.active;
+          this.sortOrder = sort.direction === 'asc' ? 'asc' : 'desc';
+          this.currentPage = 0; // Reset a la primera página al cambiar ordenamiento
+          this.loadShifts();
+        });
+    }
   }
 
   ngOnDestroy(): void {
@@ -149,7 +162,9 @@ export class ShiftsComponent implements OnInit, OnDestroy, AfterViewInit {
     const params = {
       ...this.filters,
       page: this.currentPage + 1, // Backend usa 1-based indexing
-      per_page: this.pageSize
+      per_page: this.pageSize,
+      sort_by: this.sortBy,
+      sort_order: this.sortOrder
     };
 
     // Limpiar valores undefined
@@ -168,12 +183,10 @@ export class ShiftsComponent implements OnInit, OnDestroy, AfterViewInit {
             if (paginatedData.data) {
               // Respuesta paginada
               this.shifts = paginatedData.data || [];
-              this.dataSource.data = this.shifts;
               this.totalItems = paginatedData.total || 0;
             } else {
               // Respuesta simple array
               this.shifts = Array.isArray(response.data) ? response.data : [];
-              this.dataSource.data = this.shifts;
               this.totalItems = this.shifts.length;
             }
           }

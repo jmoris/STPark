@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
+import { MatTableModule } from '@angular/material/table';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -56,7 +56,6 @@ export class DebtsComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild(MatSort) sort!: MatSort;
   
   debts: Debt[] = [];
-  dataSource = new MatTableDataSource<Debt>([]);
   loading = false;
   displayedColumns: string[] = ['plate', 'amount', 'origin', 'status', 'created_at', 'actions'];
   
@@ -69,6 +68,10 @@ export class DebtsComponent implements OnInit, OnDestroy, AfterViewInit {
   pageSize = 10;
   currentPage = 0;
   pageSizeOptions = [5, 10, 25, 50];
+
+  // Ordenamiento
+  sortBy: string = 'created_at';
+  sortOrder: 'asc' | 'desc' = 'desc';
   
   // Filtros
   filters = {
@@ -85,7 +88,17 @@ export class DebtsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
+    // Suscribirse a cambios de ordenamiento
+    if (this.sort) {
+      this.sort.sortChange
+        .pipe(takeUntil(this._unsubscribeAll))
+        .subscribe(sort => {
+          this.sortBy = sort.active;
+          this.sortOrder = sort.direction === 'asc' ? 'asc' : 'desc';
+          this.currentPage = 0; // Reset a la primera página al cambiar ordenamiento
+          this.loadDebts();
+        });
+    }
   }
 
   ngOnDestroy(): void {
@@ -99,6 +112,8 @@ export class DebtsComponent implements OnInit, OnDestroy, AfterViewInit {
     const params = {
       page: this.currentPage + 1, // Backend usa 1-based indexing
       per_page: this.pageSize,
+      sort_by: this.sortBy,
+      sort_order: this.sortOrder,
       ...this.filters
     };
 
@@ -107,7 +122,6 @@ export class DebtsComponent implements OnInit, OnDestroy, AfterViewInit {
       .subscribe({
         next: (response) => {
           this.debts = (response.data as any)?.data || [];
-          this.dataSource.data = this.debts;
           this.totalItems = (response.data as any)?.total || 0;
           this.loading = false;
         },

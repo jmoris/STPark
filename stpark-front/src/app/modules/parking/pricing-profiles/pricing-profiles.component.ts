@@ -6,7 +6,7 @@ import { Subject, takeUntil } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
+import { MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -62,7 +62,6 @@ export class PricingProfilesComponent implements OnInit, OnDestroy, AfterViewIni
   @ViewChild(MatSort) sort!: MatSort;
 
   pricingProfiles: PricingProfile[] = [];
-  dataSource = new MatTableDataSource<PricingProfile>([]);
   sectors: Sector[] = [];
   loading = false;
   error: string | null = null;
@@ -72,6 +71,10 @@ export class PricingProfilesComponent implements OnInit, OnDestroy, AfterViewIni
   pageSize = 10;
   currentPage = 0;
   pageSizeOptions = [5, 10, 25, 50];
+
+  // Ordenamiento
+  sortBy: string = 'name';
+  sortOrder: 'asc' | 'desc' = 'asc';
 
   // Filtros
   filters: PricingProfileFilters = {
@@ -143,7 +146,17 @@ export class PricingProfilesComponent implements OnInit, OnDestroy, AfterViewIni
   }
 
   ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
+    // Suscribirse a cambios de ordenamiento
+    if (this.sort) {
+      this.sort.sortChange
+        .pipe(takeUntil(this._unsubscribeAll))
+        .subscribe(sort => {
+          this.sortBy = sort.active;
+          this.sortOrder = sort.direction === 'asc' ? 'asc' : 'desc';
+          this.currentPage = 0; // Reset a la primera página al cambiar ordenamiento
+          this.loadPricingProfiles();
+        });
+    }
   }
 
   ngOnDestroy(): void {
@@ -179,7 +192,9 @@ export class PricingProfilesComponent implements OnInit, OnDestroy, AfterViewIni
     this.loading = true;
     const params: any = {
       page: this.currentPage + 1,
-      per_page: this.pageSize
+      per_page: this.pageSize,
+      sort_by: this.sortBy,
+      sort_order: this.sortOrder
     };
 
     if (this.filters.name && this.filters.name.trim() !== '') {
@@ -197,7 +212,6 @@ export class PricingProfilesComponent implements OnInit, OnDestroy, AfterViewIni
       .subscribe({
         next: (response) => {
           this.pricingProfiles = (response.data as any)?.data || [];
-          this.dataSource.data = this.pricingProfiles;
           this.totalItems = (response.data as any)?.total || 0;
           this.loading = false;
         },

@@ -100,7 +100,7 @@
   <mat-card>
     <mat-card-content class="p-6">
       <div class="overflow-x-auto">
-        <table mat-table [dataSource]="dataSource" matSort class="w-full">
+        <table mat-table [dataSource]="operators" matSort [matSortActive]="sortBy" [matSortDirection]="sortOrder" class="w-full">
           <!-- Name Column -->
           <ng-container matColumnDef="name">
             <th mat-header-cell *matHeaderCellDef mat-sort-header="name">Nombre</th>

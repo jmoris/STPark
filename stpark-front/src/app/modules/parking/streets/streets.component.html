@@ -107,7 +107,7 @@
   <mat-card>
     <mat-card-content class="p-6">
       <div class="overflow-x-auto">
-        <table mat-table [dataSource]="dataSource" matSort class="w-full">
+        <table mat-table [dataSource]="streets" matSort [matSortActive]="sortBy" [matSortDirection]="sortOrder" class="w-full">
           <!-- Name Column -->
           <ng-container matColumnDef="name">
             <th mat-header-cell *matHeaderCellDef mat-sort-header="name">Dirección</th>
@@ -121,7 +121,7 @@
 
           <!-- Sector Column -->
           <ng-container matColumnDef="sector">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header="sector">Sector</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="sector_id">Sector</th>
             <td mat-cell *matCellDef="let street">
               <div class="flex items-center gap-2">
                 <mat-icon class="text-gray-500">location_city</mat-icon>

@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
+import { MatTableModule } from '@angular/material/table';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -57,7 +57,6 @@ export class SectorsComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild(MatSort) sort!: MatSort;
   
   sectors: Sector[] = [];
-  dataSource = new MatTableDataSource<Sector>([]);
   loading = false;
   displayedColumns: string[] = ['name', 'type', 'streets_count', 'operators_count', 'status', 'actions'];
   
@@ -66,6 +65,10 @@ export class SectorsComponent implements OnInit, OnDestroy, AfterViewInit {
   pageSize = 10;
   currentPage = 0;
   pageSizeOptions = [5, 10, 25, 50];
+
+  // Ordenamiento
+  sortBy: string = 'name';
+  sortOrder: 'asc' | 'desc' = 'asc';
   
   // Filtros
   filters = {
@@ -84,7 +87,17 @@ export class SectorsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
+    // Suscribirse a cambios de ordenamiento
+    if (this.sort) {
+      this.sort.sortChange
+        .pipe(takeUntil(this._unsubscribeAll))
+        .subscribe(sort => {
+          this.sortBy = sort.active;
+          this.sortOrder = sort.direction === 'asc' ? 'asc' : 'desc';
+          this.currentPage = 0; // Reset a la primera página al cambiar ordenamiento
+          this.loadSectors();
+        });
+    }
     // Forzar recarga después de que la vista esté inicializada
     setTimeout(() => {
       this.loadSectors();
@@ -102,7 +115,9 @@ export class SectorsComponent implements OnInit, OnDestroy, AfterViewInit {
     // Filtrar parámetros undefined para evitar enviar filtros vacíos
     const params: any = {
       page: this.currentPage + 1, // Backend usa 1-based indexing
-      per_page: this.pageSize
+      per_page: this.pageSize,
+      sort_by: this.sortBy,
+      sort_order: this.sortOrder
     };
 
     // Solo agregar filtros que tengan valores válidos
@@ -118,7 +133,6 @@ export class SectorsComponent implements OnInit, OnDestroy, AfterViewInit {
       .subscribe({
         next: (response) => {
           this.sectors = (response.data as any)?.data || [];
-          this.dataSource.data = this.sectors;
           this.totalItems = (response.data as any)?.total || 0;
           this.loading = false;
         },

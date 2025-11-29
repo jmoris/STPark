@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Subject, takeUntil, debounceTime, distinctUntilChanged } from 'rxjs';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
+import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
 import { MatSortModule, MatSort } from '@angular/material/sort';
 import { MatButtonModule } from '@angular/material/button';
@@ -74,7 +74,6 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
 
   // Data
   sessions: ParkingSession[] = [];
-  dataSource = new MatTableDataSource<ParkingSession>([]);
   loading = false;
   error: string | null = null;
 
@@ -83,6 +82,10 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
   pageSize = 15;
   currentPage = 0;
   pageSizeOptions = [5, 10, 15, 25, 50];
+
+  // Ordenamiento
+  sortBy: string = 'started_at';
+  sortOrder: 'asc' | 'desc' = 'desc';
 
   // Filters
   filters: SessionFilters = {
@@ -161,7 +164,17 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
+    // Suscribirse a cambios de ordenamiento
+    if (this.sort) {
+      this.sort.sortChange
+        .pipe(takeUntil(this._unsubscribeAll))
+        .subscribe(sort => {
+          this.sortBy = sort.active;
+          this.sortOrder = sort.direction === 'asc' ? 'asc' : 'desc';
+          this.currentPage = 0; // Reset a la primera página al cambiar ordenamiento
+          this.loadSessions();
+        });
+    }
   }
 
   ngOnDestroy(): void {
@@ -176,7 +189,9 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
     // Construir objeto de parámetros limpiando valores vacíos
     const params: any = {
       page: this.currentPage + 1, // Backend usa 1-based indexing
-      per_page: this.pageSize
+      per_page: this.pageSize,
+      sort_by: this.sortBy,
+      sort_order: this.sortOrder
     };
 
     // Agregar filtros solo si tienen valores válidos
@@ -210,7 +225,6 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
         next: (response: SessionsApiResponse) => {
           // El backend devuelve { success: true, data: [...], pagination: {...} }
           this.sessions = response.data || [];
-          this.dataSource.data = this.sessions;
           this.totalItems = response.pagination?.total || 0;
           this.loading = false;
         },

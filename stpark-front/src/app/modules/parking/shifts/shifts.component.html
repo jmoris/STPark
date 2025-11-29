@@ -86,7 +86,7 @@
   <mat-card>
     <mat-card-content class="p-6">
       <div class="overflow-x-auto">
-        <table mat-table [dataSource]="dataSource" matSort class="w-full">
+        <table mat-table [dataSource]="shifts" matSort [matSortActive]="sortBy" [matSortDirection]="sortOrder" class="w-full">
           <!-- ID Column -->
           <ng-container matColumnDef="id">
             <th mat-header-cell *matHeaderCellDef mat-sort-header="id">ID</th>
@@ -97,7 +97,7 @@
 
           <!-- Operator Column -->
           <ng-container matColumnDef="operator">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header="operator">Operador</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="operator_id">Operador</th>
             <td mat-cell *matCellDef="let shift">
               <div class="flex items-center gap-2">
                 <mat-icon class="text-gray-400">person</mat-icon>
@@ -108,7 +108,7 @@
 
           <!-- Sector Column -->
           <ng-container matColumnDef="sector">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header="sector">Sector</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="sector_id">Sector</th>
             <td mat-cell *matCellDef="let shift">
               <span>{{ shift.sector?.name || 'N/A' }}</span>
             </td>
@@ -152,7 +152,7 @@
 
           <!-- Totals Column -->
           <ng-container matColumnDef="totals">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header="totals">Total Efectivo</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="opening_float">Total Efectivo</th>
             <td mat-cell *matCellDef="let shift">
               <div>
                 <span class="font-semibold text-gray-900" *ngIf="shift.status === 'CLOSED'">

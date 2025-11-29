@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
+import { MatTableModule } from '@angular/material/table';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -56,7 +56,6 @@ export class StreetsComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild(MatSort) sort!: MatSort;
   
   streets: Street[] = [];
-  dataSource = new MatTableDataSource<Street>([]);
   sectors: Sector[] = [];
   loading = false;
   displayedColumns: string[] = ['name', 'sector', 'type', 'sessions_count', 'operators_count', 'actions'];
@@ -66,6 +65,10 @@ export class StreetsComponent implements OnInit, OnDestroy, AfterViewInit {
   pageSize = 10;
   currentPage = 0;
   pageSizeOptions = [5, 10, 25, 50];
+
+  // Ordenamiento
+  sortBy: string = 'name';
+  sortOrder: 'asc' | 'desc' = 'asc';
   
   // Filtros
   filters = {
@@ -86,7 +89,17 @@ export class StreetsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
+    // Suscribirse a cambios de ordenamiento
+    if (this.sort) {
+      this.sort.sortChange
+        .pipe(takeUntil(this._unsubscribeAll))
+        .subscribe(sort => {
+          this.sortBy = sort.active;
+          this.sortOrder = sort.direction === 'asc' ? 'asc' : 'desc';
+          this.currentPage = 0; // Reset a la primera página al cambiar ordenamiento
+          this.loadStreets();
+        });
+    }
   }
 
   ngOnDestroy(): void {
@@ -99,7 +112,9 @@ export class StreetsComponent implements OnInit, OnDestroy, AfterViewInit {
     
     const params: any = {
       page: this.currentPage + 1,
-      per_page: this.pageSize
+      per_page: this.pageSize,
+      sort_by: this.sortBy,
+      sort_order: this.sortOrder
     };
 
     if (this.filters.name && this.filters.name.trim() !== '') {
@@ -114,7 +129,6 @@ export class StreetsComponent implements OnInit, OnDestroy, AfterViewInit {
       .subscribe({
         next: (response) => {
           this.streets = (response.data as any)?.data || [];
-          this.dataSource.data = this.streets;
           this.totalItems = (response.data as any)?.total || 0;
           this.loading = false;
         },

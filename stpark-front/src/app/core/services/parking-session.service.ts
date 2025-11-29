@@ -53,7 +53,7 @@ export class ParkingSessionService {
   /**
    * Listar sesiones con filtros y paginación server-side
    */
-  getSessions(filters: SessionFilters & { page?: number; per_page?: number } = {}): Observable<SessionsApiResponse> {
+  getSessions(filters: SessionFilters & { page?: number; per_page?: number; sort_by?: string; sort_order?: string } = {}): Observable<SessionsApiResponse> {
     let params = new HttpParams();
     
     // Agregar parámetros de paginación si existen
@@ -65,9 +65,18 @@ export class ParkingSessionService {
       params = params.set('per_page', filters.per_page.toString());
     }
     
-    // Agregar filtros (excluyendo page y per_page)
+    // Agregar parámetros de ordenamiento si existen
+    if (filters.sort_by !== undefined && filters.sort_by !== null && filters.sort_by !== '') {
+      params = params.set('sort_by', filters.sort_by);
+    }
+    
+    if (filters.sort_order !== undefined && filters.sort_order !== null && filters.sort_order !== '') {
+      params = params.set('sort_order', filters.sort_order);
+    }
+    
+    // Agregar filtros (excluyendo page, per_page, sort_by, sort_order)
     Object.keys(filters).forEach(key => {
-      if (key === 'page' || key === 'per_page') {
+      if (key === 'page' || key === 'per_page' || key === 'sort_by' || key === 'sort_order') {
         return; // Ya los agregamos arriba
       }
       

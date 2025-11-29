@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
+import { MatTableModule } from '@angular/material/table';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -56,7 +56,6 @@ export class OperatorsComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild(MatSort) sort!: MatSort;
   
   operators: Operator[] = [];
-  dataSource = new MatTableDataSource<Operator>([]);
   loading = false;
   displayedColumns: string[] = ['name', 'rut', 'email', 'phone', 'status', 'actions'];
   
@@ -65,6 +64,10 @@ export class OperatorsComponent implements OnInit, OnDestroy, AfterViewInit {
   pageSize = 10;
   currentPage = 0;
   pageSizeOptions = [5, 10, 25, 50];
+
+  // Ordenamiento
+  sortBy: string = 'name';
+  sortOrder: 'asc' | 'desc' = 'asc';
   
   // Filtros
   filters = {
@@ -84,7 +87,17 @@ export class OperatorsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
+    // Suscribirse a cambios de ordenamiento
+    if (this.sort) {
+      this.sort.sortChange
+        .pipe(takeUntil(this._unsubscribeAll))
+        .subscribe(sort => {
+          this.sortBy = sort.active;
+          this.sortOrder = sort.direction === 'asc' ? 'asc' : 'desc';
+          this.currentPage = 0; // Reset a la primera página al cambiar ordenamiento
+          this.loadOperators();
+        });
+    }
   }
 
   ngOnDestroy(): void {
@@ -98,6 +111,8 @@ export class OperatorsComponent implements OnInit, OnDestroy, AfterViewInit {
     const params = {
       page: this.currentPage + 1, // Backend usa 1-based indexing
       per_page: this.pageSize,
+      sort_by: this.sortBy,
+      sort_order: this.sortOrder,
       ...this.filters
     };
 
@@ -106,7 +121,6 @@ export class OperatorsComponent implements OnInit, OnDestroy, AfterViewInit {
       .subscribe({
         next: (response) => {
           this.operators = (response.data as any)?.data || [];
-          this.dataSource.data = this.operators;
           this.totalItems = (response.data as any)?.total || 0;
           this.loading = false;
         },
