@@ -167,6 +167,27 @@ class DatabaseHelper
     }
 
     /**
+     * Obtener la función para calcular la diferencia en segundos entre dos timestamps
+     * Compatible con PostgreSQL y MySQL/MariaDB
+     */
+    public static function getSecondsDiffFunction(string $startColumn, string $endColumn): string
+    {
+        $driver = DB::getDriverName();
+        
+        switch ($driver) {
+            case 'sqlite':
+                return "CAST((julianday({$endColumn}) - julianday({$startColumn})) * 86400 AS INTEGER)";
+            case 'pgsql':
+                return "EXTRACT(EPOCH FROM ({$endColumn} - {$startColumn}))";
+            case 'mysql':
+            case 'mariadb':
+                return "TIMESTAMPDIFF(SECOND, {$startColumn}, {$endColumn})";
+            default:
+                throw new \Exception("Driver de base de datos no soportado: {$driver}");
+        }
+    }
+
+    /**
      * Obtener información del driver de base de datos actual
      */
     public static function getDriverInfo(): array
