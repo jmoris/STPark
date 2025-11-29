@@ -73,11 +73,11 @@
                 </div>
                 <div class="detail-item" *ngIf="debt.parking_session?.started_at">
                     <label>Inicio:</label>
-                    <span>{{ debt.parking_session.started_at | date:'dd/MM HH:mm' }}</span>
+                    <span>{{ formatDate(debt.parking_session.started_at) }}</span>
                 </div>
                 <div class="detail-item" *ngIf="debt.parking_session?.ended_at">
                     <label>Fin:</label>
-                    <span>{{ debt.parking_session.ended_at | date:'dd/MM HH:mm' }}</span>
+                    <span>{{ formatDate(debt.parking_session.ended_at) }}</span>
                 </div>
             </div>
         </div>
@@ -91,7 +91,7 @@
                         <span class="payment-method">{{ payment.method }}</span>
                         <span class="payment-amount">{{ formatAmount(payment.amount) }}</span>
                     </div>
-                    <div class="payment-date">{{ payment.created_at | date:'dd/MM/yyyy HH:mm' }}</div>
+                    <div class="payment-date">{{ formatDate(payment.created_at) }}</div>
                 </div>
             </div>
         </div>
@@ -102,15 +102,15 @@
             <div class="detail-grid compact">
                 <div class="detail-item">
                     <label>Creada:</label>
-                    <span>{{ debt.created_at | date:'dd/MM/yyyy HH:mm' }}</span>
+                    <span>{{ formatDate(debt.created_at) }}</span>
                 </div>
                 <div class="detail-item" *ngIf="debt.settled_at">
                     <label>Liquidada:</label>
-                    <span>{{ debt.settled_at | date:'dd/MM/yyyy HH:mm' }}</span>
+                    <span>{{ formatDate(debt.settled_at) }}</span>
                 </div>
                 <div class="detail-item" *ngIf="debt.updated_at && debt.updated_at !== debt.created_at">
                     <label>Actualizada:</label>
-                    <span>{{ debt.updated_at | date:'dd/MM/yyyy HH:mm' }}</span>
+                    <span>{{ formatDate(debt.updated_at) }}</span>
                 </div>
             </div>
         </div>

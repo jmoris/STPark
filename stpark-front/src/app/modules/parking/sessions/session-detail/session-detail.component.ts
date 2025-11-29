@@ -154,7 +154,17 @@ export class SessionDetailComponent implements OnInit, OnDestroy {
       return 'N/A';
     }
     
-    return dateObj.toLocaleString('es-CL');
+    const dateStr = dateObj.toLocaleDateString('es-CL', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+    const timeStr = dateObj.toLocaleTimeString('es-CL', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false 
+    });
+    return `${dateStr} ${timeStr}`;
   }
 
   formatDuration(seconds: number): string {
@@ -375,7 +385,7 @@ export class SessionDetailComponent implements OnInit, OnDestroy {
     const today = new Date();
     const endOfDay = new Date(today);
     endOfDay.setHours(23, 59, 59, 999);
-    return endOfDay.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+    return endOfDay.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false });
   }
 
   /**

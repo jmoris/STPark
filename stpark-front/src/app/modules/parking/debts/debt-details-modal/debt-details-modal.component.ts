@@ -38,6 +38,31 @@ export class DebtDetailsModalComponent implements OnChanges {
     }).format(amount).replace('CLP', '$');
   }
 
+  formatDate(date: string | null | undefined): string {
+    if (!date) {
+      return 'N/A';
+    }
+    
+    const dateObj = new Date(date);
+    
+    // Verificar si la fecha es válida
+    if (isNaN(dateObj.getTime())) {
+      return 'N/A';
+    }
+    
+    const dateStr = dateObj.toLocaleDateString('es-CL', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+    const timeStr = dateObj.toLocaleTimeString('es-CL', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false 
+    });
+    return `${dateStr} ${timeStr}`;
+  }
+
   getStatusText(status: string): string {
     switch (status) {
       case 'PENDING': return 'Pendiente';
@@ -152,18 +177,18 @@ export class DebtDetailsModalComponent implements OnChanges {
           <div class="section-title">Información de Auditoría</div>
           <div class="detail-row">
             <span class="detail-label">Creada:</span>
-            <span>${new Date(this.debt.created_at).toLocaleString('es-CL')}</span>
+            <span>${this.formatDate(this.debt.created_at)}</span>
           </div>
           ${this.debt.settled_at ? `
           <div class="detail-row">
             <span class="detail-label">Liquidada:</span>
-            <span>${new Date(this.debt.settled_at).toLocaleString('es-CL')}</span>
+            <span>${this.formatDate(this.debt.settled_at)}</span>
           </div>
           ` : ''}
         </div>
         
         <div class="footer">
-          <div>Fecha de impresión: ${new Date().toLocaleString('es-CL')}</div>
+          <div>Fecha de impresión: ${this.formatDate(new Date().toISOString())}</div>
           <div>Gracias por usar STPark</div>
         </div>
       </body>

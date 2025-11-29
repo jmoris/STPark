@@ -108,6 +108,31 @@ export class DebtsComponent implements OnInit, OnDestroy {
     return this.debtService.formatAmount(amount);
   }
 
+  formatDate(date: string | null | undefined): string {
+    if (!date) {
+      return 'N/A';
+    }
+    
+    const dateObj = new Date(date);
+    
+    // Verificar si la fecha es válida
+    if (isNaN(dateObj.getTime())) {
+      return 'N/A';
+    }
+    
+    const dateStr = dateObj.toLocaleDateString('es-CL', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+    const timeStr = dateObj.toLocaleTimeString('es-CL', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false 
+    });
+    return `${dateStr} ${timeStr}`;
+  }
+
   getStatusColor(status: string): string {
     switch (status) {
       case 'PENDING': return 'orange';

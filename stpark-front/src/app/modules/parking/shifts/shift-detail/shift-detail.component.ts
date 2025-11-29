@@ -97,7 +97,24 @@ export class ShiftDetailComponent implements OnInit, OnDestroy {
 
   formatDate(date: string | null | undefined): string {
     if (!date) return '-';
-    return new Date(date).toLocaleString('es-CL');
+    const dateObj = new Date(date);
+    
+    // Verificar si la fecha es válida
+    if (isNaN(dateObj.getTime())) {
+      return '-';
+    }
+    
+    const dateStr = dateObj.toLocaleDateString('es-CL', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+    const timeStr = dateObj.toLocaleTimeString('es-CL', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false 
+    });
+    return `${dateStr} ${timeStr}`;
   }
 
   getMethodIcon(method: string): string {
