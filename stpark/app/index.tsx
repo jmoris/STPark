@@ -10,9 +10,8 @@ import {
   TextInput,
   Alert,
   Image,
-  BackHandler,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { router, Link } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
@@ -51,7 +50,6 @@ export default function HomeScreen() {
   const [systemName, setSystemName] = useState<string>('Sistema de Gestión de Estacionamiento');
   const { operator, logout } = useAuth();
   const { tenantConfig, isLoading: tenantLoading, setTenant } = useTenant();
-  const insets = useSafeAreaInsets();
 
   // Verificar si hay tenant configurado al cargar la pantalla
   useEffect(() => {
@@ -418,11 +416,6 @@ export default function HomeScreen() {
     console.log('Sesiones cargadas después de loadActiveSessions:', activeSessions);
   };
 
-  const handleLogout = async () => {
-    await logout();
-    router.replace('/login');
-  };
-
   // Cargar estadísticas cuando se enfoca la pantalla
   useFocusEffect(
     React.useCallback(() => {
@@ -430,22 +423,7 @@ export default function HomeScreen() {
       setTimeout(() => {
         loadSelectedPrinter();
       }, 1000);
-
-      // Manejar el botón atrás de Android: cerrar sesión y volver al login
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-        // Cerrar sesión y redirigir al login
-        logout().then(() => {
-          router.replace('/login');
-        });
-        // Retornar true para indicar que manejamos el evento
-        return true;
-      });
-
-      return () => {
-        // Remover el listener cuando la pantalla pierde el foco
-        backHandler.remove();
-      };
-    }, [tenantConfig.tenant, logout, router])
+    }, [tenantConfig.tenant])
   );
 
   const menuItems = [
@@ -476,11 +454,13 @@ export default function HomeScreen() {
     router.push(route as any);
   };
 
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/login');
+  };
+
   const styles = StyleSheet.create({
-    screenWrapper: {
-      flex: 1,
-      position: 'relative',
-    },
     container: {
       flex: 1,
       backgroundColor: '#043476',
@@ -1020,7 +1000,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={styles.screenWrapper}>
+    <View style={styles.container}>
       <SafeAreaView style={styles.container}>
       <Link href="/configuracion" asChild>
         <TouchableOpacity style={styles.configButton}>
@@ -1494,7 +1474,9 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+
       </SafeAreaView>
+
     </View>
   );
 }

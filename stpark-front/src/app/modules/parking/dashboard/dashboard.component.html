@@ -1,22 +1,29 @@
 <div class="p-6 w-full">
   <!-- Header -->
   <div class="mb-8">
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p class="mt-2 text-gray-600">Resumen general del sistema de estacionamientos</p>
-      </div>
+    <!-- Fila 1: Título -->
+    <div class="mb-2">
+      <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
+    </div>
+    
+    <!-- Fila 2: Descripción -->
+    <div class="mb-4">
+      <p class="text-gray-600">Resumen general del sistema de estacionamientos</p>
+    </div>
+    
+    <!-- Fila 3: Fecha, Actualizar y Exportar -->
+    <div class="flex flex-col md:flex-row items-start md:items-center gap-4">
+      <mat-form-field appearance="outline" class="w-full md:w-48">
+        <mat-label>Fecha</mat-label>
+        <input matInput 
+               [matDatepicker]="picker" 
+               [(ngModel)]="selectedDate" 
+               (dateChange)="onDateChange()" 
+               placeholder="dd/mm/yyyy">
+        <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+        <mat-datepicker #picker></mat-datepicker>
+      </mat-form-field>
       <div class="flex items-center gap-4">
-        <mat-form-field appearance="outline" class="w-48">
-          <mat-label>Fecha</mat-label>
-          <input matInput 
-                 [matDatepicker]="picker" 
-                 [(ngModel)]="selectedDate" 
-                 (dateChange)="onDateChange()" 
-                 placeholder="dd/mm/yyyy">
-          <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
-          <mat-datepicker #picker></mat-datepicker>
-        </mat-form-field>
         <button mat-icon-button class="rounded-sm" (click)="refreshData()" [disabled]="loading">
           <mat-icon>refresh</mat-icon>
         </button>
