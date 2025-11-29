@@ -164,9 +164,7 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // El ordenamiento se maneja mediante el evento (matSortChange) en el template
-    // Los bindings [matSortActive] y [matSortDirection] mantienen el estado visual sincronizado
-    // Sincronizar el estado inicial del sort
+    // Configurar el estado inicial del sort después de que la vista esté inicializada
     if (this.sort) {
       setTimeout(() => {
         this.sort.active = this.sortBy;
@@ -176,17 +174,25 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   onSortChange(event: Sort): void {
-    // Usar la dirección del evento directamente, MatSort ya maneja la alternancia
-    this.sortBy = event.active;
-    this.sortOrder = event.direction === 'asc' ? 'asc' : 'desc';
+    console.log('Sort change event:', event);
     
-    // Sincronizar el estado visual del sort después de actualizar nuestros valores
-    if (this.sort) {
-      setTimeout(() => {
-        this.sort.active = this.sortBy;
-        this.sort.direction = this.sortOrder;
-      }, 0);
+    // Si se hace clic en la misma columna, MatSort debería alternar automáticamente
+    // Pero si la dirección está vacía o es la misma, forzar la alternancia manualmente
+    if (event.active === this.sortBy) {
+      // Si estaba en desc, cambiar a asc
+      if (this.sortOrder === 'desc') {
+        this.sortOrder = 'asc';
+      } else {
+        // Si estaba en asc, cambiar a desc
+        this.sortOrder = 'desc';
+      }
+    } else {
+      // Nueva columna, usar la dirección del evento (debería ser 'asc' en el primer clic)
+      this.sortBy = event.active;
+      this.sortOrder = event.direction === 'asc' ? 'asc' : 'desc';
     }
+    
+    console.log('Updated sortBy:', this.sortBy, 'sortOrder:', this.sortOrder);
     
     this.currentPage = 0; // Reset a la primera página al cambiar ordenamiento
     this.loadSessions();
