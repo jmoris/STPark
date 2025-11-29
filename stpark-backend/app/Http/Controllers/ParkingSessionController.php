@@ -31,52 +31,43 @@ class ParkingSessionController extends Controller
             $perPage = $request->get('per_page', 15);
             $page = $request->get('page', 1);
             
-            // Obtener parámetros de ordenamiento primero para saber si necesitamos JOIN
+            // Obtener parámetros de ordenamiento primero
             $sortBy = $request->get('sort_by', 'started_at');
-            $needsJoin = ($sortBy === 'net_amount');
             
             // Construir query con filtros
             $query = ParkingSession::with(['sector', 'street', 'operator', 'payments']);
-            
-            // Si se ordena por net_amount, hacer JOIN con sales
-            if ($needsJoin) {
-                $query->leftJoin('sales', 'parking_sessions.id', '=', 'sales.parking_session_id');
-                // Seleccionar solo columnas de parking_sessions para evitar duplicados
-                $query->select('parking_sessions.*');
-            }
 
             // Filtro por placa (case-insensitive)
             if ($request->filled('plate')) {
                 $plate = strtolower($request->get('plate'));
-                $tablePrefix = $needsJoin ? 'parking_sessions.' : '';
-                $query->whereRaw("LOWER({$tablePrefix}plate) LIKE ?", ['%' . $plate . '%']);
+                $query->whereRaw('LOWER(plate) LIKE ?', ['%' . $plate . '%']);
             }
 
             // Filtro por sector
             if ($request->filled('sector_id')) {
-                $query->where($needsJoin ? 'parking_sessions.sector_id' : 'sector_id', $request->get('sector_id'));
+                $query->where('sector_id', $request->get('sector_id'));
             }
 
             // Filtro por operador
             if ($request->filled('operator_id')) {
-                $query->where($needsJoin ? 'parking_sessions.operator_in_id' : 'operator_in_id', $request->get('operator_id'));
+                $query->where('operator_in_id', $request->get('operator_id'));
             }
 
             // Filtro por estado
             if ($request->filled('status') && $request->get('status') !== '') {
-                $query->where($needsJoin ? 'parking_sessions.status' : 'status', $request->get('status'));
+                $query->where('status', $request->get('status'));
             }
 
             // Filtro por fecha desde
             if ($request->filled('date_from')) {
                 $dateFrom = Carbon::parse($request->get('date_from'))->startOfDay();
-                $query->where($needsJoin ? 'parking_sessions.started_at' : 'started_at', '>=', $dateFrom);
+                $query->where('started_at', '>=', $dateFrom);
             }
 
             // Filtro por fecha hasta
             if ($request->filled('date_to')) {
                 $dateTo = Carbon::parse($request->get('date_to'))->endOfDay();
-                $query->where($needsJoin ? 'parking_sessions.started_at' : 'started_at', '<=', $dateTo);
+                $query->where('started_at', '<=', $dateTo);
             }
 
             // Ordenamiento
@@ -93,19 +84,23 @@ class ParkingSessionController extends Controller
             
             // Para campos que necesitan cálculo o JOIN
             if ($sortBy === 'net_amount') {
-                // Ordenar por el total de la tabla sales
-                $query->orderBy(DB::raw("COALESCE(`sales`.`total`, 0)"), $sortOrder);
+                // Hacer JOIN con sales para obtener el total
+                // Usar una subconsulta en el orderBy para evitar problemas con groupBy y with()
+                $query->orderByRaw("(
+                    SELECT COALESCE(MAX(total), 0) 
+                    FROM sales 
+                    WHERE sales.parking_session_id = parking_sessions.id
+                ) {$sortOrder}");
             } elseif ($sortBy === 'seconds_total') {
                 // Calcular seconds_total desde las fechas si no está guardado
                 // Usar TIMESTAMPDIFF para calcular la diferencia en segundos
-                $query->orderBy(DB::raw("COALESCE(`parking_sessions`.`seconds_total`, TIMESTAMPDIFF(SECOND, `parking_sessions`.`started_at`, `parking_sessions`.`ended_at`), 0)"), $sortOrder);
+                $query->orderByRaw("COALESCE(seconds_total, TIMESTAMPDIFF(SECOND, started_at, COALESCE(ended_at, NOW())), 0) {$sortOrder}");
             } elseif ($sortBy === 'ended_at') {
                 // Para timestamps nullable, poner NULL al final
                 $nullValue = $sortOrder === 'asc' ? '9999-12-31 23:59:59' : '1970-01-01 00:00:00';
-                $query->orderBy(DB::raw("COALESCE(`parking_sessions`.`ended_at`, '{$nullValue}')"), $sortOrder);
+                $query->orderByRaw("COALESCE(ended_at, '{$nullValue}') {$sortOrder}");
             } else {
-                // Para otros campos, usar el nombre completo de la tabla para evitar ambigüedad
-                $query->orderBy("parking_sessions.{$sortBy}", $sortOrder);
+                $query->orderBy($sortBy, $sortOrder);
             }
 
             // Aplicar paginación
