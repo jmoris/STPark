@@ -1,7 +1,7 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatTableModule } from '@angular/material/table';
+import { MatTableModule, MatTableDataSource } from '@angular/material/table';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -13,6 +13,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatSelectModule } from '@angular/material/select';
 import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
+import { MatSortModule, MatSort } from '@angular/material/sort';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Subject, takeUntil } from 'rxjs';
@@ -40,7 +41,8 @@ import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-in
     MatMenuModule,
     MatChipsModule,
     MatSelectModule,
-    MatPaginatorModule
+    MatPaginatorModule,
+    MatSortModule
   ],
   providers: [
     { provide: MatPaginatorIntl, useValue: getSpanishPaginatorIntl() }
@@ -48,10 +50,13 @@ import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-in
   templateUrl: './operators.component.html',
   styleUrls: ['./operators.component.scss']
 })
-export class OperatorsComponent implements OnInit, OnDestroy {
+export class OperatorsComponent implements OnInit, OnDestroy, AfterViewInit {
   private _unsubscribeAll: Subject<any> = new Subject<any>();
 
+  @ViewChild(MatSort) sort!: MatSort;
+  
   operators: Operator[] = [];
+  dataSource = new MatTableDataSource<Operator>([]);
   loading = false;
   displayedColumns: string[] = ['name', 'rut', 'email', 'phone', 'status', 'actions'];
   
@@ -78,6 +83,10 @@ export class OperatorsComponent implements OnInit, OnDestroy {
     this.loadOperators();
   }
 
+  ngAfterViewInit(): void {
+    this.dataSource.sort = this.sort;
+  }
+
   ngOnDestroy(): void {
     this._unsubscribeAll.next(null);
     this._unsubscribeAll.complete();
@@ -97,6 +106,7 @@ export class OperatorsComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           this.operators = (response.data as any)?.data || [];
+          this.dataSource.data = this.operators;
           this.totalItems = (response.data as any)?.total || 0;
           this.loading = false;
         },

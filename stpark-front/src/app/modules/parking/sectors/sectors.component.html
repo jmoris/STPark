@@ -106,10 +106,10 @@
   <mat-card>
     <mat-card-content class="p-6">
       <div class="overflow-x-auto">
-        <table mat-table [dataSource]="sectors" class="w-full">
+        <table mat-table [dataSource]="dataSource" matSort class="w-full">
           <!-- Name Column -->
           <ng-container matColumnDef="name">
-            <th mat-header-cell *matHeaderCellDef>Nombre</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="name">Nombre</th>
             <td mat-cell *matCellDef="let sector">
               <div class="flex items-center gap-2">
                 <mat-icon class="text-gray-500">location_city</mat-icon>
@@ -120,7 +120,7 @@
 
           <!-- Type Column -->
           <ng-container matColumnDef="type">
-            <th mat-header-cell *matHeaderCellDef>Tipo</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="is_private">Tipo</th>
             <td mat-cell *matCellDef="let sector">
               <span class="sector-type-badge"
                     [class]="'bg-' + getSectorTypeColor(sector) + '-100 text-' + getSectorTypeColor(sector) + '-800'">
@@ -131,7 +131,7 @@
 
           <!-- Streets Count Column -->
           <ng-container matColumnDef="streets_count">
-            <th mat-header-cell *matHeaderCellDef>Calles</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="streets_count">Calles</th>
             <td mat-cell *matCellDef="let sector">
               <div class="flex items-center gap-1">
                 <mat-icon class="text-sm text-gray-500">road</mat-icon>
@@ -142,7 +142,7 @@
 
           <!-- Operators Count Column -->
           <ng-container matColumnDef="operators_count">
-            <th mat-header-cell *matHeaderCellDef>Operadores</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="operators_count">Operadores</th>
             <td mat-cell *matCellDef="let sector">
               <div class="flex flex-col gap-1">
                 <div class="flex items-center gap-1">
@@ -155,7 +155,7 @@
 
           <!-- Status Column -->
           <ng-container matColumnDef="status">
-            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="status">Estado</th>
             <td mat-cell *matCellDef="let sector">
               <span class="sector-status-badge"
                     [class]="'bg-' + getStatusColor(sector) + '-100 text-' + getStatusColor(sector) + '-800'">

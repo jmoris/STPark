@@ -1,6 +1,6 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatTableModule } from '@angular/material/table';
+import { MatTableModule, MatTableDataSource } from '@angular/material/table';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -11,6 +11,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatSelectModule } from '@angular/material/select';
 import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
+import { MatSortModule, MatSort } from '@angular/material/sort';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
@@ -44,6 +45,7 @@ import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-in
     MatDatepickerModule,
     MatSelectModule,
     MatPaginatorModule,
+    MatSortModule,
     MatChipsModule,
     MatMenuModule,
     MatDialogModule,
@@ -55,10 +57,13 @@ import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-in
   templateUrl: './shifts.component.html',
   styleUrls: ['./shifts.component.scss']
 })
-export class ShiftsComponent implements OnInit, OnDestroy {
+export class ShiftsComponent implements OnInit, OnDestroy, AfterViewInit {
   private _unsubscribeAll: Subject<any> = new Subject<any>();
 
+  @ViewChild(MatSort) sort!: MatSort;
+  
   shifts: Shift[] = [];
+  dataSource = new MatTableDataSource<Shift>([]);
   loading = false;
   displayedColumns: string[] = ['id', 'operator', 'sector', 'opened_at', 'closed_at', 'status', 'totals', 'actions'];
   
@@ -101,6 +106,10 @@ export class ShiftsComponent implements OnInit, OnDestroy {
     this.loadSectors();
     this.loadShifts();
     this.loadCurrentShift();
+  }
+
+  ngAfterViewInit(): void {
+    this.dataSource.sort = this.sort;
   }
 
   ngOnDestroy(): void {
@@ -159,10 +168,12 @@ export class ShiftsComponent implements OnInit, OnDestroy {
             if (paginatedData.data) {
               // Respuesta paginada
               this.shifts = paginatedData.data || [];
+              this.dataSource.data = this.shifts;
               this.totalItems = paginatedData.total || 0;
             } else {
               // Respuesta simple array
               this.shifts = Array.isArray(response.data) ? response.data : [];
+              this.dataSource.data = this.shifts;
               this.totalItems = this.shifts.length;
             }
           }

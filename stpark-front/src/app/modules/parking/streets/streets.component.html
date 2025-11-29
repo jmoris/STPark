@@ -107,10 +107,10 @@
   <mat-card>
     <mat-card-content class="p-6">
       <div class="overflow-x-auto">
-        <table mat-table [dataSource]="streets" class="w-full">
+        <table mat-table [dataSource]="dataSource" matSort class="w-full">
           <!-- Name Column -->
           <ng-container matColumnDef="name">
-            <th mat-header-cell *matHeaderCellDef>Dirección</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="name">Dirección</th>
             <td mat-cell *matCellDef="let street">
               <div class="flex items-center gap-2">
                 <mat-icon class="text-gray-500">road</mat-icon>
@@ -121,7 +121,7 @@
 
           <!-- Sector Column -->
           <ng-container matColumnDef="sector">
-            <th mat-header-cell *matHeaderCellDef>Sector</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="sector">Sector</th>
             <td mat-cell *matCellDef="let street">
               <div class="flex items-center gap-2">
                 <mat-icon class="text-gray-500">location_city</mat-icon>
@@ -132,7 +132,7 @@
 
           <!-- Type Column -->
           <ng-container matColumnDef="type">
-            <th mat-header-cell *matHeaderCellDef>Tipo</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="is_specific_address">Tipo</th>
             <td mat-cell *matCellDef="let street">
               <span class="px-2 py-1 rounded-full text-xs font-medium"
                     [class]="'bg-' + getAddressTypeColor(street) + '-100 text-' + getAddressTypeColor(street) + '-800'">
@@ -143,7 +143,7 @@
 
           <!-- Sessions Count Column -->
           <ng-container matColumnDef="sessions_count">
-            <th mat-header-cell *matHeaderCellDef>Sesiones</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="sessions_count">Sesiones</th>
             <td mat-cell *matCellDef="let street">
               <div class="flex items-center gap-1">
                 <mat-icon class="text-sm text-gray-500">directions_car</mat-icon>
@@ -154,7 +154,7 @@
 
           <!-- Operators Count Column -->
           <ng-container matColumnDef="operators_count">
-            <th mat-header-cell *matHeaderCellDef>Operadores</th>
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="operators_count">Operadores</th>
             <td mat-cell *matCellDef="let street">
               <div class="flex items-center gap-1">
                 <mat-icon class="text-sm text-gray-500">people</mat-icon>

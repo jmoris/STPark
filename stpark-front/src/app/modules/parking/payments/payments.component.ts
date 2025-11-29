@@ -1,6 +1,6 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatTableModule } from '@angular/material/table';
+import { MatTableModule, MatTableDataSource } from '@angular/material/table';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -11,7 +11,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatSelectModule } from '@angular/material/select';
 import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
-import { MatSortModule } from '@angular/material/sort';
+import { MatSortModule, MatSort } from '@angular/material/sort';
 import { MatMenuModule } from '@angular/material/menu';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
@@ -47,10 +47,13 @@ import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-in
   templateUrl: './payments.component.html',
   styleUrls: ['./payments.component.scss']
 })
-export class PaymentsComponent implements OnInit, OnDestroy {
+export class PaymentsComponent implements OnInit, OnDestroy, AfterViewInit {
   private _unsubscribeAll: Subject<any> = new Subject<any>();
 
+  @ViewChild(MatSort) sort!: MatSort;
+  
   payments: Payment[] = [];
+  dataSource = new MatTableDataSource<Payment>([]);
   loading = false;
   displayedColumns: string[] = ['id', 'amount', 'method', 'status', 'created_at', 'actions'];
   
@@ -78,6 +81,10 @@ export class PaymentsComponent implements OnInit, OnDestroy {
     this.loadPayments();
   }
 
+  ngAfterViewInit(): void {
+    this.dataSource.sort = this.sort;
+  }
+
   ngOnDestroy(): void {
     this._unsubscribeAll.next(null);
     this._unsubscribeAll.complete();
@@ -97,6 +104,7 @@ export class PaymentsComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           this.payments = (response.data as any)?.data || [];
+          this.dataSource.data = this.payments;
           this.totalItems = (response.data as any)?.total || 0;
           this.loading = false;
         },

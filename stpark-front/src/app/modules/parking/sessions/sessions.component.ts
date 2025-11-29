@@ -1,12 +1,12 @@
-import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Subject, takeUntil, debounceTime, distinctUntilChanged } from 'rxjs';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
-import { MatTableModule } from '@angular/material/table';
+import { MatTableModule, MatTableDataSource } from '@angular/material/table';
 import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
-import { MatSortModule } from '@angular/material/sort';
+import { MatSortModule, MatSort } from '@angular/material/sort';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -67,11 +67,14 @@ import {
   templateUrl: './sessions.component.html',
   styleUrls: ['./sessions.component.scss']
 })
-export class SessionsComponent implements OnInit, OnDestroy {
+export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
   private _unsubscribeAll: Subject<any> = new Subject<any>();
+
+  @ViewChild(MatSort) sort!: MatSort;
 
   // Data
   sessions: ParkingSession[] = [];
+  dataSource = new MatTableDataSource<ParkingSession>([]);
   loading = false;
   error: string | null = null;
 
@@ -157,6 +160,10 @@ export class SessionsComponent implements OnInit, OnDestroy {
       });
   }
 
+  ngAfterViewInit(): void {
+    this.dataSource.sort = this.sort;
+  }
+
   ngOnDestroy(): void {
     this._unsubscribeAll.next(null);
     this._unsubscribeAll.complete();
@@ -203,6 +210,7 @@ export class SessionsComponent implements OnInit, OnDestroy {
         next: (response: SessionsApiResponse) => {
           // El backend devuelve { success: true, data: [...], pagination: {...} }
           this.sessions = response.data || [];
+          this.dataSource.data = this.sessions;
           this.totalItems = response.pagination?.total || 0;
           this.loading = false;
         },

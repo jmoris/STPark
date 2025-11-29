@@ -1,7 +1,7 @@
-import { Component, OnInit, OnDestroy, AfterViewInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatTableModule } from '@angular/material/table';
+import { MatTableModule, MatTableDataSource } from '@angular/material/table';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -14,6 +14,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatSelectModule } from '@angular/material/select';
 import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
+import { MatSortModule, MatSort } from '@angular/material/sort';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Subject, takeUntil } from 'rxjs';
@@ -41,7 +42,8 @@ import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-in
     MatChipsModule,
     MatDialogModule,
     MatSelectModule,
-    MatPaginatorModule
+    MatPaginatorModule,
+    MatSortModule
   ],
   providers: [
     { provide: MatPaginatorIntl, useValue: getSpanishPaginatorIntl() }
@@ -52,7 +54,10 @@ import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-in
 export class SectorsComponent implements OnInit, OnDestroy, AfterViewInit {
   private _unsubscribeAll: Subject<any> = new Subject<any>();
 
+  @ViewChild(MatSort) sort!: MatSort;
+  
   sectors: Sector[] = [];
+  dataSource = new MatTableDataSource<Sector>([]);
   loading = false;
   displayedColumns: string[] = ['name', 'type', 'streets_count', 'operators_count', 'status', 'actions'];
   
@@ -79,6 +84,7 @@ export class SectorsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
+    this.dataSource.sort = this.sort;
     // Forzar recarga después de que la vista esté inicializada
     setTimeout(() => {
       this.loadSectors();
@@ -112,6 +118,7 @@ export class SectorsComponent implements OnInit, OnDestroy, AfterViewInit {
       .subscribe({
         next: (response) => {
           this.sectors = (response.data as any)?.data || [];
+          this.dataSource.data = this.sectors;
           this.totalItems = (response.data as any)?.total || 0;
           this.loading = false;
         },

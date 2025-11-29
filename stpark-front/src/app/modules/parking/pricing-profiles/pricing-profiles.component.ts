@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
@@ -6,14 +6,14 @@ import { Subject, takeUntil } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
-import { MatTableModule } from '@angular/material/table';
+import { MatTableModule, MatTableDataSource } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
-import { MatSortModule } from '@angular/material/sort';
+import { MatSortModule, MatSort } from '@angular/material/sort';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialog } from '@angular/material/dialog';
@@ -56,10 +56,13 @@ import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-in
   templateUrl: './pricing-profiles.component.html',
   styleUrls: ['./pricing-profiles.component.scss']
 })
-export class PricingProfilesComponent implements OnInit, OnDestroy {
+export class PricingProfilesComponent implements OnInit, OnDestroy, AfterViewInit {
   private _unsubscribeAll: Subject<any> = new Subject<any>();
 
+  @ViewChild(MatSort) sort!: MatSort;
+
   pricingProfiles: PricingProfile[] = [];
+  dataSource = new MatTableDataSource<PricingProfile>([]);
   sectors: Sector[] = [];
   loading = false;
   error: string | null = null;
@@ -139,6 +142,10 @@ export class PricingProfilesComponent implements OnInit, OnDestroy {
     this.loadPricingProfiles();
   }
 
+  ngAfterViewInit(): void {
+    this.dataSource.sort = this.sort;
+  }
+
   ngOnDestroy(): void {
     this._unsubscribeAll.next(null);
     this._unsubscribeAll.complete();
@@ -190,6 +197,7 @@ export class PricingProfilesComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           this.pricingProfiles = (response.data as any)?.data || [];
+          this.dataSource.data = this.pricingProfiles;
           this.totalItems = (response.data as any)?.total || 0;
           this.loading = false;
         },

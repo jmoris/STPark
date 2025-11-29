@@ -1,7 +1,7 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatTableModule } from '@angular/material/table';
+import { MatTableModule, MatTableDataSource } from '@angular/material/table';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -13,6 +13,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatSelectModule } from '@angular/material/select';
 import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
+import { MatSortModule, MatSort } from '@angular/material/sort';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Subject, takeUntil } from 'rxjs';
@@ -40,7 +41,8 @@ import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-in
     MatMenuModule,
     MatChipsModule,
     MatSelectModule,
-    MatPaginatorModule
+    MatPaginatorModule,
+    MatSortModule
   ],
   providers: [
     { provide: MatPaginatorIntl, useValue: getSpanishPaginatorIntl() }
@@ -48,10 +50,13 @@ import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-in
   templateUrl: './streets.component.html',
   styleUrls: ['./streets.component.scss']
 })
-export class StreetsComponent implements OnInit, OnDestroy {
+export class StreetsComponent implements OnInit, OnDestroy, AfterViewInit {
   private _unsubscribeAll: Subject<any> = new Subject<any>();
 
+  @ViewChild(MatSort) sort!: MatSort;
+  
   streets: Street[] = [];
+  dataSource = new MatTableDataSource<Street>([]);
   sectors: Sector[] = [];
   loading = false;
   displayedColumns: string[] = ['name', 'sector', 'type', 'sessions_count', 'operators_count', 'actions'];
@@ -80,6 +85,10 @@ export class StreetsComponent implements OnInit, OnDestroy {
     this.loadStreets();
   }
 
+  ngAfterViewInit(): void {
+    this.dataSource.sort = this.sort;
+  }
+
   ngOnDestroy(): void {
     this._unsubscribeAll.next(null);
     this._unsubscribeAll.complete();
@@ -105,6 +114,7 @@ export class StreetsComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           this.streets = (response.data as any)?.data || [];
+          this.dataSource.data = this.streets;
           this.totalItems = (response.data as any)?.total || 0;
           this.loading = false;
         },

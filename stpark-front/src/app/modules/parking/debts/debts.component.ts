@@ -1,6 +1,6 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatTableModule } from '@angular/material/table';
+import { MatTableModule, MatTableDataSource } from '@angular/material/table';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -13,6 +13,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
+import { MatSortModule, MatSort } from '@angular/material/sort';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { DebtService } from '../../../core/services/debt.service';
@@ -40,6 +41,7 @@ import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-in
     MatChipsModule,
     MatDatepickerModule,
     MatPaginatorModule,
+    MatSortModule,
     DebtDetailsModalComponent
   ],
   providers: [
@@ -48,10 +50,13 @@ import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-in
   templateUrl: './debts.component.html',
   styleUrls: ['./debts.component.scss']
 })
-export class DebtsComponent implements OnInit, OnDestroy {
+export class DebtsComponent implements OnInit, OnDestroy, AfterViewInit {
   private _unsubscribeAll: Subject<any> = new Subject<any>();
 
+  @ViewChild(MatSort) sort!: MatSort;
+  
   debts: Debt[] = [];
+  dataSource = new MatTableDataSource<Debt>([]);
   loading = false;
   displayedColumns: string[] = ['plate', 'amount', 'origin', 'status', 'created_at', 'actions'];
   
@@ -79,6 +84,10 @@ export class DebtsComponent implements OnInit, OnDestroy {
     this.loadDebts();
   }
 
+  ngAfterViewInit(): void {
+    this.dataSource.sort = this.sort;
+  }
+
   ngOnDestroy(): void {
     this._unsubscribeAll.next(null);
     this._unsubscribeAll.complete();
@@ -98,6 +107,7 @@ export class DebtsComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           this.debts = (response.data as any)?.data || [];
+          this.dataSource.data = this.debts;
           this.totalItems = (response.data as any)?.total || 0;
           this.loading = false;
         },
