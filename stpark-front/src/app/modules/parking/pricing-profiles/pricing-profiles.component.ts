@@ -12,7 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
 import { MatSortModule } from '@angular/material/sort';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
@@ -25,6 +25,7 @@ import { FuseConfirmationService } from '@fuse/services/confirmation';
 import { PricingProfileService } from 'app/core/services/pricing-profile.service';
 import { SectorService } from 'app/core/services/sector.service';
 import { PricingProfile, PricingRule, Sector, PricingProfileFilters } from 'app/interfaces/parking.interface';
+import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-intl';
 
 @Component({
   selector: 'app-pricing-profiles',
@@ -48,6 +49,9 @@ import { PricingProfile, PricingRule, Sector, PricingProfileFilters } from 'app/
     MatMenuModule,
     MatDatepickerModule,
     MatCheckboxModule
+  ],
+  providers: [
+    { provide: MatPaginatorIntl, useValue: getSpanishPaginatorIntl() }
   ],
   templateUrl: './pricing-profiles.component.html',
   styleUrls: ['./pricing-profiles.component.scss']

@@ -10,7 +10,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatSelectModule } from '@angular/material/select';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
@@ -25,6 +25,7 @@ import { Router } from '@angular/router';
 import { OpenShiftModalComponent } from './open-shift-modal/open-shift-modal.component';
 import { CloseShiftModalComponent } from './close-shift-modal/close-shift-modal.component';
 import { CashAdjustmentModalComponent } from './cash-adjustment-modal/cash-adjustment-modal.component';
+import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-intl';
 
 @Component({
   selector: 'app-shifts',
@@ -47,6 +48,9 @@ import { CashAdjustmentModalComponent } from './cash-adjustment-modal/cash-adjus
     MatMenuModule,
     MatDialogModule,
     MatSnackBarModule
+  ],
+  providers: [
+    { provide: MatPaginatorIntl, useValue: getSpanishPaginatorIntl() }
   ],
   templateUrl: './shifts.component.html',
   styleUrls: ['./shifts.component.scss']
@@ -135,6 +139,7 @@ export class ShiftsComponent implements OnInit, OnDestroy {
     
     const params = {
       ...this.filters,
+      page: this.currentPage + 1, // Backend usa 1-based indexing
       per_page: this.pageSize
     };
 

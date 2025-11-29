@@ -5,7 +5,7 @@ import { Router } from '@angular/router';
 import { Subject, takeUntil, debounceTime, distinctUntilChanged } from 'rxjs';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 import { MatTableModule } from '@angular/material/table';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
 import { MatSortModule } from '@angular/material/sort';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -23,6 +23,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatCardModule } from '@angular/material/card';
 
 import { FuseConfirmationService } from '@fuse/services/confirmation';
+import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-intl';
 
 import { ParkingSessionService } from 'app/core/services/parking-session.service';
 import { SectorService } from 'app/core/services/sector.service';
@@ -59,6 +60,9 @@ import {
     MatProgressSpinnerModule,
     MatCheckboxModule,
     MatCardModule
+  ],
+  providers: [
+    { provide: MatPaginatorIntl, useValue: getSpanishPaginatorIntl() }
   ],
   templateUrl: './sessions.component.html',
   styleUrls: ['./sessions.component.scss']

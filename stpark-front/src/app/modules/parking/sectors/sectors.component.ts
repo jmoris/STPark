@@ -13,7 +13,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatSelectModule } from '@angular/material/select';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Subject, takeUntil } from 'rxjs';
@@ -21,6 +21,7 @@ import { SectorService } from 'app/core/services/sector.service';
 import { Sector } from 'app/interfaces/parking.interface';
 import { SectorFormComponent, SectorFormData } from './sector-form/sector-form.component';
 import { ViewModalComponent, ViewModalData, ViewModalField } from 'app/shared/components/view-modal/view-modal.component';
+import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-intl';
 
 @Component({
   selector: 'app-sectors',
@@ -41,6 +42,9 @@ import { ViewModalComponent, ViewModalData, ViewModalField } from 'app/shared/co
     MatDialogModule,
     MatSelectModule,
     MatPaginatorModule
+  ],
+  providers: [
+    { provide: MatPaginatorIntl, useValue: getSpanishPaginatorIntl() }
   ],
   templateUrl: './sectors.component.html',
   styleUrls: ['./sectors.component.scss']

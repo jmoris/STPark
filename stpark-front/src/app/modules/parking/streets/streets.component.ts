@@ -12,7 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatSelectModule } from '@angular/material/select';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Subject, takeUntil } from 'rxjs';
@@ -21,6 +21,7 @@ import { SectorService } from 'app/core/services/sector.service';
 import { Street, Sector } from 'app/interfaces/parking.interface';
 import { StreetFormComponent, StreetFormData } from './street-form/street-form.component';
 import { ViewModalComponent, ViewModalData, ViewModalField } from 'app/shared/components/view-modal/view-modal.component';
+import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-intl';
 
 @Component({
   selector: 'app-streets',
@@ -40,6 +41,9 @@ import { ViewModalComponent, ViewModalData, ViewModalField } from 'app/shared/co
     MatChipsModule,
     MatSelectModule,
     MatPaginatorModule
+  ],
+  providers: [
+    { provide: MatPaginatorIntl, useValue: getSpanishPaginatorIntl() }
   ],
   templateUrl: './streets.component.html',
   styleUrls: ['./streets.component.scss']

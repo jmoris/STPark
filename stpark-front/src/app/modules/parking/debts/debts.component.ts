@@ -12,12 +12,13 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatSelectModule } from '@angular/material/select';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { DebtService } from '../../../core/services/debt.service';
 import { Debt } from '../../../interfaces/parking.interface';
 import { DebtDetailsModalComponent } from './debt-details-modal/debt-details-modal.component';
+import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-intl';
 
 @Component({
   selector: 'app-debts',
@@ -40,6 +41,9 @@ import { DebtDetailsModalComponent } from './debt-details-modal/debt-details-mod
     MatDatepickerModule,
     MatPaginatorModule,
     DebtDetailsModalComponent
+  ],
+  providers: [
+    { provide: MatPaginatorIntl, useValue: getSpanishPaginatorIntl() }
   ],
   templateUrl: './debts.component.html',
   styleUrls: ['./debts.component.scss']

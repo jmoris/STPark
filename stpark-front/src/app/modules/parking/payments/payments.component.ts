@@ -10,7 +10,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatSelectModule } from '@angular/material/select';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
 import { MatSortModule } from '@angular/material/sort';
 import { MatMenuModule } from '@angular/material/menu';
 import { FormsModule } from '@angular/forms';
@@ -18,6 +18,7 @@ import { Subject, takeUntil } from 'rxjs';
 import { PaymentService } from '../../../core/services/payment.service';
 import { Payment } from '../../../interfaces/parking.interface';
 import { PaymentDetailsModalComponent } from './payment-details-modal/payment-details-modal.component';
+import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-intl';
 
 @Component({
   selector: 'app-payments',
@@ -39,6 +40,9 @@ import { PaymentDetailsModalComponent } from './payment-details-modal/payment-de
     MatSortModule,
     MatMenuModule,
     PaymentDetailsModalComponent
+  ],
+  providers: [
+    { provide: MatPaginatorIntl, useValue: getSpanishPaginatorIntl() }
   ],
   templateUrl: './payments.component.html',
   styleUrls: ['./payments.component.scss']
