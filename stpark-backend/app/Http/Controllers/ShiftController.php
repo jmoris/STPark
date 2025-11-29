@@ -327,8 +327,23 @@ class ShiftController extends Controller
             $query->where('status', $request->status);
         }
 
+        // Ordenamiento
+        $sortBy = $request->get('sort_by', 'opened_at');
+        $sortOrder = $request->get('sort_order', 'desc');
+        
+        // Validar campos permitidos para ordenamiento
+        $allowedSortFields = ['id', 'operator_id', 'sector_id', 'opened_at', 'closed_at', 'status', 'opening_float'];
+        if (!in_array($sortBy, $allowedSortFields)) {
+            $sortBy = 'opened_at';
+        }
+        
+        // Validar dirección de ordenamiento
+        $sortOrder = strtolower($sortOrder) === 'asc' ? 'asc' : 'desc';
+        
+        $query->orderBy($sortBy, $sortOrder);
+
         $perPage = $request->per_page ?? 15;
-        $shifts = $query->orderBy('opened_at', 'desc')->paginate($perPage);
+        $shifts = $query->paginate($perPage);
 
         // Agregar totales a cada turno
         $shifts->getCollection()->transform(function ($shift) {

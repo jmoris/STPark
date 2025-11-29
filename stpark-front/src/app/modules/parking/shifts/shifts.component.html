@@ -86,7 +86,7 @@
   <mat-card>
     <mat-card-content class="p-6">
       <div class="overflow-x-auto">
-        <table mat-table [dataSource]="shifts" matSort [matSortActive]="sortBy" [matSortDirection]="sortOrder" class="w-full">
+        <table mat-table [dataSource]="shifts" matSort [matSortActive]="sortBy" [matSortDirection]="sortOrder" (matSortChange)="onSortChange($event)" class="w-full">
           <!-- ID Column -->
           <ng-container matColumnDef="id">
             <th mat-header-cell *matHeaderCellDef mat-sort-header="id">ID</th>

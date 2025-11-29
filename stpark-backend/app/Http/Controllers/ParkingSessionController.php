@@ -67,8 +67,20 @@ class ParkingSessionController extends Controller
                 $query->where('started_at', '<=', $dateTo);
             }
 
-            // Ordenar por fecha de creación descendente
-            $query->orderBy('created_at', 'desc');
+            // Ordenamiento
+            $sortBy = $request->get('sort_by', 'started_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+            
+            // Validar campos permitidos para ordenamiento
+            $allowedSortFields = ['id', 'plate', 'sector_id', 'street_id', 'operator_in_id', 'started_at', 'ended_at', 'seconds_total', 'net_amount', 'status', 'created_at'];
+            if (!in_array($sortBy, $allowedSortFields)) {
+                $sortBy = 'started_at';
+            }
+            
+            // Validar dirección de ordenamiento
+            $sortOrder = strtolower($sortOrder) === 'asc' ? 'asc' : 'desc';
+            
+            $query->orderBy($sortBy, $sortOrder);
 
             // Aplicar paginación
             $sessions = $query->paginate($perPage, ['*'], 'page', $page);

@@ -6,7 +6,7 @@ import { Subject, takeUntil, debounceTime, distinctUntilChanged } from 'rxjs';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
-import { MatSortModule, MatSort } from '@angular/material/sort';
+import { MatSortModule, MatSort, Sort } from '@angular/material/sort';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -164,17 +164,14 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // Suscribirse a cambios de ordenamiento
-    if (this.sort) {
-      this.sort.sortChange
-        .pipe(takeUntil(this._unsubscribeAll))
-        .subscribe(sort => {
-          this.sortBy = sort.active;
-          this.sortOrder = sort.direction === 'asc' ? 'asc' : 'desc';
-          this.currentPage = 0; // Reset a la primera página al cambiar ordenamiento
-          this.loadSessions();
-        });
-    }
+    // El ordenamiento se maneja mediante el evento (matSortChange) en el template
+  }
+
+  onSortChange(event: Sort): void {
+    this.sortBy = event.active;
+    this.sortOrder = event.direction === 'asc' ? 'asc' : 'desc';
+    this.currentPage = 0; // Reset a la primera página al cambiar ordenamiento
+    this.loadSessions();
   }
 
   ngOnDestroy(): void {

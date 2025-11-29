@@ -169,7 +169,7 @@
   <mat-card *ngIf="!loading">
     <mat-card-content class="p-0">
       <div class="overflow-x-auto">
-        <table mat-table [dataSource]="sessions" matSort [matSortActive]="sortBy" [matSortDirection]="sortOrder" class="w-full mat-elevation-z2" style="width: 100%; table-layout: fixed;">
+        <table mat-table [dataSource]="sessions" matSort [matSortActive]="sortBy" [matSortDirection]="sortOrder" (matSortChange)="onSortChange($event)" class="w-full mat-elevation-z2" style="width: 100%; table-layout: fixed;">
         <!-- Plate Column -->
         <ng-container matColumnDef="plate">
           <th mat-header-cell *matHeaderCellDef mat-sort-header="plate" [style.width.%]="isMobile ? 18 : 12">Placa</th>

@@ -148,8 +148,23 @@ class PaymentController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
+        // Ordenamiento
+        $sortBy = $request->get('sort_by', 'created_at');
+        $sortOrder = $request->get('sort_order', 'desc');
+        
+        // Validar campos permitidos para ordenamiento
+        $allowedSortFields = ['id', 'amount', 'method', 'status', 'created_at'];
+        if (!in_array($sortBy, $allowedSortFields)) {
+            $sortBy = 'created_at';
+        }
+        
+        // Validar dirección de ordenamiento
+        $sortOrder = strtolower($sortOrder) === 'asc' ? 'asc' : 'desc';
+        
+        $query->orderBy($sortBy, $sortOrder);
+
         $perPage = $request->get('per_page', 15);
-        $payments = $query->orderBy('created_at', 'desc')->paginate($perPage);
+        $payments = $query->paginate($perPage);
 
         return response()->json([
             'success' => true,
