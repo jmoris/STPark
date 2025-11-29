@@ -82,19 +82,12 @@ class ParkingSessionController extends Controller
             
             // Para campos nullable, usar COALESCE para manejar valores NULL
             if (in_array($sortBy, ['seconds_total', 'net_amount'])) {
-                // Para campos numéricos nullable, poner NULL al final
-                if ($sortOrder === 'asc') {
-                    $query->orderByRaw("COALESCE({$sortBy}, 0) ASC");
-                } else {
-                    $query->orderByRaw("COALESCE({$sortBy}, 0) DESC");
-                }
+                // Para campos numéricos nullable, poner NULL al final usando orderBy con callback
+                $query->orderBy(DB::raw("COALESCE(`{$sortBy}`, 0)"), $sortOrder);
             } elseif ($sortBy === 'ended_at') {
                 // Para timestamps nullable, poner NULL al final
-                if ($sortOrder === 'asc') {
-                    $query->orderByRaw("COALESCE({$sortBy}, '9999-12-31 23:59:59') ASC");
-                } else {
-                    $query->orderByRaw("COALESCE({$sortBy}, '1970-01-01 00:00:00') DESC");
-                }
+                $nullValue = $sortOrder === 'asc' ? '9999-12-31 23:59:59' : '1970-01-01 00:00:00';
+                $query->orderBy(DB::raw("COALESCE(`{$sortBy}`, '{$nullValue}')"), $sortOrder);
             } else {
                 $query->orderBy($sortBy, $sortOrder);
             }
