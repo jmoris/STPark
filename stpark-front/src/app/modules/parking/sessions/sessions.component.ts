@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Subject, takeUntil, debounceTime, distinctUntilChanged } from 'rxjs';
+import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatSortModule } from '@angular/material/sort';
@@ -86,6 +87,10 @@ export class SessionsComponent implements OnInit, OnDestroy {
     date_to: ''
   };
 
+  // Modelos para los datepickers
+  dateFromModel: Date | null = null;
+  dateToModel: Date | null = null;
+
   // Options
   sectors: Sector[] = [];
   operators: Operator[] = [];
@@ -113,6 +118,17 @@ export class SessionsComponent implements OnInit, OnDestroy {
     'actions'
   ];
 
+  // Columnas para vista móvil
+  displayedColumnsMobile: string[] = [
+    'plate',
+    'started_at',
+    'ended_at',
+    'duration',
+    'amount',
+    'actions'
+  ];
+
+  isMobile = false;
 
   constructor(
     private sessionService: ParkingSessionService,
@@ -120,13 +136,21 @@ export class SessionsComponent implements OnInit, OnDestroy {
     private operatorService: OperatorService,
     private router: Router,
     private snackBar: MatSnackBar,
-    private confirmationService: FuseConfirmationService
+    private confirmationService: FuseConfirmationService,
+    private breakpointObserver: BreakpointObserver
   ) {}
 
   ngOnInit(): void {
     this.loadSectors();
     this.loadOperators();
     this.loadSessions();
+    
+    // Detectar si es pantalla móvil
+    this.breakpointObserver.observe([Breakpoints.Handset])
+      .pipe(takeUntil(this._unsubscribeAll))
+      .subscribe(result => {
+        this.isMobile = result.matches;
+      });
   }
 
   ngOnDestroy(): void {
@@ -138,11 +162,36 @@ export class SessionsComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.error = null;
 
-    const params = {
+    // Construir objeto de parámetros limpiando valores vacíos
+    const params: any = {
       page: this.currentPage + 1, // Backend usa 1-based indexing
-      per_page: this.pageSize,
-      ...this.filters
+      per_page: this.pageSize
     };
+
+    // Agregar filtros solo si tienen valores válidos
+    if (this.filters.plate && this.filters.plate.trim() !== '') {
+      params.plate = this.filters.plate.trim();
+    }
+
+    if (this.filters.sector_id !== undefined && this.filters.sector_id !== null) {
+      params.sector_id = this.filters.sector_id;
+    }
+
+    if (this.filters.operator_id !== undefined && this.filters.operator_id !== null) {
+      params.operator_id = this.filters.operator_id;
+    }
+
+    if (this.filters.status && this.filters.status.trim() !== '') {
+      params.status = this.filters.status;
+    }
+
+    if (this.filters.date_from && this.filters.date_from.trim() !== '') {
+      params.date_from = this.filters.date_from;
+    }
+
+    if (this.filters.date_to && this.filters.date_to.trim() !== '') {
+      params.date_to = this.filters.date_to;
+    }
 
     this.sessionService.getSessions(params)
       .pipe(takeUntil(this._unsubscribeAll))
@@ -301,6 +350,27 @@ export class SessionsComponent implements OnInit, OnDestroy {
     return `${dateStr} ${timeStr}`;
   }
 
+  formatDateTimeMobile(date: string | null): string {
+    if (!date) {
+      return '-';
+    }
+    
+    const dateObj = new Date(date);
+    
+    // Verificar si la fecha es válida
+    if (isNaN(dateObj.getTime())) {
+      return '-';
+    }
+    
+    // Formato compacto para móvil: DD/MM HH:mm
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const hours = String(dateObj.getHours()).padStart(2, '0');
+    const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+    
+    return `${day}/${month} ${hours}:${minutes}`;
+  }
+
   formatDuration(seconds: number): string {
     return this.sessionService.formatDuration(seconds);
   }
@@ -311,6 +381,18 @@ export class SessionsComponent implements OnInit, OnDestroy {
 
   getStatusColor(status: string): string {
     return this.sessionService.getStatusColor(status);
+  }
+
+  getStatusCircleColor(status: string): string {
+    const colorMap: { [key: string]: string } = {
+      'CREATED': '#6B7280',    // Gris
+      'ACTIVE': '#3B82F6',     // Azul
+      'TO_PAY': '#F59E0B',     // Naranja
+      'PAID': '#10B981',       // Verde
+      'CLOSED': '#10B981',      // Verde
+      'CANCELED': '#EF4444'    // Rojo
+    };
+    return colorMap[status] || '#6B7280';
   }
 
   // Métodos para estadísticas
@@ -358,22 +440,34 @@ export class SessionsComponent implements OnInit, OnDestroy {
 
   // Search functionality
   onSearchChange(searchTerm: string): void {
-    this.filters.plate = searchTerm;
+    this.filters.plate = searchTerm || '';
+    // No aplicar filtros automáticamente en cada tecla, solo cuando el usuario presione el botón
+    // O usar debounce para evitar demasiadas peticiones
+  }
+
+  onSectorChange(sectorId: number | string): void {
+    // Si es string vacío, establecer como undefined
+    if (sectorId === '' || sectorId === null) {
+      this.filters.sector_id = undefined;
+    } else {
+      this.filters.sector_id = typeof sectorId === 'number' ? sectorId : parseInt(sectorId as string, 10);
+    }
     this.applyFilters();
   }
 
-  onSectorChange(sectorId: number): void {
-    this.filters.sector_id = sectorId;
-    this.applyFilters();
-  }
-
-  onOperatorChange(operatorId: number): void {
-    this.filters.operator_id = operatorId;
+  onOperatorChange(operatorId: number | string): void {
+    // Si es string vacío, establecer como undefined
+    if (operatorId === '' || operatorId === null) {
+      this.filters.operator_id = undefined;
+    } else {
+      this.filters.operator_id = typeof operatorId === 'number' ? operatorId : parseInt(operatorId as string, 10);
+    }
     this.applyFilters();
   }
 
   onStatusChange(status: string): void {
-    this.filters.status = status;
+    // Si es string vacío, establecer como string vacío (no undefined para que el backend lo ignore)
+    this.filters.status = status || '';
     this.applyFilters();
   }
 
@@ -388,13 +482,21 @@ export class SessionsComponent implements OnInit, OnDestroy {
     return `${year}-${month}-${day}`;
   }
 
-  onDateFromChange(date: Date): void {
-    this.filters.date_from = this.formatDateLocal(date);
+  onDateFromChange(date: Date | null): void {
+    if (date) {
+      this.filters.date_from = this.formatDateLocal(date);
+    } else {
+      this.filters.date_from = '';
+    }
     this.applyFilters();
   }
 
-  onDateToChange(date: Date): void {
-    this.filters.date_to = this.formatDateLocal(date);
+  onDateToChange(date: Date | null): void {
+    if (date) {
+      this.filters.date_to = this.formatDateLocal(date);
+    } else {
+      this.filters.date_to = '';
+    }
     this.applyFilters();
   }
 
@@ -420,6 +522,8 @@ export class SessionsComponent implements OnInit, OnDestroy {
       date_from: '',
       date_to: ''
     };
+    this.dateFromModel = null;
+    this.dateToModel = null;
     this.currentPage = 0;
     this.loadSessions();
   }

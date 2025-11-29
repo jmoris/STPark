@@ -51,12 +51,26 @@ export class ParkingSessionService {
   }
 
   /**
-   * Listar sesiones con filtros
+   * Listar sesiones con filtros y paginación server-side
    */
-  getSessions(filters: SessionFilters = {}): Observable<SessionsApiResponse> {
+  getSessions(filters: SessionFilters & { page?: number; per_page?: number } = {}): Observable<SessionsApiResponse> {
     let params = new HttpParams();
     
+    // Agregar parámetros de paginación si existen
+    if (filters.page !== undefined && filters.page !== null) {
+      params = params.set('page', filters.page.toString());
+    }
+    
+    if (filters.per_page !== undefined && filters.per_page !== null) {
+      params = params.set('per_page', filters.per_page.toString());
+    }
+    
+    // Agregar filtros (excluyendo page y per_page)
     Object.keys(filters).forEach(key => {
+      if (key === 'page' || key === 'per_page') {
+        return; // Ya los agregamos arriba
+      }
+      
       const value = filters[key as keyof SessionFilters];
       if (value !== undefined && value !== null && value !== '') {
         params = params.set(key, value.toString());

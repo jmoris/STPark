@@ -79,7 +79,6 @@
           <mat-label>Buscar por Placa</mat-label>
           <input matInput 
                  [(ngModel)]="filters.plate" 
-                 (input)="onSearchChange($event.target.value)"
                  placeholder="ABC123">
           <mat-icon matPrefix>search</mat-icon>
         </mat-form-field>
@@ -95,6 +94,17 @@
           </mat-select>
         </mat-form-field>
 
+        <!-- Operator Filter -->
+        <mat-form-field appearance="outline">
+          <mat-label>Operador</mat-label>
+          <mat-select [(ngModel)]="filters.operator_id" (selectionChange)="onOperatorChange($event.value)">
+            <mat-option value="">Todos los operadores</mat-option>
+            <mat-option *ngFor="let operator of operators" [value]="operator.id">
+              {{ operator.name }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
         <!-- Status Filter -->
         <mat-form-field appearance="outline">
           <mat-label>Estado</mat-label>
@@ -103,6 +113,30 @@
               {{ status.label }}
             </mat-option>
           </mat-select>
+        </mat-form-field>
+
+        <!-- Date From Filter -->
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha Desde</mat-label>
+          <input matInput 
+                 [matDatepicker]="pickerFrom" 
+                 [(ngModel)]="dateFromModel"
+                 (dateChange)="onDateFromChange($event.value)"
+                 placeholder="DD/MM/YYYY">
+          <mat-datepicker-toggle matSuffix [for]="pickerFrom"></mat-datepicker-toggle>
+          <mat-datepicker #pickerFrom></mat-datepicker>
+        </mat-form-field>
+
+        <!-- Date To Filter -->
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha Hasta</mat-label>
+          <input matInput 
+                 [matDatepicker]="pickerTo" 
+                 [(ngModel)]="dateToModel"
+                 (dateChange)="onDateToChange($event.value)"
+                 placeholder="DD/MM/YYYY">
+          <mat-datepicker-toggle matSuffix [for]="pickerTo"></mat-datepicker-toggle>
+          <mat-datepicker #pickerTo></mat-datepicker>
         </mat-form-field>
       </div>
 
@@ -138,9 +172,17 @@
         <table mat-table [dataSource]="sessions" class="w-full mat-elevation-z2" style="width: 100%; table-layout: fixed;">
         <!-- Plate Column -->
         <ng-container matColumnDef="plate">
-          <th mat-header-cell *matHeaderCellDef style="width: 12%;">Placa</th>
+          <th mat-header-cell *matHeaderCellDef [style.width.%]="isMobile ? 18 : 12">Placa</th>
           <td mat-cell *matCellDef="let session">
-            <div class="font-medium text-gray-900">{{ session.plate }}</div>
+            <div class="flex items-center gap-2">
+              <!-- Cuadrado de estado solo en móvil -->
+              <div *ngIf="isMobile" 
+                   class="status-circle flex-shrink-0" 
+                   [style.background-color]="getStatusCircleColor(session.status)"
+                   [matTooltip]="getStatusLabel(session.status)">
+              </div>
+              <div class="font-medium text-gray-900">{{ session.plate }}</div>
+            </div>
           </td>
         </ng-container>
 
@@ -170,27 +212,29 @@
 
         <!-- Started At Column -->
         <ng-container matColumnDef="started_at">
-          <th mat-header-cell *matHeaderCellDef style="width: 15%;">Inicio</th>
+          <th mat-header-cell *matHeaderCellDef [style.width.%]="isMobile ? 18 : 15">Inicio</th>
           <td mat-cell *matCellDef="let session">
-            <div class="text-sm text-gray-600">{{ formatDateTime(session.started_at) }}</div>
+            <div class="text-sm text-gray-600" [class.text-xs]="isMobile">
+              {{ isMobile ? formatDateTimeMobile(session.started_at) : formatDateTime(session.started_at) }}
+            </div>
           </td>
         </ng-container>
 
         <!-- Ended At Column -->
         <ng-container matColumnDef="ended_at">
-          <th mat-header-cell *matHeaderCellDef style="width: 15%;">Fin</th>
+          <th mat-header-cell *matHeaderCellDef [style.width.%]="isMobile ? 18 : 15">Fin</th>
           <td mat-cell *matCellDef="let session">
-            <div class="text-sm text-gray-600">
-              {{ session.ended_at ? formatDateTime(session.ended_at) : '-' }}
+            <div class="text-sm text-gray-600" [class.text-xs]="isMobile">
+              {{ session.ended_at ? (isMobile ? formatDateTimeMobile(session.ended_at) : formatDateTime(session.ended_at)) : '-' }}
             </div>
           </td>
         </ng-container>
 
         <!-- Duration Column -->
         <ng-container matColumnDef="duration">
-          <th mat-header-cell *matHeaderCellDef style="width: 10%;">Duración</th>
+          <th mat-header-cell *matHeaderCellDef [style.width.%]="isMobile ? 12 : 10">Duración</th>
           <td mat-cell *matCellDef="let session">
-            <div class="text-sm text-gray-600">
+            <div class="text-sm text-gray-600" [class.text-xs]="isMobile">
               {{ session.duration_formatted || '-' }}
             </div>
           </td>
@@ -198,9 +242,9 @@
 
         <!-- Amount Column -->
         <ng-container matColumnDef="amount">
-          <th mat-header-cell *matHeaderCellDef style="width: 10%;">Monto</th>
+          <th mat-header-cell *matHeaderCellDef [style.width.%]="isMobile ? 12 : 10">Monto</th>
           <td mat-cell *matCellDef="let session">
-            <div class="text-sm font-medium text-gray-900">
+            <div class="text-sm font-medium text-gray-900" [class.text-xs]="isMobile">
               {{ session.total_paid_formatted || '-' }}
             </div>
           </td>
@@ -210,6 +254,7 @@
         <ng-container matColumnDef="status">
           <th mat-header-cell *matHeaderCellDef style="width: 10%;">Estado</th>
           <td mat-cell *matCellDef="let session">
+            <!-- Vista desktop: badge con texto -->
             <span class="px-2 py-1 rounded text-xs font-medium"
                   [class]="'bg-' + getStatusColor(session.status) + '-100 text-' + getStatusColor(session.status) + '-800'">
               {{ getStatusLabel(session.status) }}
@@ -219,7 +264,7 @@
 
         <!-- Actions Column -->
         <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef class="text-right" style="width: 10%;">Acciones</th>
+          <th mat-header-cell *matHeaderCellDef class="text-right" [style.width.%]="isMobile ? 10 : 10">Acciones</th>
           <td mat-cell *matCellDef="let session" class="text-right">
             <button mat-icon-button class="rounded-sm" [matMenuTriggerFor]="actionMenu">
               <mat-icon>more_vert</mat-icon>
@@ -258,8 +303,8 @@
           </td>
         </ng-container>
 
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        <tr mat-header-row *matHeaderRowDef="isMobile ? displayedColumnsMobile : displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: isMobile ? displayedColumnsMobile : displayedColumns;"></tr>
       </table>
       </div>
     </mat-card-content>

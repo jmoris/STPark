@@ -23,7 +23,7 @@ class ParkingSessionController extends Controller
     }
 
     /**
-     * Listar sesiones de estacionamiento
+     * Listar sesiones de estacionamiento con filtros server-side
      */
     public function index(Request $request): JsonResponse
     {
@@ -31,9 +31,47 @@ class ParkingSessionController extends Controller
             $perPage = $request->get('per_page', 15);
             $page = $request->get('page', 1);
             
-            $sessions = ParkingSession::with(['sector', 'street', 'operator', 'payments'])
-                ->orderBy('created_at', 'desc')
-                ->paginate($perPage, ['*'], 'page', $page);
+            // Construir query con filtros
+            $query = ParkingSession::with(['sector', 'street', 'operator', 'payments']);
+
+            // Filtro por placa (case-insensitive)
+            if ($request->filled('plate')) {
+                $plate = strtolower($request->get('plate'));
+                $query->whereRaw('LOWER(plate) LIKE ?', ['%' . $plate . '%']);
+            }
+
+            // Filtro por sector
+            if ($request->filled('sector_id')) {
+                $query->where('sector_id', $request->get('sector_id'));
+            }
+
+            // Filtro por operador
+            if ($request->filled('operator_id')) {
+                $query->where('operator_in_id', $request->get('operator_id'));
+            }
+
+            // Filtro por estado
+            if ($request->filled('status') && $request->get('status') !== '') {
+                $query->where('status', $request->get('status'));
+            }
+
+            // Filtro por fecha desde
+            if ($request->filled('date_from')) {
+                $dateFrom = Carbon::parse($request->get('date_from'))->startOfDay();
+                $query->where('started_at', '>=', $dateFrom);
+            }
+
+            // Filtro por fecha hasta
+            if ($request->filled('date_to')) {
+                $dateTo = Carbon::parse($request->get('date_to'))->endOfDay();
+                $query->where('started_at', '<=', $dateTo);
+            }
+
+            // Ordenar por fecha de creación descendente
+            $query->orderBy('created_at', 'desc');
+
+            // Aplicar paginación
+            $sessions = $query->paginate($perPage, ['*'], 'page', $page);
 
             // Agregar campos calculados a cada sesión
             $sessionsData = collect($sessions->items())->map(function ($session) {

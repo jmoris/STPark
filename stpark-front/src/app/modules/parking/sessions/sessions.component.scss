@@ -39,21 +39,35 @@
   .mat-table {
     font-size: 14px;
   }
+
+  // Reducir tamaño de fuente de los headers en móvil
+  .mat-header-cell {
+    font-size: 11px !important;
+    font-weight: 500;
+  }
   
   .mat-column-actions {
     width: 60px;
   }
   
   .mat-column-street,
-  .mat-column-operator {
+  .mat-column-operator,
+  .mat-column-sector {
     display: none;
   }
-}
 
-@media (max-width: 480px) {
-  .mat-column-ended_at,
-  .mat-column-duration {
-    display: none;
+  // Estilos para el cuadrado de estado en móvil
+  .status-circle {
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+    display: inline-block;
+    cursor: pointer;
+    transition: transform 0.2s;
+    
+    &:hover {
+      transform: scale(1.2);
+    }
   }
 }
 

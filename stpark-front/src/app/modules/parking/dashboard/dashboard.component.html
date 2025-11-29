@@ -25,9 +25,10 @@
           <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
           <mat-datepicker #picker></mat-datepicker>
         </mat-form-field>
-        <div class="flex items-center gap-4">
-          <button mat-icon-button class="rounded-sm" (click)="refreshData()" [disabled]="loading">
+        <div class="flex items-center justify-center gap-4 w-full">
+          <button mat-raised-button class="rounded-sm" (click)="refreshData()" [disabled]="loading">
             <mat-icon>refresh</mat-icon>
+            Refrescar
           </button>
           <button mat-raised-button color="primary" class="rounded-sm" (click)="exportReport()" [disabled]="!dashboardData">
             <mat-icon>download</mat-icon>
