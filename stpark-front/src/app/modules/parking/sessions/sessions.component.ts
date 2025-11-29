@@ -164,19 +164,13 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // Configurar el estado inicial del sort después de que la vista esté inicializada
-    if (this.sort) {
-      // Sincronizar el estado inicial del sort con nuestros valores
-      setTimeout(() => {
-        this.sort.active = this.sortBy;
-        this.sort.direction = this.sortOrder;
-      }, 0);
-    }
+    // El ordenamiento se maneja mediante el evento (matSortChange) en el template
+    // Los bindings [matSortActive] y [matSortDirection] mantienen el estado visual sincronizado
   }
 
   onSortChange(event: Sort): void {
-    // Usar la dirección del evento directamente
-    // event.direction es siempre 'asc' o 'desc' cuando se emite el evento
+    // Si se hace clic en la misma columna, MatSort alterna automáticamente entre asc y desc
+    // Solo necesitamos actualizar nuestros valores y recargar los datos
     this.sortBy = event.active;
     this.sortOrder = event.direction === 'asc' ? 'asc' : 'desc';
     
