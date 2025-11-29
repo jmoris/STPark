@@ -83,11 +83,14 @@ class ParkingSessionController extends Controller
             
             // Aplicar ordenamiento
             if ($sortBy === 'net_amount') {
-                // Usar subconsulta para obtener el total de sales sin necesidad de JOIN y GROUP BY
+                // Usar subconsulta para obtener el total de payments sin necesidad de JOIN y GROUP BY
+                // Compatible con PostgreSQL y MySQL/MariaDB
+                // Sumar solo los pagos completados
                 $query->orderByRaw("(
-                    SELECT COALESCE(MAX(total), 0) 
-                    FROM sales 
-                    WHERE sales.parking_session_id = parking_sessions.id
+                    SELECT COALESCE(SUM(amount), 0) 
+                    FROM payments 
+                    WHERE payments.session_id = parking_sessions.id 
+                    AND payments.status = 'COMPLETED'
                 ) {$sortOrder}");
             } elseif ($sortBy === 'seconds_total') {
                 // Calcular seconds_total desde las fechas si no está guardado
