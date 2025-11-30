@@ -164,7 +164,7 @@
         <table mat-table [dataSource]="sessions" matSort [matSortActive]="sortBy" [matSortDirection]="sortOrder" [matSortDisableClear]="true" (matSortChange)="onSortChange($event)" class="w-full mat-elevation-z2" style="width: 100%; table-layout: fixed;">
         <!-- Plate Column -->
         <ng-container matColumnDef="plate">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header="plate" [style.width.%]="isMobile ? 21 : 12">Placa</th>
+          <th mat-header-cell *matHeaderCellDef mat-sort-header="plate" [style.width.%]="isMobile ? 23 : 12">Placa</th>
           <td mat-cell *matCellDef="let session">
             <div class="flex items-center gap-2">
               <!-- Cuadrado de estado solo en móvil -->
@@ -234,7 +234,10 @@
 
         <!-- Amount Column -->
         <ng-container matColumnDef="amount">
-          <th mat-header-cell *matHeaderCellDef mat-sort-header="net_amount" [style.width.%]="isMobile ? 12 : 10">Monto</th>
+          <th mat-header-cell *matHeaderCellDef mat-sort-header="net_amount" [style.width.%]="isMobile ? 12 : 10">
+            <span *ngIf="isMobile">$</span>
+            <span *ngIf="!isMobile">Monto</span>
+          </th>
           <td mat-cell *matCellDef="let session">
             <div class="text-sm font-medium text-gray-900" [class.text-xs]="isMobile">
               {{ session.total_paid_formatted || '-' }}
