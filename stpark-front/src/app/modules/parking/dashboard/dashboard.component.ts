@@ -331,7 +331,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         data: sessionData
       }],
       chart: {
-        type: 'line',
+        type: 'area',
         height: 400,
         toolbar: { show: false },
         zoom: {
@@ -341,6 +341,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
       stroke: {
         curve: 'smooth',
         width: 3
+      },
+      fill: {
+        type: 'gradient',
+        gradient: {
+          shadeIntensity: 1,
+          opacityFrom: 0.4,
+          opacityTo: 0.1,
+          stops: [0, 90, 100]
+        }
       },
       xaxis: {
         categories: hourlyData.map(item => `${item.hour.toString().padStart(2, '0')}:00`),
@@ -357,10 +366,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
       },
       colors: ['#3B82F6'],
       markers: {
-        size: 5,
+        size: 4,
         hover: {
-          size: 7
-        }
+          size: 6
+        },
+        strokeWidth: 2,
+        strokeColors: ['#3B82F6'],
+        fillOpacity: 1
       },
       grid: {
         borderColor: '#e5e7eb',
