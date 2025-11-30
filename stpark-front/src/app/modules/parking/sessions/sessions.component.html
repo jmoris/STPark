@@ -12,7 +12,7 @@
   </div>
 
   <!-- Summary Cards -->
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
     <mat-card>
       <mat-card-content class="p-6">
         <div class="flex items-center">
@@ -20,8 +20,10 @@
             <mat-icon class="text-blue-600">directions_car</mat-icon>
           </div>
           <div class="ml-4">
-            <p class="text-sm font-medium text-gray-600">Total Sesiones</p>
-            <p class="text-2xl font-bold text-blue-600">{{ sessions.length }}</p>
+            <p class="text-sm font-medium text-gray-600">Total de Sesiones</p>
+            <p class="text-2xl font-bold text-blue-600">
+              {{ loadingMetrics ? '...' : getTotalSessionsCount() }}
+            </p>
           </div>
         </div>
       </mat-card-content>
@@ -34,22 +36,10 @@
             <mat-icon class="text-green-600">play_circle</mat-icon>
           </div>
           <div class="ml-4">
-            <p class="text-sm font-medium text-gray-600">Activas</p>
-            <p class="text-2xl font-bold text-green-600">{{ getActiveSessionsCount() }}</p>
-          </div>
-        </div>
-      </mat-card-content>
-    </mat-card>
-
-    <mat-card>
-      <mat-card-content class="p-6">
-        <div class="flex items-center">
-          <div class="p-3 bg-orange-100 rounded-full">
-            <mat-icon class="text-orange-600">schedule</mat-icon>
-          </div>
-          <div class="ml-4">
-            <p class="text-sm font-medium text-gray-600">Por Pagar</p>
-            <p class="text-2xl font-bold text-orange-600">{{ getToPaySessionsCount() }}</p>
+            <p class="text-sm font-medium text-gray-600">Sesiones Activas</p>
+            <p class="text-2xl font-bold text-green-600">
+              {{ loadingMetrics ? '...' : getActiveSessionsCount() }}
+            </p>
           </div>
         </div>
       </mat-card-content>
@@ -62,8 +52,10 @@
             <mat-icon class="text-purple-600">check_circle</mat-icon>
           </div>
           <div class="ml-4">
-            <p class="text-sm font-medium text-gray-600">Pagadas</p>
-            <p class="text-2xl font-bold text-purple-600">{{ getPaidSessionsCount() }}</p>
+            <p class="text-sm font-medium text-gray-600">Sesiones Completadas</p>
+            <p class="text-2xl font-bold text-purple-600">
+              {{ loadingMetrics ? '...' : getCompletedSessionsCount() }}
+            </p>
           </div>
         </div>
       </mat-card-content>

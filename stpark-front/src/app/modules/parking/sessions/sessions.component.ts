@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, ViewChild, AfterViewInit } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Subject, takeUntil, debounceTime, distinctUntilChanged } from 'rxjs';
+import { Subject, takeUntil, debounceTime, distinctUntilChanged, forkJoin } from 'rxjs';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule, PageEvent, MatPaginatorIntl } from '@angular/material/paginator';
@@ -76,6 +76,12 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
   sessions: ParkingSession[] = [];
   loading = false;
   error: string | null = null;
+
+  // Métricas
+  totalSessions = 0;
+  activeSessionsCount = 0;
+  completedSessionsCount = 0;
+  loadingMetrics = false;
 
   // Paginación
   totalItems = 0;
@@ -154,6 +160,7 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
     this.loadSectors();
     this.loadOperators();
     this.loadSessions();
+    this.loadMetrics(); // Cargar métricas al inicializar
     
     // Detectar si es pantalla móvil
     this.breakpointObserver.observe([Breakpoints.Handset])
@@ -256,6 +263,92 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
           this.snackBar.open('Error al cargar sesiones', 'Cerrar', { duration: 3000 });
         }
       });
+  }
+
+  /**
+   * Cargar métricas de sesiones (total, activas, completadas)
+   * Usa los mismos filtros que la tabla pero sin paginación para obtener conteos reales
+   */
+  loadMetrics(): void {
+    this.loadingMetrics = true;
+
+    // Construir filtros base (sin paginación ni ordenamiento)
+    const baseFilters: any = {};
+
+    if (this.filters.plate && this.filters.plate.trim() !== '') {
+      baseFilters.plate = this.filters.plate.trim();
+    }
+
+    if (this.filters.sector_id !== undefined && this.filters.sector_id !== null) {
+      baseFilters.sector_id = this.filters.sector_id;
+    }
+
+    if (this.filters.operator_id !== undefined && this.filters.operator_id !== null) {
+      baseFilters.operator_id = this.filters.operator_id;
+    }
+
+    if (this.filters.date_from && this.filters.date_from.trim() !== '') {
+      baseFilters.date_from = this.filters.date_from;
+    }
+
+    if (this.filters.date_to && this.filters.date_to.trim() !== '') {
+      baseFilters.date_to = this.filters.date_to;
+    }
+
+    // Hacer consultas paralelas para obtener conteos
+    const totalQuery = { ...baseFilters, page: 1, per_page: 1 };
+    const activeQuery = { ...baseFilters, status: 'ACTIVE', page: 1, per_page: 1 };
+    const completedQuery = { ...baseFilters, status: 'COMPLETED', page: 1, per_page: 1 };
+
+    // Si hay un filtro de estado, solo consultar ese estado
+    if (this.filters.status && this.filters.status.trim() !== '') {
+      // Si hay filtro de estado, solo consultar ese estado
+      const statusQuery = { ...baseFilters, status: this.filters.status, page: 1, per_page: 1 };
+      
+      this.sessionService.getSessions(statusQuery)
+        .pipe(takeUntil(this._unsubscribeAll))
+        .subscribe({
+          next: (response: SessionsApiResponse) => {
+            this.totalSessions = response.pagination?.total || 0;
+            // Si hay filtro de estado, las métricas específicas dependen del estado filtrado
+            if (this.filters.status === 'ACTIVE') {
+              this.activeSessionsCount = response.pagination?.total || 0;
+              this.completedSessionsCount = 0;
+            } else if (this.filters.status === 'COMPLETED') {
+              this.activeSessionsCount = 0;
+              this.completedSessionsCount = response.pagination?.total || 0;
+            } else {
+              this.activeSessionsCount = 0;
+              this.completedSessionsCount = 0;
+            }
+            this.loadingMetrics = false;
+          },
+          error: (error) => {
+            console.error('Error loading metrics:', error);
+            this.loadingMetrics = false;
+          }
+        });
+    } else {
+      // Sin filtro de estado, hacer consultas paralelas usando forkJoin
+      forkJoin({
+        total: this.sessionService.getSessions(totalQuery),
+        active: this.sessionService.getSessions(activeQuery),
+        completed: this.sessionService.getSessions(completedQuery)
+      })
+        .pipe(takeUntil(this._unsubscribeAll))
+        .subscribe({
+          next: (responses) => {
+            this.totalSessions = responses.total?.pagination?.total || 0;
+            this.activeSessionsCount = responses.active?.pagination?.total || 0;
+            this.completedSessionsCount = responses.completed?.pagination?.total || 0;
+            this.loadingMetrics = false;
+          },
+          error: (error) => {
+            console.error('Error loading metrics:', error);
+            this.loadingMetrics = false;
+          }
+        });
+    }
   }
 
   loadSectors(): void {
@@ -443,16 +536,16 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   // Métodos para estadísticas
+  getTotalSessionsCount(): number {
+    return this.loadingMetrics ? 0 : this.totalSessions;
+  }
+
   getActiveSessionsCount(): number {
-    return this.sessions.filter(session => session.status === 'ACTIVE').length;
+    return this.loadingMetrics ? 0 : this.activeSessionsCount;
   }
 
-  getToPaySessionsCount(): number {
-    return this.sessions.filter(session => session.status === 'TO_PAY').length;
-  }
-
-  getPaidSessionsCount(): number {
-    return this.sessions.filter(session => session.status === 'PAID').length;
+  getCompletedSessionsCount(): number {
+    return this.loadingMetrics ? 0 : this.completedSessionsCount;
   }
 
 
@@ -483,6 +576,7 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
 
   refreshSessions(): void {
     this.loadSessions();
+    this.loadMetrics(); // Recargar métricas al refrescar
   }
 
   // Search functionality
@@ -552,12 +646,14 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
     this.currentPage = event.pageIndex;
     this.pageSize = event.pageSize;
     this.loadSessions();
+    // No recargar métricas al cambiar de página, solo al cambiar filtros
   }
 
   // Manejo de filtros
   applyFilters(): void {
     this.currentPage = 0; // Reset a la primera página
     this.loadSessions();
+    this.loadMetrics(); // Recargar métricas cuando cambian los filtros
   }
 
   clearFilters(): void {
@@ -573,6 +669,7 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
     this.dateToModel = null;
     this.currentPage = 0;
     this.loadSessions();
+    this.loadMetrics(); // Recargar métricas cuando se limpian los filtros
   }
 }
 
