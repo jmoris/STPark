@@ -318,7 +318,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   private updateSessionsChart(): void {
-    // Gráfico de sesiones por hora usando datos reales del backend
+    // Gráfico de sesiones activas por hora usando datos reales del backend
     const hourlyData = this.dashboardData!.sessions_by_hour || [];
     const sessionData = hourlyData.map(item => ({
       x: `${item.hour.toString().padStart(2, '0')}:00`,
@@ -327,7 +327,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     this.sessionsChart = {
       series: [{
-        name: 'Sesiones Iniciadas',
+        name: 'Sesiones Activas',
         data: sessionData
       }],
       chart: {

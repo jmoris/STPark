@@ -646,24 +646,29 @@ class ReportController extends Controller
         // Deudas pendientes
         $pendingDebts = Debt::pending()->get();
 
-        // Sesiones por hora del día seleccionado usando DatabaseHelper
-        $hourFunction = DatabaseHelper::getHourFunction('started_at');
-        $dateCondition = DatabaseHelper::getDateComparisonFunction('started_at', $date);
-        
-        $sessionsByHour = DB::table('parking_sessions')
-                           ->selectRaw("{$hourFunction} as hour, COUNT(*) as count")
-                           ->whereRaw($dateCondition)
-                           ->groupBy('hour')
-                           ->orderBy('hour')
-                           ->get()
-                           ->keyBy('hour');
-
-        // Crear array completo de 24 horas con datos
+        // Sesiones activas por hora del día seleccionado
+        // Para cada hora, contamos cuántas sesiones estaban activas en ese momento
+        $dateCarbon = Carbon::parse($date);
         $hourlyData = [];
+        
         for ($hour = 0; $hour < 24; $hour++) {
+            // Hora de inicio de la hora actual (ej: 10:00:00)
+            $hourStart = $dateCarbon->copy()->setTime($hour, 0, 0);
+            
+            // Contar sesiones que estaban activas en esta hora
+            // Una sesión estaba activa si:
+            // - Comenzó antes o en esa hora: started_at <= hourStart
+            // - Y no había terminado en ese momento: (ended_at IS NULL OR ended_at > hourStart)
+            $activeCount = ParkingSession::where('started_at', '<=', $hourStart)
+                ->where(function($query) use ($hourStart) {
+                    $query->whereNull('ended_at')
+                          ->orWhere('ended_at', '>', $hourStart);
+                })
+                ->count();
+            
             $hourlyData[] = [
                 'hour' => $hour,
-                'count' => $sessionsByHour->get($hour)->count ?? 0
+                'count' => $activeCount
             ];
         }
 
