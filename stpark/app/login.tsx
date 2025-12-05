@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   Alert,
   Modal,
@@ -47,11 +48,26 @@ export default function LoginScreen() {
   const pinInputRef = useRef<TextInput>(null);
   const tenantConfigRef = useRef({ isValid: tenantConfig.isValid, loading: tenantLoading });
   const serviceCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isLongPressingRef = useRef(false);
+  const modalsRef = useRef({
+    showTenantConfigModal,
+    showSuccessModal,
+    showOperatorSelector,
+  });
 
   // Mantener refs actualizadas
   useEffect(() => {
     tenantConfigRef.current = { isValid: tenantConfig.isValid, loading: tenantLoading };
   }, [tenantConfig.isValid, tenantLoading]);
+
+  // Mantener refs de modales actualizadas
+  useEffect(() => {
+    modalsRef.current = {
+      showTenantConfigModal,
+      showSuccessModal,
+      showOperatorSelector,
+    };
+  }, [showTenantConfigModal, showSuccessModal, showOperatorSelector]);
 
   // Gestionar modal de tenant
   useEffect(() => {
@@ -122,9 +138,32 @@ export default function LoginScreen() {
     React.useCallback(() => {
       console.log('=== PANTALLA DE LOGIN ENFOCADA ===');
       
-      // Prevenir que el botón atrás de Android retroceda desde el login
+      // Manejar el botón atrás de Android
+      // Primero cerrar modales si están abiertos, luego prevenir navegación hacia atrás
       const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-        // Retornar true previene la acción por defecto (retroceder)
+        // Usar refs para acceder a los valores actuales sin causar re-renders
+        const modals = modalsRef.current;
+        
+        // Si hay un modal de tenant abierto, no permitir cerrarlo (es obligatorio)
+        if (modals.showTenantConfigModal) {
+          console.log('Modal de tenant abierto, no se puede cerrar');
+          return true; // Prevenir acción por defecto
+        }
+        
+        // Si hay un modal de éxito abierto, no permitir cerrarlo (debe usar el botón Continuar)
+        if (modals.showSuccessModal) {
+          console.log('Modal de éxito abierto, no se puede cerrar');
+          return true; // Prevenir acción por defecto
+        }
+        
+        // Si hay un modal de selector de operadores abierto, cerrarlo
+        if (modals.showOperatorSelector) {
+          console.log('Cerrando modal de selector de operadores');
+          setShowOperatorSelector(false);
+          return true; // Prevenir acción por defecto
+        }
+        
+        // Si no hay modales abiertos, prevenir que retroceda desde el login
         // Esto hace que el login sea la primera página y no se pueda retroceder más atrás
         return true;
       });
@@ -147,8 +186,17 @@ export default function LoginScreen() {
         console.log('=== PANTALLA DE LOGIN PERDIÓ EL FOCO ===');
         // Remover el listener cuando la pantalla pierde el foco
         backHandler.remove();
+        // Limpiar el estado de los botones flotantes cuando se sale de la pantalla
+        setShowFloatingButton(false);
+        // Limpiar timers si existen
+        if (longPressTimer) {
+          clearTimeout(longPressTimer);
+        }
+        if (autoHideTimer) {
+          clearTimeout(autoHideTimer);
+        }
       };
-    }, [tenantConfig.isValid, tenantConfig.tenant])
+    }, [tenantConfig.isValid, tenantConfig.tenant, longPressTimer, autoHideTimer])
   );
 
   // Limpiar timers al desmontar el componente
@@ -170,6 +218,7 @@ export default function LoginScreen() {
   const handleLongPressStart = () => {
     console.log('=== INICIANDO PRESIÓN LARGA ===');
     console.log('Timestamp:', new Date().toISOString());
+    isLongPressingRef.current = true;
     const timer = setTimeout(() => {
       console.log('=== PRESIÓN LARGA COMPLETADA ===');
       console.log('Mostrando botón flotante');
@@ -186,6 +235,7 @@ export default function LoginScreen() {
   const handleLongPressEnd = () => {
     console.log('=== PRESIÓN LARGA CANCELADA ===');
     console.log('Timestamp:', new Date().toISOString());
+    isLongPressingRef.current = false;
     if (longPressTimer) {
       clearTimeout(longPressTimer);
       setLongPressTimer(null);
@@ -511,7 +561,10 @@ export default function LoginScreen() {
         visible={showSuccessModal}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => {}}
+        onRequestClose={() => {
+          // El modal de éxito no se puede cerrar con el botón atrás
+          // Debe usar el botón "Continuar" para proceder
+        }}
       >
         <View style={styles.successModalOverlay}>
           <View style={styles.successModalContainer}>
@@ -555,14 +608,13 @@ export default function LoginScreen() {
       </Modal>
 
       {/* Área invisible para detectar presión larga en esquina inferior derecha */}
-      <TouchableOpacity
+      <Pressable
         style={[
           styles.longPressArea,
           { bottom: insets.bottom, right: 0 }
         ]}
         onPressIn={handleLongPressStart}
         onPressOut={handleLongPressEnd}
-        activeOpacity={1}
       />
 
       {/* Modal de configuración de tenant */}
@@ -577,13 +629,13 @@ export default function LoginScreen() {
         <View style={styles.tenantModalOverlay}>
           <View style={styles.tenantModalContainer}>
             <View style={styles.tenantModalContent}>
-              <Text style={styles.tenantModalTitle}>Configuración de Tenant</Text>
+              <Text style={styles.tenantModalTitle}>Configuración de Estacionamiento</Text>
               <Text style={styles.tenantModalDescription}>
-                Para continuar, necesitas configurar el tenant (identificador de la empresa) 
+                Para continuar, necesitas configurar el estacionamiento (identificador de la empresa) 
                 que utilizarás para acceder al sistema.
               </Text>
               <View style={styles.tenantInputContainer}>
-                <Text style={styles.tenantInputLabel}>Nombre del Tenant</Text>
+                <Text style={styles.tenantInputLabel}>Nombre del Estacionamiento</Text>
                 <TextInput
                   style={styles.tenantInput}
                   value={tenantInput}
@@ -606,7 +658,7 @@ export default function LoginScreen() {
                 disabled={!tenantInput.trim() || tenantConfigLoading}
               >
                 <Text style={styles.tenantSaveButtonText}>
-                  {tenantConfigLoading ? 'Configurando...' : 'Configurar Tenant'}
+                  {tenantConfigLoading ? 'Configurando...' : 'Configurar Estacionamiento'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -615,7 +667,7 @@ export default function LoginScreen() {
       </Modal>
       </SafeAreaView>
 
-      {/* Botones flotantes de configuración y logout - Fijos en pantalla completamente fuera de cualquier contenedor */}
+      {/* Botón flotante de configuración - Fijo en pantalla completamente fuera de cualquier contenedor */}
       {showFloatingButton && (
         <View style={styles.fixedButtonsWrapper} pointerEvents="box-none">
           <TouchableOpacity
@@ -623,7 +675,7 @@ export default function LoginScreen() {
               styles.floatingButton,
               styles.floatingConfigButton,
               { 
-                bottom: insets.bottom + 100, 
+                bottom: insets.bottom + 20, 
                 right: 30
               }
             ]}
@@ -631,20 +683,6 @@ export default function LoginScreen() {
             activeOpacity={0.8}
           >
             <IconSymbol size={24} name="gear" color="#ffffff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.floatingButton,
-              styles.floatingLogoutButton,
-              { 
-                bottom: insets.bottom + 20, 
-                right: 30
-              }
-            ]}
-            onPress={handleLogout}
-            activeOpacity={0.8}
-          >
-            <IconSymbol size={24} name="rectangle.portrait.and.arrow.right" color="#ffffff" />
           </TouchableOpacity>
         </View>
       )}

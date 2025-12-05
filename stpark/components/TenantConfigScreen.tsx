@@ -26,12 +26,12 @@ export const TenantConfigScreen: React.FC<TenantConfigScreenProps> = ({
 
   const handleSave = async () => {
     if (!tenant.trim()) {
-      Alert.alert('Error', 'El tenant es requerido');
+      Alert.alert('Error', 'El estacionamiento es requerido');
       return;
     }
 
     if (tenant.trim().length < 2) {
-      Alert.alert('Error', 'El tenant debe tener al menos 2 caracteres');
+      Alert.alert('Error', 'El estacionamiento debe tener al menos 2 caracteres');
       return;
     }
 
@@ -48,11 +48,11 @@ export const TenantConfigScreen: React.FC<TenantConfigScreenProps> = ({
       await tenantConfigService.setTenant(tenant.trim());
       Alert.alert(
         'Éxito',
-        'Tenant configurado correctamente',
+        'Estacionamiento configurado correctamente',
         [{ text: 'OK', onPress: () => onTenantConfigured(tenant.trim()) }]
       );
     } catch (error) {
-      Alert.alert('Error', 'No se pudo configurar el tenant');
+      Alert.alert('Error', 'No se pudo configurar el estacionamiento');
     } finally {
       setIsLoading(false);
     }
@@ -65,15 +65,15 @@ export const TenantConfigScreen: React.FC<TenantConfigScreenProps> = ({
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.content}>
-          <Text style={styles.title}>Configuración de Tenant</Text>
+          <Text style={styles.title}>Configuración de Estacionamiento</Text>
           
           <Text style={styles.description}>
-            Para continuar, necesitas configurar el tenant (identificador de la empresa) 
+            Para continuar, necesitas configurar el estacionamiento (identificador de la empresa) 
             que utilizarás para acceder al sistema.
           </Text>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Nombre del Tenant</Text>
+            <Text style={styles.label}>Nombre del Estacionamiento</Text>
             <TextInput
               style={styles.input}
               value={tenant}
@@ -109,7 +109,7 @@ export const TenantConfigScreen: React.FC<TenantConfigScreenProps> = ({
               disabled={!tenant.trim() || isLoading}
             >
               <Text style={styles.saveButtonText}>
-                {isLoading ? 'Configurando...' : 'Configurar Tenant'}
+                {isLoading ? 'Configurando...' : 'Configurar Estacionamiento'}
               </Text>
             </TouchableOpacity>
           </View>

@@ -1,5 +1,22 @@
 // Configuración de la aplicación
+import Constants from 'expo-constants';
+
 const DEFAULT_API_BASE_URL = 'https://api.stpark.cl/parking';
+
+// Obtener la versión real de la app desde expo-constants
+const getAppVersion = (): string => {
+  try {
+    // Intentar obtener la versión desde expoConfig (SDK 49+)
+    const version = Constants.expoConfig?.version || 
+                    Constants.manifest?.version || 
+                    Constants.manifest2?.extra?.expoClient?.version ||
+                    '1.0.0';
+    return version;
+  } catch (error) {
+    console.error('Error obteniendo versión de la app:', error);
+    return '1.0.0';
+  }
+};
 
 export const CONFIG = {
   // URL del backend
@@ -12,7 +29,7 @@ export const CONFIG = {
   
   // Configuración de la app
   APP_NAME: 'STPark',
-  VERSION: '1.0.0',
+  VERSION: getAppVersion(),
   
   // Configuración de autenticación
   PIN_LENGTH: 6,

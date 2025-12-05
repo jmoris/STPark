@@ -8,26 +8,31 @@
 }
 
 .contact-content {
-  display: grid;
-  grid-template-columns: 1fr 1.5fr;
-  gap: 64px;
-  max-width: 1000px;
+  display: flex;
+  flex-direction: column;
+  gap: 48px;
+  max-width: 1200px;
   margin: 0 auto;
-  align-items: start;
 }
 
 .contact-info {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 .info-card {
-  padding: 28px;
+  padding: 20px;
   background: var(--gray-50);
+  border: 1px solid var(--gray-200);
   border-radius: 12px;
   transition: all 0.3s ease;
   text-align: center;
+  flex: 1;
+  min-width: 200px;
+  max-width: 280px;
 }
 
 .info-card:hover {
@@ -37,27 +42,75 @@
 }
 
 .info-icon {
-  font-size: 40px;
-  margin-bottom: 16px;
+  font-size: 32px;
+  margin-bottom: 12px;
   display: block;
 }
 
+.info-icon.whatsapp-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.info-icon.whatsapp-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
 .info-card h3 {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .info-card p {
-  font-size: 16px;
+  font-size: 14px;
   color: var(--text-secondary);
 }
 
+.info-card.email-card {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.info-card.email-card:hover {
+  border-color: var(--primary-blue);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+}
+
+.info-card.whatsapp-card {
+  text-decoration: none;
+  background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--white);
+  cursor: pointer;
+}
+
+.info-card.whatsapp-card:hover {
+  background: linear-gradient(135deg, #128C7E 0%, #075E54 100%);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(37, 211, 102, 0.3);
+}
+
+.info-card.whatsapp-card h3,
+.info-card.whatsapp-card p {
+  color: var(--white);
+}
+
 .contact-form {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.contact-form .form-group:has(textarea) {
+  grid-column: 1 / -1;
 }
 
 .form-group {
@@ -106,7 +159,8 @@
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
-  align-self: flex-start;
+  grid-column: 1 / -1;
+  justify-self: start;
 }
 
 .submit-button:hover {
@@ -120,35 +174,38 @@
 }
 
 @media (max-width: 968px) {
-  .contact-content {
-    grid-template-columns: 1fr;
-    gap: 48px;
-  }
-
   .contact-info {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
+    gap: 16px;
   }
 
   .info-card {
-    flex: 1;
-    min-width: 250px;
-    max-width: 300px;
+    min-width: 180px;
+    max-width: 240px;
+  }
+
+  .contact-form {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 768px) {
   .contact-info {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .info-card {
     width: 100%;
+    max-width: 100%;
+  }
+
+  .contact-form {
+    grid-template-columns: 1fr;
   }
 
   .submit-button {
     width: 100%;
+    justify-self: stretch;
   }
 }
 

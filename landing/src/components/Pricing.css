@@ -2,24 +2,40 @@
   background: var(--gray-50);
 }
 
+.pricing .container {
+  max-width: 100%;
+  padding: 0 32px;
+}
+
 .pricing-header {
   text-align: center;
-  margin-bottom: 64px;
+  margin-bottom: 40px;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .pricing-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 32px;
-  max-width: 1100px;
-  margin: 0 auto;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 20px;
+  max-width: 80%;
+  margin: 0 auto 24px auto;
+  width: 80%;
+}
+
+.pricing-note {
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 24px;
 }
 
 .pricing-card {
   background: var(--white);
   border: 2px solid var(--gray-200);
-  border-radius: 16px;
-  padding: 40px 32px;
+  border-radius: 12px;
+  padding: 28px 20px;
   position: relative;
   transition: all 0.3s ease;
   display: flex;
@@ -38,67 +54,76 @@
 
 .popular-badge {
   position: absolute;
-  top: -12px;
+  top: -10px;
   left: 50%;
   transform: translateX(-50%);
   background: var(--primary-blue);
   color: var(--white);
-  padding: 6px 20px;
-  border-radius: 20px;
-  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .pricing-card-header {
-  margin-bottom: 32px;
+  margin-bottom: 20px;
 }
 
 .plan-name {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 .plan-price {
   display: flex;
   align-items: baseline;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
 }
 
 .price {
-  font-size: 48px;
+  font-size: 32px;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1;
 }
 
 .period {
-  font-size: 18px;
+  font-size: 16px;
   color: var(--text-secondary);
   margin-left: 4px;
 }
 
-.plan-description {
-  font-size: 15px;
+.iva-text {
+  font-size: 16px;
   color: var(--text-secondary);
-  line-height: 1.5;
+  margin-left: 4px;
+  font-weight: 400;
+}
+
+.plan-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
 }
 
 .plan-features {
   list-style: none;
-  margin-bottom: 32px;
+  margin-bottom: 20px;
   flex-grow: 1;
+  padding: 0;
 }
 
 .feature-item {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 12px 0;
-  font-size: 15px;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 13px;
   color: var(--text-secondary);
   line-height: 1.5;
 }
@@ -106,9 +131,9 @@
 .check-icon {
   color: var(--primary-blue);
   font-weight: 700;
-  font-size: 18px;
+  font-size: 14px;
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .plan-button {
@@ -116,9 +141,9 @@
   color: var(--white);
   text-decoration: none;
   font-weight: 600;
-  font-size: 16px;
-  padding: 14px 28px;
-  border-radius: 8px;
+  font-size: 14px;
+  padding: 12px 20px;
+  border-radius: 6px;
   text-align: center;
   transition: all 0.2s ease;
   display: block;
@@ -145,18 +170,67 @@
   color: var(--white);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1600px) {
   .pricing-grid {
-    grid-template-columns: 1fr;
-    gap: 24px;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    max-width: 1600px;
+  }
+}
+
+@media (max-width: 1400px) {
+  .pricing-grid {
+    gap: 14px;
+    max-width: 1400px;
   }
 
   .pricing-card {
-    padding: 32px 24px;
+    padding: 24px 16px;
+  }
+
+  .plan-name {
+    font-size: 18px;
   }
 
   .price {
-    font-size: 40px;
+    font-size: 28px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .pricing .container {
+    padding: 0 24px;
+  }
+
+  .pricing-grid {
+    max-width: 100%;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .pricing-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .pricing .container {
+    padding: 0 16px;
+  }
+
+  .pricing-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .pricing-card {
+    padding: 24px 20px;
+  }
+
+  .price {
+    font-size: 32px;
   }
 }
 

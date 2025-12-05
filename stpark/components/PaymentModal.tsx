@@ -12,9 +12,10 @@ import {
 } from 'react-native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { apiService } from '@/services/api';
+import { CONFIG } from '@/config/app';
 import { ticketPrinterService, CheckoutTicketData } from '@/services/ticketPrinter';
 import { getCurrentDateInSantiago } from '@/utils/dateUtils';
-import { tuuPaymentsService } from '@/services/tuuPayments';
+import { tuuPaymentsService, isDevelopmentMode } from '@/services/tuuPayments';
 import { systemConfigService } from '@/services/systemConfig';
 
 interface PaymentModalProps {
@@ -231,20 +232,24 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       tuuPaymentData.extraData = {};
       tuuPaymentData.extraData.netAmount = Number(paymentAmount);
       tuuPaymentData.extraData.sourceName = 'STPark';
-      tuuPaymentData.extraData.sourceVersion = '1.0.0';
+      // obtener version de la app desde expo-constants
+      const version = CONFIG.VERSION;
+  
+      tuuPaymentData.extraData.sourceVersion = version;
       tuuPaymentData.extraData.customFields = [
-        { name: 'patente', value: String(plateValue), print: true },
-        { name: 'tipo', value: String(tipoValue), print: true },
+        { name: 'patente', value: String(plateValue), print: false },
+        { name: 'tipo', value: String(tipoValue), print: false },
       ];
 
       console.log('PaymentModal: Datos de pago TUU:', JSON.stringify(tuuPaymentData));
       
       // Iniciar pago con TUU directamente (sin reintentos)
-      // Por el momento siempre usar modo desarrollo
-      console.log('PaymentModal: Llamando a tuuPaymentsService.startPayment (modo DEV)');
+      // No pasar isDevelopment para que use la configuración automática
+      const isDevMode = isDevelopmentMode();
+      console.log(`PaymentModal: Llamando a tuuPaymentsService.startPayment (modo ${isDevMode ? 'DEV' : 'PROD'})`);
       const tuuResult = await tuuPaymentsService.startPayment(
-        tuuPaymentData, 
-        true  // true = DEV, false = PROD
+        tuuPaymentData
+        // No pasar isDevelopment para usar la configuración automática
       );
       console.log('PaymentModal: Resultado de TUU:', tuuResult);
 
@@ -562,9 +567,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 try {
                   // Intentar abrir la aplicación TUU Negocio
                   // Package names correctos: com.haulmer.paymentapp.dev (dev) o com.haulmer.paymentapp (prod)
-                  // Por el momento siempre usar modo desarrollo
+                  // Usar isDevelopmentMode() para detectar automáticamente el entorno
+                  const isDevMode = isDevelopmentMode();
                   const tuuPackage = Platform.OS === 'android' 
-                    ? 'com.haulmer.paymentapp.dev' 
+                    ? (isDevMode ? 'com.haulmer.paymentapp.dev' : 'com.haulmer.paymentapp')
                     : 'tuu-negocio';
                   
                   const url = Platform.OS === 'android'

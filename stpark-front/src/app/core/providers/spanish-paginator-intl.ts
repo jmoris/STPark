@@ -25,3 +25,8 @@ export function getSpanishPaginatorIntl(): MatPaginatorIntl {
 }
 
 
+
+
+
+
+

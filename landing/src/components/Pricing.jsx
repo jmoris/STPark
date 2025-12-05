@@ -3,51 +3,87 @@ import './Pricing.css';
 const Pricing = ({ onPlanSelect }) => {
   const plans = [
     {
-      name: 'Básico',
-      price: '$0',
-      period: 'mes',
-      description: 'Perfecto para estacionamientos pequeños',
+      name: 'Prueba',
+      price: 'Gratis',
+      period: null,
+      description: 'Perfecto para probar el sistema',
       features: [
-        'Hasta 50 sesiones/mes',
+        '50 sesiones',
         '1 operador',
-        'Gestión básica de pagos',
+        '1 calle y sector',
         'Reportes básicos',
-        'Soporte por email',
-        'App móvil incluida'
+        '1 perfil de precios',
+        '1 regla de precios',
+        'Sin gestión de deudas',
+        'Sin soporte prioritario'
+      ],
+      popular: false
+    },
+    {
+      name: 'Básico',
+      price: '0.5 UF',
+      period: 'mes',
+      description: 'Ideal para estacionamientos pequeños',
+      features: [
+        '1,000 sesiones',
+        '1 operador',
+        '1 calle y sector',
+        'Reportes básicos',
+        '1 perfil de precios',
+        '1 regla de precios',
+        'Sin gestión de deudas',
+        'Sin soporte prioritario'
       ],
       popular: false
     },
     {
       name: 'PYME',
-      price: '$0',
+      price: '1 UF',
       period: 'mes',
-      description: 'Ideal para estacionamientos medianos',
+      description: 'Para estacionamientos medianos',
       features: [
-        'Sesiones ilimitadas',
-        'Hasta 5 operadores',
-        'Gestión completa de pagos',
+        '5,000 sesiones',
+        '2 operadores',
+        '2 calles y sectores',
         'Reportes avanzados',
-        'Soporte prioritario',
-        'App móvil + Web',
+        '2 perfiles de precios',
+        'Múltiples reglas de precios',
         'Gestión de deudas',
-        'Múltiples sectores'
+        'Soporte prioritario'
       ],
       popular: true
     },
     {
-      name: 'Pro',
-      price: '$0',
+      name: 'PRO',
+      price: '3 UF',
       period: 'mes',
       description: 'Para grandes operaciones',
       features: [
-        'Todo lo del plan PYME',
+        '20,000 sesiones',
+        '5 operadores',
+        '5 calles y sectores',
+        'Reportes avanzados',
+        '5 perfiles de precios',
+        'Múltiples reglas de precios',
+        'Gestión de deudas',
+        'Soporte prioritario'
+      ],
+      popular: false
+    },
+    {
+      name: 'A medida',
+      price: 'Cotizar',
+      period: null,
+      description: 'Solución personalizada para tu negocio',
+      features: [
+        'Sesiones ilimitadas',
         'Operadores ilimitados',
-        'API personalizada',
-        'Soporte 24/7',
-        'Onboarding dedicado',
-        'Integraciones personalizadas',
-        'Capacitación del equipo',
-        'Gestor de cuenta dedicado'
+        'Calles y sectores ilimitados',
+        'Reportes avanzados',
+        'Perfiles de precios ilimitados',
+        'Múltiples reglas de precios',
+        'Gestión de deudas',
+        'Soporte prioritario'
       ],
       popular: false
     }
@@ -112,11 +148,14 @@ const Pricing = ({ onPlanSelect }) => {
                   }, 100);
                 }}
               >
-                Comenzar Ahora
+                {plan.name === 'A medida' ? 'Cotizar' : 'Comenzar Ahora'}
               </a>
             </div>
           ))}
         </div>
+        <p className="pricing-note">
+          Los precios indicados no incluyen IVA. El valor de la UF se calculará según la cotización vigente al momento de la contratación del servicio.
+        </p>
       </div>
     </section>
   );

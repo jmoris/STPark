@@ -1,7 +1,29 @@
 import { TuuPayment, type PaymentData, type PaymentResult } from 'react-native-tuu-printer';
 
+// ============================================================================
+// CONFIGURACIÓN DE ENTORNO - CAMBIAR ESTA CONSTANTE SEGÚN NECESITES
+// ============================================================================
+/**
+ * Controla si los pagos TUU se ejecutan en modo desarrollo o producción
+ * 
+ * true  = Modo DESARROLLO (usa com.haulmer.paymentapp.dev)
+ * false = Modo PRODUCCIÓN (usa com.haulmer.paymentapp)
+ * 
+ * IMPORTANTE: Cambiar a false antes de hacer builds de producción
+ */
+const TUU_DEVELOPMENT_MODE = false;
+// ============================================================================
+
 // Re-exportar el tipo PaymentData para compatibilidad
 export type TuuPaymentData = PaymentData;
+
+/**
+ * Retorna si está en modo desarrollo según la constante TUU_DEVELOPMENT_MODE
+ * @returns true si está en desarrollo, false si está en producción
+ */
+export function isDevelopmentMode(): boolean {
+  return TUU_DEVELOPMENT_MODE;
+}
 
 // Interfaz para el resultado del pago compatible con el código existente
 export interface TuuPaymentResult {
@@ -28,19 +50,23 @@ class TuuPaymentsService {
   /**
    * Inicializa el servicio configurando el modo de desarrollo
    * Debe llamarse una vez al inicio de la app
-   * Por el momento siempre usa modo desarrollo
+   * Detecta automáticamente el entorno usando múltiples métodos
    */
   initialize(): void {
     if (this.initialized) {
       return;
     }
 
-    // Por el momento siempre usar modo desarrollo
-    const isDevelopment = true;
+    // Usar la constante TUU_DEVELOPMENT_MODE para determinar el entorno
+    const isDevelopment = isDevelopmentMode();
     TuuPayment.setDevelopmentMode(isDevelopment);
     this.initialized = true;
     
-    console.log('TuuPaymentsService: Inicializado en modo: DESARROLLO (forzado)');
+    // Log para debugging
+    console.log('TuuPaymentsService: === INICIALIZACIÓN ===');
+    console.log(`TuuPaymentsService: Modo configurado: ${isDevelopment ? 'DESARROLLO' : 'PRODUCCIÓN'}`);
+    console.log(`TuuPaymentsService: TUU_DEVELOPMENT_MODE = ${TUU_DEVELOPMENT_MODE}`);
+    console.log('TuuPaymentsService: ======================');
   }
 
   /**
@@ -57,7 +83,7 @@ class TuuPaymentsService {
    */
   async isPaymentAppInstalled(isDevelopment?: boolean): Promise<boolean> {
     try {
-      const devMode = isDevelopment !== undefined ? isDevelopment : __DEV__;
+      const devMode = isDevelopment !== undefined ? isDevelopment : isDevelopmentMode();
       const installed = await TuuPayment.isPaymentAppInstalled(devMode);
       console.log('TuuPaymentsService: App TUU instalada:', installed);
       return installed;
@@ -176,7 +202,8 @@ class TuuPaymentsService {
     this.paymentInProgress = true;
 
     // Preparar variables fuera del try para que estén disponibles en el catch
-    const devMode = true; // Siempre desarrollo por el momento
+    // Usar el parámetro isDevelopment si se proporciona, sino detectar automáticamente
+    const devMode = isDevelopment !== undefined ? isDevelopment : isDevelopmentMode();
     
     // Convertir el monto a entero y construir el objeto de pago antes del try
     const amountAsInteger = Math.round(paymentData.amount);
@@ -186,7 +213,7 @@ class TuuPaymentsService {
       cashback: paymentData.cashback ?? 0,
       method: paymentData.method,
       installmentsQuantity: paymentData.installmentsQuantity ?? 0,
-      printVoucherOnApp: paymentData.printVoucherOnApp ?? true,
+      printVoucherOnApp: paymentData.printVoucherOnApp ?? false,
       dteType: paymentData.dteType ?? 48,
       extraData: paymentData.extraData || {
         sourceName: 'STPark',
@@ -219,16 +246,16 @@ class TuuPaymentsService {
       console.log('TuuPaymentsService: - amount:', cleanPaymentData.amount, typeof cleanPaymentData.amount);
       console.log('TuuPaymentsService: - method:', cleanPaymentData.method, typeof cleanPaymentData.method);
       console.log('TuuPaymentsService: - extraData:', cleanPaymentData.extraData);
-      console.log('TuuPaymentsService: Llamando a TuuPayment.startPayment con modo desarrollo=true...');
+      console.log(`TuuPaymentsService: Llamando a TuuPayment.startPayment con modo desarrollo=${devMode}...`);
 
       // Iniciar el pago
-      // Por el momento siempre usar modo desarrollo
+      // Usar devMode para determinar si es desarrollo o producción
       let result: PaymentResult;
       try {
         console.log('TuuPaymentsService: Antes de llamar TuuPayment.startPayment');
         result = await TuuPayment.startPayment(
           cleanPaymentData,
-          true // Siempre desarrollo por el momento
+          devMode // true = desarrollo, false = producción
         );
         console.log('TuuPaymentsService: Después de llamar TuuPayment.startPayment');
         console.log('TuuPaymentsService: Resultado recibido (raw):', result);

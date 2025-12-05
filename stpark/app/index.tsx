@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   TextInput,
   Alert,
   Image,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -50,6 +51,24 @@ export default function HomeScreen() {
   const [systemName, setSystemName] = useState<string>('Sistema de Gestión de Estacionamiento');
   const { operator, logout } = useAuth();
   const { tenantConfig, isLoading: tenantLoading, setTenant } = useTenant();
+  const modalsRef = useRef({
+    showTenantConfigModal,
+    showActiveSessionsModal,
+    showDebtsModal,
+    showPlateQueryModal,
+    showPaymentModal,
+  });
+
+  // Mantener refs de modales actualizadas
+  useEffect(() => {
+    modalsRef.current = {
+      showTenantConfigModal,
+      showActiveSessionsModal,
+      showDebtsModal,
+      showPlateQueryModal,
+      showPaymentModal,
+    };
+  }, [showTenantConfigModal, showActiveSessionsModal, showDebtsModal, showPlateQueryModal, showPaymentModal]);
 
   // Verificar si hay tenant configurado al cargar la pantalla
   useEffect(() => {
@@ -423,6 +442,57 @@ export default function HomeScreen() {
       setTimeout(() => {
         loadSelectedPrinter();
       }, 1000);
+
+      // Manejar el botón atrás de Android
+      // Primero cerrar modales si están abiertos, luego redirigir al login
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        // Usar refs para acceder a los valores actuales sin causar re-renders
+        const modals = modalsRef.current;
+        
+        // Si hay un modal de tenant abierto, no permitir cerrarlo (es obligatorio)
+        if (modals.showTenantConfigModal) {
+          console.log('Modal de tenant abierto, no se puede cerrar');
+          return true; // Prevenir acción por defecto
+        }
+        
+        // Si hay modales abiertos, cerrarlos primero
+        if (modals.showActiveSessionsModal) {
+          console.log('Cerrando modal de sesiones activas');
+          setShowActiveSessionsModal(false);
+          return true; // Prevenir acción por defecto
+        }
+        
+        if (modals.showDebtsModal) {
+          console.log('Cerrando modal de deudas');
+          setShowDebtsModal(false);
+          return true; // Prevenir acción por defecto
+        }
+        
+        if (modals.showPlateQueryModal) {
+          console.log('Cerrando modal de consulta');
+          setShowPlateQueryModal(false);
+          setPlateQuery('');
+          setFoundActiveSession(null);
+          setFoundDebts([]);
+          return true; // Prevenir acción por defecto
+        }
+        
+        if (modals.showPaymentModal) {
+          console.log('Cerrando modal de pago');
+          setShowPaymentModal(false);
+          setSelectedSession(null);
+          return true; // Prevenir acción por defecto
+        }
+        
+        // Si no hay modales abiertos, redirigir al login
+        console.log('Redirigiendo al login desde index');
+        router.replace('/login');
+        return true; // Prevenir acción por defecto
+      });
+
+      return () => {
+        backHandler.remove();
+      };
     }, [tenantConfig.tenant])
   );
 
@@ -1422,33 +1492,33 @@ export default function HomeScreen() {
         operator={operator}
       />
 
-      {/* Modal de Configuración de Tenant */}
+      {/* Modal de Configuración de Estacionamiento */}
       <Modal
         visible={showTenantConfigModal}
         transparent={true}
         animationType="slide"
         onRequestClose={() => {
-          // No permitir cerrar el modal sin configurar el tenant
-          console.log('No se puede cerrar el modal sin configurar el tenant');
+          // No permitir cerrar el modal sin configurar el estacionamiento
+          console.log('No se puede cerrar el modal sin configurar el estacionamiento');
         }}
       >
         <View style={styles.tenantModalOverlay}>
           <View style={styles.tenantModalContainer}>
             <View style={styles.tenantModalContent}>
-              <Text style={styles.tenantModalTitle}>Configuración de Tenant</Text>
+              <Text style={styles.tenantModalTitle}>Configuración de Estacionamiento</Text>
               
               <Text style={styles.tenantModalDescription}>
-                Para continuar, necesitas configurar el tenant (identificador de la empresa) 
-                que utilizarás para acceder al sistema.
+                Para continuar, necesitas configurar el estacionamiento (identificador de la empresa) 
+                que utilizarás para acceder al sistema. Este identificador es usado para identificar el estacionamiento en el sistema.
               </Text>
 
               <View style={styles.tenantInputContainer}>
-                <Text style={styles.tenantInputLabel}>Nombre del Tenant</Text>
+                <Text style={styles.tenantInputLabel}>Nombre del Estacionamiento</Text>
                 <TextInput
                   style={styles.tenantInput}
                   value={tenantInput}
                   onChangeText={setTenantInput}
-                  placeholder="Ej: acme, empresa1, etc."
+                  placeholder="Ej: acme, estacionamiento1, etc."
                   autoCapitalize="none"
                   autoCorrect={false}
                   editable={!tenantConfigLoading}
@@ -1467,7 +1537,7 @@ export default function HomeScreen() {
                 disabled={!tenantInput.trim() || tenantConfigLoading}
               >
                 <Text style={styles.tenantSaveButtonText}>
-                  {tenantConfigLoading ? 'Configurando...' : 'Configurar Tenant'}
+                  {tenantConfigLoading ? 'Configurando...' : 'Configurar Estacionamiento'}
                 </Text>
               </TouchableOpacity>
             </View>
