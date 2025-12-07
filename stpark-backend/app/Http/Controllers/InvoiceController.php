@@ -408,7 +408,8 @@ class InvoiceController extends Controller
         tenancy()->end();
         
         $user = $request->user();
-        if (!$user || !$user->is_central_admin) {
+        // Aceptar tanto true como 1 (valor numérico desde la base de datos)
+        if (!$user || ($user->is_central_admin !== true && $user->is_central_admin !== 1)) {
             return response()->json([
                 'success' => false,
                 'message' => 'No autorizado'

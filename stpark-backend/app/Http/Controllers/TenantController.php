@@ -22,7 +22,8 @@ class TenantController extends Controller
     private function checkCentralAdminAccess(): bool
     {
         $user = Auth::user();
-        return $user && $user->is_central_admin === true;
+        // Aceptar tanto true como 1 (valor numérico desde la base de datos)
+        return $user && ($user->is_central_admin === true || $user->is_central_admin === 1);
     }
 
     /**
