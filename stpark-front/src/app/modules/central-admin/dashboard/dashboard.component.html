@@ -1,0 +1,90 @@
+<div class="p-6 w-full">
+  <!-- Header -->
+  <div class="mb-8">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">Dashboard Administración Central</h1>
+        <p class="mt-2 text-gray-600">Resumen de estacionamientos (tenants) del sistema</p>
+      </div>
+      
+      <div class="flex items-center gap-4">
+        <mat-form-field appearance="outline" class="w-full md:w-64">
+          <mat-label>Mes</mat-label>
+          <mat-select [(ngModel)]="selectedMonth" (selectionChange)="onMonthChange()">
+            @for (month of availableMonths; track month.value) {
+              <mat-option [value]="month.value">{{ month.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        
+        <button mat-raised-button class="rounded-sm" (click)="refreshData()" [disabled]="loading">
+          <mat-icon>refresh</mat-icon>
+          Refrescar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  @if (loading) {
+    <div class="flex justify-center items-center py-12">
+      <mat-spinner diameter="50"></mat-spinner>
+    </div>
+  }
+
+  <!-- Error -->
+  @if (error && !loading) {
+    <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+      <p class="text-red-800">{{ error }}</p>
+    </div>
+  }
+
+  <!-- Stats Cards -->
+  @if (!loading && !error) {
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <!-- Total Tenants -->
+      <fuse-card class="p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-600 mb-1">Total Estacionamientos</p>
+            <h2 class="text-3xl font-bold text-gray-900">{{ totalTenants }}</h2>
+          </div>
+          <div class="p-4 bg-blue-100 rounded-full">
+            <mat-icon class="text-blue-600" style="font-size: 32px; width: 32px; height: 32px;">business</mat-icon>
+          </div>
+        </div>
+      </fuse-card>
+
+      <!-- Tenants This Month -->
+      <fuse-card class="p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-600 mb-1">Registrados este mes</p>
+            <h2 class="text-3xl font-bold text-gray-900">{{ tenantsThisMonth }}</h2>
+          </div>
+          <div class="p-4 bg-green-100 rounded-full">
+            <mat-icon class="text-green-600" style="font-size: 32px; width: 32px; height: 32px;">trending_up</mat-icon>
+          </div>
+        </div>
+      </fuse-card>
+    </div>
+
+    <!-- Chart -->
+    <fuse-card class="p-6">
+      <h3 class="text-xl font-semibold text-gray-900 mb-4">Evolución de Tenants Registrados</h3>
+      <div id="tenants-chart">
+        <apx-chart
+          [series]="tenantsChart.series"
+          [chart]="tenantsChart.chart"
+          [dataLabels]="tenantsChart.dataLabels"
+          [stroke]="tenantsChart.stroke"
+          [xaxis]="tenantsChart.xaxis"
+          [yaxis]="tenantsChart.yaxis"
+          [colors]="tenantsChart.colors"
+          [grid]="tenantsChart.grid"
+          [tooltip]="tenantsChart.tooltip"
+        ></apx-chart>
+      </div>
+    </fuse-card>
+  }
+</div>

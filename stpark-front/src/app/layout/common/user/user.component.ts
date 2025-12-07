@@ -43,9 +43,10 @@ export class UserComponent implements OnInit, OnDestroy {
     /* eslint-enable @typescript-eslint/naming-convention */
 
     @Input() showAvatar: boolean = true;
-    user: { id: string; name: string; email: string; avatar?: string; status?: string; } | null = null;
+    user: { id: string; name: string; email: string; avatar?: string; status?: string; is_central_admin?: boolean; } | null = null;
     tenants: Tenant[] = [];
     currentTenant: Tenant | null = null;
+    isCentralAdminMode: boolean = false;
 
     private _unsubscribeAll: Subject<any> = new Subject<any>();
 
@@ -67,6 +68,9 @@ export class UserComponent implements OnInit, OnDestroy {
      * On init
      */
     ngOnInit(): void {
+        // Initialize central admin mode state
+        this.isCentralAdminMode = this._authService.isCentralAdminMode();
+
         // Subscribe to user changes from the new auth service
         this._authService.currentUser$
             .pipe(takeUntil(this._unsubscribeAll))
@@ -77,7 +81,8 @@ export class UserComponent implements OnInit, OnDestroy {
                         name: user.name,
                         email: user.email,
                         avatar: user.avatar,
-                        status: user.status || 'online'
+                        status: user.status || 'online',
+                        is_central_admin: user.is_central_admin
                     };
                 } else {
                     this.user = null;
@@ -103,6 +108,7 @@ export class UserComponent implements OnInit, OnDestroy {
             .pipe(takeUntil(this._unsubscribeAll))
             .subscribe((tenant: Tenant | null) => {
                 this.currentTenant = tenant;
+                this.isCentralAdminMode = this._authService.isCentralAdminMode();
 
                 // Mark for check
                 this._changeDetectorRef.markForCheck();
@@ -143,8 +149,30 @@ export class UserComponent implements OnInit, OnDestroy {
      */
     changeTenant(tenant: Tenant): void {
         this._authService.setCurrentTenant(tenant);
-        // Recargar la página para que todas las peticiones usen el nuevo tenant
-        location.reload();
+        // Redirigir al dashboard después de cambiar el tenant
+        this._router.navigate(['/parking/dashboard']).then(() => {
+            // Recargar la página para que todas las peticiones usen el nuevo tenant
+            location.reload();
+        });
+    }
+
+    /**
+     * Activate central admin mode
+     */
+    activateCentralAdminMode(): void {
+        this._authService.setCentralAdminMode();
+        // Redirigir al dashboard de administración central
+        this._router.navigate(['/central-admin/dashboard']).then(() => {
+            // Recargar la página para aplicar los cambios de navegación
+            location.reload();
+        });
+    }
+
+    /**
+     * Check if user is central admin
+     */
+    get isCentralAdmin(): boolean {
+        return this.user?.is_central_admin === true;
     }
 
     /**

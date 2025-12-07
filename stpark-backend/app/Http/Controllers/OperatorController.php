@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Operator;
 use App\Models\OperatorAssignment;
+use App\Services\PlanLimitService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
@@ -82,6 +83,20 @@ class OperatorController extends Controller
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Validar límite de operadores según el plan
+        $limitCheck = PlanLimitService::canCreateOperator();
+        if (!$limitCheck['allowed']) {
+            return response()->json([
+                'success' => false,
+                'message' => $limitCheck['message'],
+                'error_code' => 'PLAN_LIMIT_EXCEEDED',
+                'data' => [
+                    'current' => $limitCheck['current'] ?? 0,
+                    'limit' => $limitCheck['limit'] ?? 0
+                ]
+            ], 403);
         }
 
         $operator = Operator::create([

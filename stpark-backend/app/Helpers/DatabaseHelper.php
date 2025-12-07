@@ -208,7 +208,7 @@ class DatabaseHelper
      */
     public static function raw(string $sql): string
     {
-        return DB::raw($sql);
+        return (string) DB::raw($sql);
     }
 
     /**
@@ -253,6 +253,57 @@ class DatabaseHelper
             GROUP BY {$dayFunction}
             ORDER BY {$dayFunction} ASC
         ";
+    }
+
+    /**
+     * Obtener el SQL statement para hacer una columna NOT NULL según el driver de base de datos
+     * Compatible con PostgreSQL y MySQL/MariaDB
+     * 
+     * @param string $table Nombre de la tabla
+     * @param string $column Nombre de la columna
+     * @param string|null $columnType Tipo de columna (solo necesario para MySQL/MariaDB, ej: 'BIGINT UNSIGNED')
+     * @return string SQL statement para ejecutar
+     */
+    public static function getSetColumnNotNullStatement(string $table, string $column, ?string $columnType = null): string
+    {
+        $driver = DB::getDriverName();
+        
+        switch ($driver) {
+            case 'pgsql':
+                // PostgreSQL
+                return "ALTER TABLE {$table} ALTER COLUMN {$column} SET NOT NULL";
+            
+            case 'mysql':
+            case 'mariadb':
+                // MySQL/MariaDB - requiere el tipo de columna
+                if ($columnType === null) {
+                    throw new \Exception("El tipo de columna es requerido para MySQL/MariaDB al hacer una columna NOT NULL");
+                }
+                return "ALTER TABLE {$table} MODIFY {$column} {$columnType} NOT NULL";
+            
+            case 'sqlite':
+                // SQLite no soporta directamente ALTER COLUMN para cambiar NOT NULL
+                // Requiere recrear la tabla, lo cual es complejo
+                throw new \Exception("SQLite no soporta cambiar una columna a NOT NULL directamente. Se requiere recrear la tabla.");
+            
+            default:
+                throw new \Exception("Driver de base de datos no soportado: {$driver}");
+        }
+    }
+
+    /**
+     * Ejecutar el statement SQL para hacer una columna NOT NULL
+     * Compatible con PostgreSQL y MySQL/MariaDB
+     * 
+     * @param string $table Nombre de la tabla
+     * @param string $column Nombre de la columna
+     * @param string|null $columnType Tipo de columna (solo necesario para MySQL/MariaDB, ej: 'BIGINT UNSIGNED')
+     * @return void
+     */
+    public static function setColumnNotNull(string $table, string $column, ?string $columnType = null): void
+    {
+        $sql = self::getSetColumnNotNullStatement($table, $column, $columnType);
+        DB::statement($sql);
     }
 }
 

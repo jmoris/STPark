@@ -1,0 +1,100 @@
+<div class="p-6">
+  <h2 class="text-2xl font-bold text-gray-900 mb-6">Configuración de FacturAPI</h2>
+
+  <form [formGroup]="configForm" (ngSubmit)="saveConfig()">
+    <!-- Loading -->
+    @if (loading) {
+      <div class="flex justify-center items-center py-12">
+        <mat-spinner diameter="50"></mat-spinner>
+      </div>
+    }
+
+    <!-- Form -->
+    @if (!loading) {
+      <div class="space-y-6">
+        <!-- Environment Selection -->
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>Servidor</mat-label>
+          <mat-select formControlName="environment">
+            @for (env of environments; track env.value) {
+              <mat-option [value]="env.value">
+                {{ env.label }}
+              </mat-option>
+            }
+          </mat-select>
+          <mat-hint>
+            Endpoint: {{ getEndpointForEnvironment(configForm.get('environment')?.value || 'dev') }}
+          </mat-hint>
+          @if (configForm.get('environment')?.hasError('required') && configForm.get('environment')?.touched) {
+            <mat-error>El servidor es requerido</mat-error>
+          }
+        </mat-form-field>
+
+        <!-- Dev Token -->
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>Token de Desarrollo</mat-label>
+          <input 
+            matInput 
+            type="password"
+            formControlName="dev_token"
+            placeholder="Ingrese el token para dev.facturapi.cl">
+          <mat-icon matPrefix>lock</mat-icon>
+          @if (configForm.get('dev_token')?.hasError('required') && configForm.get('dev_token')?.touched) {
+            <mat-error>El token de desarrollo es requerido</mat-error>
+          }
+        </mat-form-field>
+
+        <!-- Prod Token -->
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>Token de Producción</mat-label>
+          <input 
+            matInput 
+            type="password"
+            formControlName="prod_token"
+            placeholder="Ingrese el token para prod.facturapi.cl">
+          <mat-icon matPrefix>lock</mat-icon>
+          @if (configForm.get('prod_token')?.hasError('required') && configForm.get('prod_token')?.touched) {
+            <mat-error>El token de producción es requerido</mat-error>
+          }
+        </mat-form-field>
+
+        <!-- Info Box -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div class="flex items-start">
+            <mat-icon class="text-blue-600 mr-2">info</mat-icon>
+            <div class="text-sm text-blue-800">
+              <p class="font-semibold mb-1">Información importante:</p>
+              <ul class="list-disc list-inside space-y-1">
+                <li>El servidor seleccionado será el que se use para emitir facturas</li>
+                <li>Los tokens se almacenan de forma segura</li>
+                <li>Endpoint Dev: https://dev.facturapi.cl/api</li>
+                <li>Endpoint Prod: https://prod.facturapi.cl/api</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- Actions -->
+    <div class="flex justify-end gap-4 mt-8">
+      <button 
+        type="button"
+        mat-button 
+        (click)="cancel()"
+        [disabled]="saving">
+        Cancelar
+      </button>
+      <button 
+        type="submit"
+        mat-raised-button 
+        color="primary"
+        [disabled]="configForm.invalid || saving || loading">
+        @if (saving) {
+          <mat-spinner diameter="20" class="inline-block mr-2"></mat-spinner>
+        }
+        Guardar
+      </button>
+    </div>
+  </form>
+</div>

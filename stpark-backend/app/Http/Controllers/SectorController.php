@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Sector;
+use App\Services\PlanLimitService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
@@ -68,6 +69,20 @@ class SectorController extends Controller
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // Validar límite de sectores según el plan
+        $limitCheck = PlanLimitService::canCreateSector();
+        if (!$limitCheck['allowed']) {
+            return response()->json([
+                'success' => false,
+                'message' => $limitCheck['message'],
+                'error_code' => 'PLAN_LIMIT_EXCEEDED',
+                'data' => [
+                    'current' => $limitCheck['current'] ?? 0,
+                    'limit' => $limitCheck['limit'] ?? 0
+                ]
+            ], 403);
         }
 
         $sector = Sector::create([

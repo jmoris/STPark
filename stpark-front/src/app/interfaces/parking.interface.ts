@@ -250,6 +250,62 @@ export interface DebtFilters {
   date_to?: string;
 }
 
+export interface InvoiceItem {
+  id?: number;
+  invoice_id: number;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Invoice {
+  id?: number;
+  folio: string | null;
+  client_name: string;
+  client_rut: string;
+  emission_date: string;
+  payment_date?: string | null;
+  net_amount: number;
+  iva_amount: number;
+  total_amount: number;
+  status: 'PENDING_REVIEW' | 'UNPAID' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+  parking_session_id?: number;
+  sale_id?: number;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+  parking_session?: ParkingSession;
+  sale?: Sale;
+  items?: InvoiceItem[];
+  tenant?: {
+    id: string;
+    name: string;
+    created_at?: string;
+    updated_at?: string;
+    data?: any;
+    plan_id?: number;
+    tenancy_db_name?: string;
+  };
+  tenant_name?: string;
+}
+
+export interface InvoiceFilters {
+  folio?: string;
+  client_name?: string;
+  client_rut?: string;
+  status?: string;
+  emission_date_from?: string;
+  emission_date_to?: string;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
+  page?: number;
+  per_page?: number;
+}
+
 export interface PricingProfileFilters {
   sector_id?: number;
   name?: string;

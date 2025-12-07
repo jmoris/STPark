@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PricingRule;
 use App\Models\PricingProfile;
+use App\Services\PlanLimitService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -80,6 +81,20 @@ class PricingRuleController extends Controller
         if (isset($validated['price_per_minute'])) {
             $validated['price_per_min'] = $validated['price_per_minute'];
             unset($validated['price_per_minute']);
+        }
+
+        // Validar límite de reglas de precios según el plan
+        $limitCheck = PlanLimitService::canCreatePricingRule($validated['profile_id']);
+        if (!$limitCheck['allowed']) {
+            return response()->json([
+                'success' => false,
+                'message' => $limitCheck['message'],
+                'error_code' => 'PLAN_LIMIT_EXCEEDED',
+                'data' => [
+                    'current' => $limitCheck['current'] ?? 0,
+                    'limit' => $limitCheck['limit'] ?? 0
+                ]
+            ], 403);
         }
 
         $rule = PricingRule::create($validated);

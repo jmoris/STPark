@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Tenant;
+use App\Models\Plan;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -42,11 +43,29 @@ class CreateTenant extends Command
         }
 
         try {
+            // 0) Obtener o asignar el plan Gratis por defecto
+            $freePlan = Plan::where('name', 'Gratis')
+                ->where('status', 'ACTIVE')
+                ->first();
+
+            if (!$freePlan) {
+                // Si no existe el plan Gratis, intentar usar el primer plan activo
+                $freePlan = Plan::where('status', 'ACTIVE')->first();
+                
+                if (!$freePlan) {
+                    $this->error('No se encontró ningún plan activo. Por favor, ejecuta el PlanSeeder primero.');
+                    return self::FAILURE;
+                }
+                
+                $this->warn("Plan 'Gratis' no encontrado. Usando plan: {$freePlan->name}");
+            }
+
             // 1) Crear registro de tenant (en landlord)
             /** @var \App\Models\Tenant $tenant */
             $tenant = Tenant::create([
                 'id'   => $id,
-                'name' => $name
+                'name' => $name,
+                'plan_id' => $freePlan->id,
             ]);
 
             // 2) (Opcional) asociar dominio

@@ -1,0 +1,68 @@
+<div class="p-6">
+  <h2 class="text-2xl font-bold text-gray-900 mb-4">Registrar Pago de Factura</h2>
+  
+  <div class="mb-6">
+    <div class="bg-gray-50 p-4 rounded border border-gray-200">
+      <div class="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <p class="text-gray-600 mb-1">Folio</p>
+          <p class="font-semibold">{{ data.invoice.folio || 'Sin folio' }}</p>
+        </div>
+        <div>
+          <p class="text-gray-600 mb-1">Cliente</p>
+          <p class="font-semibold">{{ data.invoice.client_name }}</p>
+        </div>
+        <div>
+          <p class="text-gray-600 mb-1">Monto Total</p>
+          <p class="font-semibold text-blue-600 text-lg">{{ formatAmount(data.invoice.total_amount) }}</p>
+        </div>
+        <div>
+          <p class="text-gray-600 mb-1">Estado Actual</p>
+          <p class="font-semibold">Sin pago registrado</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form (ngSubmit)="onConfirm()">
+    <div class="space-y-4">
+      <mat-form-field appearance="outline" class="w-full">
+        <mat-label>Método de Pago</mat-label>
+        <mat-select [(ngModel)]="paymentMethod" name="paymentMethod" required>
+          <mat-option value="CASH">Efectivo</mat-option>
+          <mat-option value="TRANSFER">Transferencia</mat-option>
+          <mat-option value="CARD">Tarjeta</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="w-full">
+        <mat-label>Fecha de Pago</mat-label>
+        <input matInput [matDatepicker]="picker" [(ngModel)]="paymentDate" name="paymentDate" required>
+        <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+        <mat-datepicker #picker></mat-datepicker>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="w-full">
+        <mat-label>Referencia / Número de Transacción</mat-label>
+        <input matInput [(ngModel)]="reference" name="reference" placeholder="Opcional">
+        <mat-hint>Número de transferencia, comprobante, etc.</mat-hint>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="w-full">
+        <mat-label>Notas</mat-label>
+        <textarea matInput rows="3" [(ngModel)]="notes" name="notes" placeholder="Notas adicionales sobre el pago"></textarea>
+      </mat-form-field>
+    </div>
+
+    <div class="flex justify-end gap-3 mt-6 pt-4 border-t">
+      <button type="button" mat-stroked-button (click)="onCancel()" class="no-rounded">
+        Cancelar
+      </button>
+      <button type="submit" mat-raised-button color="primary" class="no-rounded">
+        <mat-icon>payment</mat-icon>
+        Registrar Pago
+      </button>
+    </div>
+  </form>
+</div>
+

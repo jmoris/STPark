@@ -1,5 +1,6 @@
 import { Component, OnDestroy, OnInit, ViewEncapsulation } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { NgIconsModule } from '@ng-icons/core';
 import { IconNamePipe } from 'app/core/icons/icon-name.pipe';
 import { ActivatedRoute, Router, RouterOutlet } from '@angular/router';
@@ -19,6 +20,8 @@ import { SearchComponent } from 'app/layout/common/search/search.component';
 import { ShortcutsComponent } from 'app/layout/common/shortcuts/shortcuts.component';
 import { UserComponent } from 'app/layout/common/user/user.component';
 import { Subject, takeUntil } from 'rxjs';
+import { AuthService } from 'app/core/services/auth.service';
+import { FacturAPIConfigModalComponent } from 'app/modules/central-admin/facturapi-config/facturapi-config-modal.component';
 
 @Component({
     selector: 'enterprise-layout',
@@ -52,7 +55,9 @@ export class EnterpriseLayoutComponent implements OnInit, OnDestroy {
         private _router: Router,
         private _navigationService: NavigationService,
         private _fuseMediaWatcherService: FuseMediaWatcherService,
-        private _fuseNavigationService: FuseNavigationService
+        private _fuseNavigationService: FuseNavigationService,
+        private _authService: AuthService,
+        private _dialog: MatDialog
     ) {}
 
     // -----------------------------------------------------------------------------------------------------
@@ -118,6 +123,22 @@ export class EnterpriseLayoutComponent implements OnInit, OnDestroy {
         if (navigation) {
             // Toggle the opened status
             navigation.toggle();
+        }
+    }
+
+    /**
+     * Navigate to settings
+     */
+    navigateToSettings(): void {
+        // Si está en modo administración central, abrir modal de configuración de FacturAPI
+        if (this._authService.isCentralAdminMode()) {
+            this._dialog.open(FacturAPIConfigModalComponent, {
+                width: '600px',
+                disableClose: false
+            });
+        } else {
+            // Si es tenant, navegar a la configuración del tenant
+        this._router.navigate(['/parking/settings']);
         }
     }
 }

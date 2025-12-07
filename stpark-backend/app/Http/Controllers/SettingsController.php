@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Settings;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SettingsController extends Controller
 {
@@ -70,27 +71,41 @@ class SettingsController extends Controller
         // Valores por defecto
         $defaultConfig = [
             'name' => 'STPark - Sistema de Estacionamientos',
-            'currency' => 'CLP',
-            'timezone' => 'America/Santiago',
             'language' => 'es',
             'pos_tuu' => false, // Configuración de POS TUU (solo lectura para usuarios, solo administradores pueden cambiar)
             'max_capacity' => 0 // Capacidad máxima de vehículos en el estacionamiento
         ];
         
+        // Obtener información del plan del tenant desde la conexión central
+        $planName = 'Sin plan';
+        try {
+            $tenantId = tenant('id');
+            if ($tenantId) {
+                // Obtener el tenant desde la conexión central donde está la tabla de planes
+                $centralConnection = config('tenancy.database.central_connection', 'central');
+                $tenant = DB::connection($centralConnection)->table('tenants')
+                    ->join('plans', 'tenants.plan_id', '=', 'plans.id')
+                    ->where('tenants.id', $tenantId)
+                    ->select('plans.name as plan_name')
+                    ->first();
+                
+                if ($tenant && isset($tenant->plan_name)) {
+                    $planName = $tenant->plan_name;
+                }
+            }
+        } catch (\Exception $e) {
+            \Log::warning('Settings: Error al obtener información del plan del tenant', ['error' => $e->getMessage()]);
+        }
+        
         if (!$setting) {
             \Log::info('Settings: No se encontró configuración general, usando valores por defecto');
             return response()->json([
                 'success' => true,
-                'data' => $defaultConfig
+                'data' => array_merge($defaultConfig, [
+                    'plan_name' => $planName
+                ])
             ]);
         }
-        
-        // Obtener el valor raw de la base de datos para debugging
-        $rawValue = $setting->getRawOriginal('value');
-        \Log::info('Settings: Valor raw de la base de datos', [
-            'raw_value' => $rawValue,
-            'raw_type' => gettype($rawValue)
-        ]);
         
         // Obtener el valor (ya viene como array por el cast del modelo)
         $config = $setting->value;
@@ -109,26 +124,26 @@ class SettingsController extends Controller
             ]);
             return response()->json([
                 'success' => true,
-                'data' => $defaultConfig
+                'data' => array_merge($defaultConfig, [
+                    'plan_name' => $planName
+                ])
             ]);
         }
         
         // Usar el valor de la base de datos como base, solo completar campos faltantes con valores por defecto
         $finalConfig = [
             'name' => !empty($config['name']) ? $config['name'] : $defaultConfig['name'],
-            'currency' => !empty($config['currency']) ? $config['currency'] : $defaultConfig['currency'],
-            'timezone' => !empty($config['timezone']) ? $config['timezone'] : $defaultConfig['timezone'],
             'language' => !empty($config['language']) ? $config['language'] : $defaultConfig['language'],
             'pos_tuu' => isset($config['pos_tuu']) ? (bool) $config['pos_tuu'] : $defaultConfig['pos_tuu'],
-            'max_capacity' => isset($config['max_capacity']) ? (int) $config['max_capacity'] : $defaultConfig['max_capacity']
+            'max_capacity' => isset($config['max_capacity']) ? (int) $config['max_capacity'] : $defaultConfig['max_capacity'],
+            'plan_name' => $planName
         ];
         
         \Log::info('Settings: Configuración general obtenida', [
             'name_from_db' => $config['name'] ?? 'NO EXISTE',
             'name_final' => $finalConfig['name'],
-            'currency' => $finalConfig['currency'],
-            'timezone' => $finalConfig['timezone'],
-            'language' => $finalConfig['language']
+            'language' => $finalConfig['language'],
+            'plan_name' => $finalConfig['plan_name']
         ]);
         
         return response()->json([
@@ -145,8 +160,6 @@ class SettingsController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'currency' => 'required|string|max:10',
-            'timezone' => 'required|string|max:50',
             'language' => 'required|string|max:10',
             'max_capacity' => 'nullable|integer|min:0'
             // pos_tuu NO se incluye aquí - solo puede ser modificado por administradores directamente en la BD
@@ -168,8 +181,6 @@ class SettingsController extends Controller
 
         \Log::info('Settings: Guardando configuración general', [
             'name' => $validated['name'],
-            'currency' => $validated['currency'],
-            'timezone' => $validated['timezone'],
             'language' => $validated['language'],
             'pos_tuu' => $validated['pos_tuu'] . ' (preservado, no modificable por usuarios)'
         ]);

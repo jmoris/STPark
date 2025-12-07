@@ -1,0 +1,38 @@
+// Estilos específicos para el componente de facturas pendientes
+
+// Botones sin bordes redondeados
+::ng-deep .no-rounded {
+  border-radius: 0 !important;
+}
+
+// Botones compactos
+::ng-deep .compact-button {
+  padding: 4px 12px !important;
+  min-width: auto !important;
+  line-height: 1.2 !important;
+  font-size: 12px !important;
+  
+  .compact-icon {
+    font-size: 18px !important;
+    width: 18px !important;
+    height: 18px !important;
+    margin-right: 4px !important;
+  }
+  
+  .compact-text {
+    font-size: 12px !important;
+  }
+}
+
+::ng-deep .compact-icon-button {
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  
+  mat-icon {
+    font-size: 18px !important;
+    width: 18px !important;
+    height: 18px !important;
+  }
+}
+

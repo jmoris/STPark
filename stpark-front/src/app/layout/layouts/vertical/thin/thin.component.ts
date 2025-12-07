@@ -118,4 +118,11 @@ export class ThinLayoutComponent implements OnInit, OnDestroy {
             navigation.toggle();
         }
     }
+
+    /**
+     * Navigate to settings
+     */
+    navigateToSettings(): void {
+        this._router.navigate(['/parking/settings']);
+    }
 }

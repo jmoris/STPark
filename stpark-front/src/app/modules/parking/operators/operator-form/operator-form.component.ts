@@ -127,7 +127,20 @@ export class OperatorFormComponent implements OnInit {
             },
             error: (error) => {
               this.loading = false;
-              this.snackBar.open('Error al crear operador', 'Cerrar', { duration: 3000 });
+              console.error('Error creating operator:', error);
+              
+              // Mostrar mensaje específico si es un error de límite de plan
+              let errorMessage = 'Error al crear operador';
+              if (error.error?.error_code === 'PLAN_LIMIT_EXCEEDED' && error.error?.message) {
+                errorMessage = error.error.message;
+              } else if (error.error?.message) {
+                errorMessage = error.error.message;
+              }
+              
+              this.snackBar.open(errorMessage, 'Cerrar', { 
+                duration: 5000,
+                panelClass: ['error-snackbar']
+              });
             }
           });
       }

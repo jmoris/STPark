@@ -15,16 +15,39 @@ export const ApiInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, nex
   // Clone the request object
   let newReq = req.clone();
 
+  // Verificar si está en modo Administración Central
+  const isCentralAdminMode = authService.isCentralAdminMode();
+  
+  // Detectar si la ruta es de central admin puro (no necesita tenant)
+  // Las rutas /api/invoices pueden necesitar tenant si vienen de /parking/invoices
+  const isCentralAdminRoute = req.url.includes('/api/central-admin') ||
+                              req.url.includes('/api/users') ||
+                              req.url.includes('/api/tenants') ||
+                              req.url.includes('/api/plans') ||
+                              req.url.includes('/api/uf');
+  
+  // Las facturas están en BD central pero:
+  // - Si viene de /parking/invoices -> necesita X-Tenant (para que el backend sepa qué tenant)
+  // - Si viene de /api/invoices y es central admin -> NO necesita X-Tenant (ver todas)
+  const isInvoicesRoute = req.url.includes('/invoices');
+  const isParkingRoute = req.url.includes('/parking/');
+  
   // Get current tenant and add X-Tenant header
-  const currentTenant = authService.getCurrentTenant();
-  console.log('ApiInterceptor: Current tenant:', currentTenant);
-  if (currentTenant) {
-    console.log('ApiInterceptor: Adding X-Tenant header:', currentTenant.id);
-    newReq = newReq.clone({
-      headers: newReq.headers.set('X-Tenant', currentTenant.id),
-    });
-  } else {
-    console.warn('ApiInterceptor: No current tenant selected');
+  // NO agregar si: está en modo central admin Y es ruta central admin pura
+  // SÍ agregar si: es ruta de parking (tenant) o es facturas desde parking
+  if (!isCentralAdminMode || (isParkingRoute && isInvoicesRoute)) {
+    const currentTenant = authService.getCurrentTenant();
+    console.log('ApiInterceptor: Current tenant:', currentTenant);
+    if (currentTenant) {
+      console.log('ApiInterceptor: Adding X-Tenant header:', currentTenant.id);
+      newReq = newReq.clone({
+        headers: newReq.headers.set('X-Tenant', currentTenant.id),
+      });
+    } else {
+      console.warn('ApiInterceptor: No current tenant selected');
+    }
+  } else if (isCentralAdminRoute) {
+    console.log('ApiInterceptor: Central admin route, skipping X-Tenant header for:', req.url);
   }
 
   // Add Content-Type and Accept headers
@@ -79,7 +102,12 @@ function handleError(error: HttpErrorResponse, snackBar: MatSnackBar, router: Ro
         router.navigate(['/sign-in']);
         break;
       case 403:
-        errorMessage = 'Acceso denegado';
+        // Manejar errores de límites de plan
+        if (error.error?.error_code === 'PLAN_LIMIT_EXCEEDED' && error.error?.message) {
+          errorMessage = error.error.message;
+        } else {
+          errorMessage = error.error?.message || 'Acceso denegado';
+        }
         break;
       case 404:
         errorMessage = 'Recurso no encontrado';

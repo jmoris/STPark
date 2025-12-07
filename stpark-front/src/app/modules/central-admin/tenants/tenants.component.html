@@ -1,0 +1,194 @@
+<div class="p-6 w-full">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Estacionamientos</h1>
+      <p class="text-gray-600">Gestiona los estacionamientos (tenants) registrados</p>
+    </div>
+    <button mat-raised-button color="primary" class="rounded-sm" (click)="createTenant()">
+      <mat-icon>add</mat-icon>
+      Nuevo Estacionamiento
+    </button>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-blue-100 rounded-full">
+            <mat-icon class="text-blue-600">local_parking</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Total Estacionamientos</p>
+            <p class="text-2xl font-bold text-blue-600">{{ tenants.length }}</p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-green-100 rounded-full">
+            <mat-icon class="text-green-600">people</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Total Usuarios</p>
+            <p class="text-2xl font-bold text-green-600">
+              {{ totalUsers }}
+            </p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-content class="p-6">
+        <div class="flex items-center">
+          <div class="p-3 bg-purple-100 rounded-full">
+            <mat-icon class="text-purple-600">calendar_today</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Este Mes</p>
+            <p class="text-2xl font-bold text-purple-600">
+              {{ tenantsThisMonth }}
+            </p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Filters -->
+  <mat-card class="mb-6">
+    <mat-card-content class="p-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <mat-form-field appearance="outline">
+          <mat-label>Buscar estacionamiento</mat-label>
+          <input matInput placeholder="Nombre o ID" [(ngModel)]="filters.name">
+        </mat-form-field>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-4">
+        <button mat-stroked-button class="rounded-sm" (click)="clearFilters()">
+          <mat-icon>clear</mat-icon>
+          Limpiar
+        </button>
+        <button mat-raised-button color="primary" class="rounded-sm" (click)="applyFilters()">
+          <mat-icon>search</mat-icon>
+          Filtrar
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Tenants Table -->
+  <mat-card>
+    <mat-card-content class="p-6">
+      <div class="overflow-x-auto">
+        <table mat-table [dataSource]="tenants" matSort [matSortActive]="sortBy" [matSortDirection]="sortOrder" class="w-full">
+          <!-- ID Column -->
+          <ng-container matColumnDef="id">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="id">ID</th>
+            <td mat-cell *matCellDef="let tenant">
+              <div class="flex items-center gap-2">
+                <mat-icon class="text-gray-500">tag</mat-icon>
+                <span class="font-mono text-sm">{{ tenant.id }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Name Column -->
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="name">Nombre</th>
+            <td mat-cell *matCellDef="let tenant">
+              <span class="font-semibold">{{ tenant.name || tenant.id }}</span>
+            </td>
+          </ng-container>
+
+          <!-- Plan Column -->
+          <ng-container matColumnDef="plan">
+            <th mat-header-cell *matHeaderCellDef>Plan de Servicio</th>
+            <td mat-cell *matCellDef="let tenant">
+              <mat-chip *ngIf="tenant.plan" class="bg-blue-100 text-blue-800">
+                {{ getPlanName(tenant) }}
+              </mat-chip>
+              <span *ngIf="!tenant.plan" class="text-gray-400">Sin plan</span>
+            </td>
+          </ng-container>
+
+          <!-- Created At Column -->
+          <ng-container matColumnDef="created_at">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="created_at">Fecha de Inicio</th>
+            <td mat-cell *matCellDef="let tenant">
+              <span class="text-gray-600">{{ formatDate(tenant.created_at) }}</span>
+            </td>
+          </ng-container>
+
+          <!-- Users Count Column -->
+          <ng-container matColumnDef="users_count">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header="users_count">Usuarios</th>
+            <td mat-cell *matCellDef="let tenant">
+              <div class="flex items-center gap-2">
+                <mat-icon class="text-gray-500 text-sm">people</mat-icon>
+                <span class="font-medium">{{ tenant.users_count || 0 }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Actions Column -->
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Acciones</th>
+            <td mat-cell *matCellDef="let tenant">
+              <button mat-icon-button class="rounded-sm" [matMenuTriggerFor]="tenantMenu">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+              <mat-menu #tenantMenu="matMenu">
+                <button mat-menu-item (click)="viewTenant(tenant)">
+                  <mat-icon>visibility</mat-icon>
+                  Ver detalles
+                </button>
+                <button mat-menu-item (click)="editTenant(tenant)">
+                  <mat-icon>edit</mat-icon>
+                  Editar
+                </button>
+                <button mat-menu-item class="text-red-600" (click)="deleteTenant(tenant)">
+                  <mat-icon>delete</mat-icon>
+                  Eliminar
+                </button>
+              </mat-menu>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+
+        <!-- Loading Spinner -->
+        <div *ngIf="loading" class="flex justify-center items-center py-8">
+          <mat-spinner diameter="40"></mat-spinner>
+        </div>
+
+        <!-- Empty State -->
+        <div *ngIf="!loading && tenants.length === 0" class="text-center py-8">
+          <mat-icon class="text-gray-400 text-6xl">local_parking</mat-icon>
+          <h3 class="text-lg font-medium text-gray-900 mt-4">No hay estacionamientos registrados</h3>
+          <p class="text-gray-500">Los estacionamientos aparecerán aquí cuando se registren.</p>
+        </div>
+      </div>
+
+      <!-- Paginator -->
+      <mat-paginator 
+        *ngIf="totalItems > 0"
+        [length]="totalItems"
+        [pageSize]="pageSize"
+        [pageIndex]="currentPage"
+        [pageSizeOptions]="pageSizeOptions"
+        [showFirstLastButtons]="true"
+        (page)="onPageChange($event)"
+        class="mt-4">
+      </mat-paginator>
+    </mat-card-content>
+  </mat-card>
+</div>

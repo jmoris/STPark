@@ -16,6 +16,7 @@ use App\Http\Controllers\StreetController;
 use App\Http\Controllers\StatsController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShiftController;
+use App\Http\Controllers\InvoiceController;
 use Stancl\Tenancy\Middleware\InitializeTenancyByRequestData;
 
 /*
@@ -172,6 +173,16 @@ Route::middleware([
         Route::post('/{id}/cancel', [ShiftController::class, 'cancel']); // Cancelar turno
         Route::post('/{id}/adjustments', [ShiftController::class, 'adjustment']); // Registrar ajuste de caja
         Route::get('/{id}/report', [ShiftController::class, 'report']); // Reporte de turno (PDF/Excel/JSON)
+    });
+
+    // Rutas de facturas (ahora usan la base de datos central)
+    // Estas rutas redirigen a las rutas centrales pero con el tenant inicializado
+    Route::prefix('invoices')->group(function () {
+        Route::get('/', [InvoiceController::class, 'index']); // Listar facturas del tenant actual
+        Route::post('/', [InvoiceController::class, 'store']); // Crear factura para el tenant actual
+        Route::get('/{id}', [InvoiceController::class, 'show']); // Obtener factura por ID del tenant actual
+        Route::put('/{id}', [InvoiceController::class, 'update']); // Actualizar factura del tenant actual
+        Route::delete('/{id}', [InvoiceController::class, 'destroy']); // Eliminar factura del tenant actual
     });
 
 });

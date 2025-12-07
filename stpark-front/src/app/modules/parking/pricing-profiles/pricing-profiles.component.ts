@@ -299,7 +299,19 @@ export class PricingProfilesComponent implements OnInit, OnDestroy, AfterViewIni
         },
         error: (error) => {
           console.error('Error saving profile:', error);
-          this.snackBar.open('Error al guardar perfil', 'Cerrar', { duration: 3000 });
+          
+          // Mostrar mensaje específico si es un error de límite de plan
+          let errorMessage = 'Error al guardar perfil';
+          if (error.error?.error_code === 'PLAN_LIMIT_EXCEEDED' && error.error?.message) {
+            errorMessage = error.error.message;
+          } else if (error.error?.message) {
+            errorMessage = error.error.message;
+          }
+          
+          this.snackBar.open(errorMessage, 'Cerrar', { 
+            duration: 5000,
+            panelClass: ['error-snackbar']
+          });
         }
       });
   }
@@ -693,7 +705,19 @@ export class PricingProfilesComponent implements OnInit, OnDestroy, AfterViewIni
             },
             error: (error) => {
               console.error('Error creating rule:', error);
-              this.snackBar.open('Error al crear regla', 'Cerrar', { duration: 3000 });
+              
+              // Mostrar mensaje específico si es un error de límite de plan
+              let errorMessage = 'Error al crear regla';
+              if (error.error?.error_code === 'PLAN_LIMIT_EXCEEDED' && error.error?.message) {
+                errorMessage = error.error.message;
+              } else if (error.error?.message) {
+                errorMessage = error.error.message;
+              }
+              
+              this.snackBar.open(errorMessage, 'Cerrar', { 
+                duration: 5000,
+                panelClass: ['error-snackbar']
+              });
             }
           });
       }

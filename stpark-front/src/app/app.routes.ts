@@ -9,15 +9,23 @@ import { LayoutComponent } from 'app/layout/layout.component';
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
 export const appRoutes: Route[] = [
 
-    // Redirect empty path to '/parking'
-    {path: '', pathMatch : 'full', redirectTo: 'parking'},
+    // Redirect empty path - verifica modo de administración central
+    {
+        path: '',
+        pathMatch: 'full',
+        loadComponent: () => import('app/core/redirect/redirect.component').then(m => m.RedirectComponent)
+    },
 
-    // Redirect signed-in user to the '/parking'
+    // Redirect signed-in user - verifica modo de administración central
     //
     // After the user signs in, the sign-in page will redirect the user to the 'signed-in-redirect'
     // path. Below is another redirection for that path to redirect the user to the desired
     // location. This is a small convenience to keep all main routes together here on this file.
-    {path: 'signed-in-redirect', pathMatch : 'full', redirectTo: 'parking'},
+    {
+        path: 'signed-in-redirect',
+        pathMatch: 'full',
+        loadComponent: () => import('app/core/redirect/redirect.component').then(m => m.RedirectComponent)
+    },
 
     // Auth routes for guests
     {
@@ -77,6 +85,8 @@ export const appRoutes: Route[] = [
             {path: 'example', loadChildren: () => import('app/modules/admin/example/example.routes')},
             {path: 'administracion/usuarios', loadChildren: () => import('app/modules/administracion/usuarios/usuarios.routes')},
             {path: 'parking', loadChildren: () => import('app/modules/parking/parking.routes').then(m => m.parkingRoutes)},
+            {path: 'central-admin', loadChildren: () => import('app/modules/central-admin/central-admin.routes').then(m => m.centralAdminRoutes)},
+            {path: 'invoices', loadComponent: () => import('app/modules/invoices/invoices.component').then(m => m.InvoicesComponent)},
         ]
     }
 ];

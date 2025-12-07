@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PricingProfile;
 use App\Models\PricingRule;
+use App\Services\PlanLimitService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
@@ -62,6 +63,20 @@ class PricingProfileController extends Controller
         ]);
 
         $validated['is_active'] = $validated['is_active'] ?? true;
+
+        // Validar límite de perfiles de precios según el plan
+        $limitCheck = PlanLimitService::canCreatePricingProfile();
+        if (!$limitCheck['allowed']) {
+            return response()->json([
+                'success' => false,
+                'message' => $limitCheck['message'],
+                'error_code' => 'PLAN_LIMIT_EXCEEDED',
+                'data' => [
+                    'current' => $limitCheck['current'] ?? 0,
+                    'limit' => $limitCheck['limit'] ?? 0
+                ]
+            ], 403);
+        }
 
         $profile = PricingProfile::create($validated);
 

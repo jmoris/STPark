@@ -30,11 +30,15 @@
     </button>
     
     <!-- Selector de tenants -->
-    @if (tenants.length > 0) {
+    @if (tenants.length > 0 || isCentralAdmin) {
         <mat-divider class="my-2"></mat-divider>
         <button mat-menu-item [matMenuTriggerFor]="tenantMenu">
-            <ng-icon [name]="'heroicons_outline:building-office' | iconName" class="icon-size-7"></ng-icon>
-            <span>{{ currentTenant?.name || 'No seleccionado' }}</span>
+            @if (isCentralAdminMode) {
+                <ng-icon [name]="'heroicons_outline:shield-check' | iconName" class="icon-size-7"></ng-icon>
+            } @else {
+                <ng-icon [name]="'heroicons_outline:building-office' | iconName" class="icon-size-7"></ng-icon>
+            }
+            <span>{{ isCentralAdminMode ? 'Administración Central' : (currentTenant?.name || 'No seleccionado') }}</span>
         </button>
     }
     
@@ -57,10 +61,24 @@
 
 <!-- Menu de selección de tenants -->
 <mat-menu #tenantMenu="matMenu">
+    <!-- Opción Administración Central (solo para admins centrales) -->
+    @if (isCentralAdmin) {
+        <button mat-menu-item (click)="activateCentralAdminMode()">
+            <ng-icon [name]="'heroicons_outline:shield-check' | iconName" class="icon-size-7"></ng-icon>
+            @if (isCentralAdminMode) {
+                <ng-icon class="ml-2 icon-size-7" [name]="'heroicons_outline:check' | iconName"></ng-icon>
+            }
+            <span class="ml-2">Administración Central</span>
+        </button>
+        @if (tenants.length > 0) {
+            <mat-divider class="my-2"></mat-divider>
+        }
+    }
+    <!-- Lista de tenants -->
     @for (tenant of tenants; track tenant.id) {
         <button mat-menu-item (click)="changeTenant(tenant)">
-            <ng-icon [name]="'heroicons_outline:check-circle' | iconName" class="icon-size-7"></ng-icon>
-            @if (currentTenant?.id === tenant.id) {
+            <ng-icon [name]="'heroicons_outline:building-office' | iconName" class="icon-size-7"></ng-icon>
+            @if (currentTenant?.id === tenant.id && !isCentralAdminMode) {
                 <ng-icon class="ml-2 icon-size-7" [name]="'heroicons_outline:check' | iconName"></ng-icon>
             }
             <span class="ml-2">{{ tenant.name }}</span>

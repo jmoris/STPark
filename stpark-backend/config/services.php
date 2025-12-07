@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'banco_central' => [
+        'wsdl_url' => env('BANCO_CENTRAL_WSDL_URL', 'https://si3.bcentral.cl/SieteWS/SieteWS.asmx?wsdl'),
+        'user' => env('BANCO_CENTRAL_USER'),
+        'password' => env('BANCO_CENTRAL_PASSWORD'),
+        'uf_series_id' => env('BANCO_CENTRAL_UF_SERIES_ID', 'F073.UFF.PRE.Z.D'),
+    ],
+
 ];

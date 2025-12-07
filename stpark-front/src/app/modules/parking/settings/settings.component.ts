@@ -53,6 +53,8 @@ export class SettingsComponent implements OnInit {
   pricingForm: FormGroup;
   loading = false;
 
+  planName: string = 'Sin plan';
+
   constructor(
     private fb: FormBuilder,
     private pricingProfileService: PricingProfileService,
@@ -61,9 +63,8 @@ export class SettingsComponent implements OnInit {
   ) {
     this.generalForm = this.fb.group({
       name: ['STPark - Sistema de Estacionamientos', [Validators.required]],
-      currency: ['CLP', [Validators.required]],
-      timezone: ['America/Santiago', [Validators.required]],
       language: ['es', [Validators.required]],
+      plan_name: ['Sin plan'], // Se deshabilitará después de cargar
       pos_tuu: [{ value: false, disabled: true }], // Solo lectura - solo administradores pueden cambiar
       max_capacity: [0, [Validators.required, Validators.min(0)]]
     });
@@ -91,12 +92,36 @@ export class SettingsComponent implements OnInit {
           // El backend devuelve { success: true, data: {...} }
           if (response && response.success && response.data) {
             console.log('Configuración general cargada:', response.data);
-            // Usar getRawValue para incluir campos deshabilitados
-            const currentValue = this.generalForm.getRawValue();
-            this.generalForm.patchValue({
-              ...currentValue,
-              ...response.data
-            });
+            
+            // Actualizar el plan_name
+            const planName = response.data.plan_name || 'Sin plan';
+            this.planName = planName;
+            console.log('Plan name asignado:', this.planName);
+            
+            // Excluir plan_name del patchValue ya que lo actualizamos por separado
+            const { plan_name, ...formData } = response.data;
+            
+            // Actualizar los demás campos del formulario
+            this.generalForm.patchValue(formData);
+            
+            // Actualizar el plan_name en el FormControl y luego deshabilitarlo
+            setTimeout(() => {
+              const planNameControl = this.generalForm.get('plan_name');
+              if (planNameControl) {
+                // Asegurarse de que el control esté habilitado antes de establecer el valor
+                if (planNameControl.disabled) {
+                  planNameControl.enable({ emitEvent: false });
+                }
+                planNameControl.setValue(planName, { emitEvent: false });
+                console.log('Plan name establecido en FormControl:', planNameControl.value);
+                
+                // Deshabilitar después de un pequeño delay para que Angular renderice el valor
+                setTimeout(() => {
+                  planNameControl.disable({ emitEvent: false });
+                  console.log('Plan name deshabilitado. Valor final:', planNameControl.value);
+                }, 100);
+              }
+            }, 0);
           } else {
             console.warn('La respuesta no tiene el formato esperado:', response);
           }
@@ -170,8 +195,8 @@ export class SettingsComponent implements OnInit {
     }
 
     this.loading = true;
-    // Excluir pos_tuu del objeto a enviar (solo lectura, el backend lo preserva automáticamente)
-    const { pos_tuu, ...config } = this.generalForm.getRawValue();
+    // Excluir pos_tuu y plan_name del objeto a enviar (solo lectura, el backend los preserva automáticamente)
+    const { pos_tuu, plan_name, ...config } = this.generalForm.getRawValue();
 
     this.http.post(`${environment.apiUrl}/settings/general`, config)
       .subscribe({
@@ -223,8 +248,6 @@ export class SettingsComponent implements OnInit {
   resetSettings(): void {
     this.generalForm.reset({
       name: 'STPark - Sistema de Estacionamientos',
-      currency: 'CLP',
-      timezone: 'America/Santiago',
       language: 'es',
       pos_tuu: false,
       max_capacity: 0

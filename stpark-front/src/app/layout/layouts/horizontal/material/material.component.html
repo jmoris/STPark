@@ -72,9 +72,15 @@
                 >
                     <fuse-fullscreen class="hidden md:block"></fuse-fullscreen>
                     <search [appearance]="'bar'"></search>
-                    <shortcuts></shortcuts>
-                    <messages></messages>
-                    <user></user>
+                <shortcuts></shortcuts>
+                <messages></messages>
+                <button
+                    mat-icon-button
+                    (click)="navigateToSettings()"
+                >
+                    <ng-icon [name]="'heroicons_outline:cog-6-tooth' | iconName"></ng-icon>
+                </button>
+                <user></user>
                 </div>
             </div>
             <!-- Bottom bar -->

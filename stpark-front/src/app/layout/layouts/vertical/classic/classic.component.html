@@ -47,6 +47,12 @@
         <div class="ml-auto flex items-center space-x-0.5 pl-2 sm:space-x-2">
             <fuse-fullscreen class="hidden md:block"></fuse-fullscreen>
             <shortcuts></shortcuts>
+            <button
+                mat-icon-button
+                (click)="navigateToSettings()"
+            >
+                <ng-icon [name]="'heroicons_outline:cog-6-tooth' | iconName"></ng-icon>
+            </button>
             <user></user>
         </div>
     </div>

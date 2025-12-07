@@ -131,4 +131,11 @@ export class DenseLayoutComponent implements OnInit, OnDestroy {
         this.navigationAppearance =
             this.navigationAppearance === 'default' ? 'dense' : 'default';
     }
+
+    /**
+     * Navigate to settings
+     */
+    navigateToSettings(): void {
+        this._router.navigate(['/parking/settings']);
+    }
 }

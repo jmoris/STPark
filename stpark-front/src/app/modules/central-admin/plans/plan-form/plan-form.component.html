@@ -1,0 +1,138 @@
+<div class="plan-form-dialog">
+  <!-- Header -->
+  <div class="dialog-header">
+    <h2 class="dialog-title">
+      {{ data.isEdit ? 'Editar Plan' : 'Nuevo Plan' }}
+    </h2>
+    <button mat-icon-button class="close-button" (click)="onCancel()">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <!-- Content -->
+  <div class="dialog-content">
+    <form [formGroup]="planForm" class="plan-form">
+      <!-- Información Básica -->
+      <div class="form-section">
+        <h3 class="section-title">Información Básica</h3>
+        
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Nombre del Plan</mat-label>
+            <input matInput formControlName="name" placeholder="Ej: Plan Básico">
+            <mat-error *ngIf="planForm.get('name')?.hasError('required')">
+              {{ getErrorMessage('name') }}
+            </mat-error>
+            <mat-error *ngIf="planForm.get('name')?.hasError('minlength')">
+              {{ getErrorMessage('name') }}
+            </mat-error>
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Descripción</mat-label>
+            <textarea matInput formControlName="description" rows="3" placeholder="Descripción del plan"></textarea>
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Precio Máximo (UF)</mat-label>
+            <input matInput type="number" formControlName="max_price_uf" placeholder="0.00" step="0.01" min="0">
+            <mat-error *ngIf="planForm.get('max_price_uf')?.hasError('required')">
+              {{ getErrorMessage('max_price_uf') }}
+            </mat-error>
+            <mat-error *ngIf="planForm.get('max_price_uf')?.hasError('min')">
+              {{ getErrorMessage('max_price_uf') }}
+            </mat-error>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Estado</mat-label>
+            <mat-select formControlName="status">
+              <mat-option value="ACTIVE">Activo</mat-option>
+              <mat-option value="INACTIVE">Inactivo</mat-option>
+              <mat-option value="DISCONTINUED">Descontinuado</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+      </div>
+
+      <!-- Características del Plan -->
+      <div class="form-section" formGroupName="feature">
+        <h3 class="section-title">Características y Límites</h3>
+        
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="third-width">
+            <mat-label>Máx. Operadores</mat-label>
+            <input matInput type="number" formControlName="max_operators" placeholder="Sin límite" min="0">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="third-width">
+            <mat-label>Máx. Sectores</mat-label>
+            <input matInput type="number" formControlName="max_sectors" placeholder="Sin límite" min="0">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="third-width">
+            <mat-label>Máx. Calles</mat-label>
+            <input matInput type="number" formControlName="max_streets" placeholder="Sin límite" min="0">
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="third-width">
+            <mat-label>Máx. Sesiones</mat-label>
+            <input matInput type="number" formControlName="max_sessions" placeholder="Sin límite" min="0">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="third-width">
+            <mat-label>Máx. Perfiles de Precio</mat-label>
+            <input matInput type="number" formControlName="max_pricing_profiles" placeholder="Sin límite" min="0">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="third-width">
+            <mat-label>Máx. Reglas de Precio</mat-label>
+            <input matInput type="number" formControlName="max_pricing_rules" placeholder="Sin límite" min="0">
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Tipo de Reporte</mat-label>
+            <mat-select formControlName="report_type">
+              <mat-option value="BASIC">Básico</mat-option>
+              <mat-option value="ADVANCED">Avanzado</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="half-width">
+            <mat-label>Tipo de Soporte</mat-label>
+            <mat-select formControlName="support_type">
+              <mat-option value="BASIC">Básico</mat-option>
+              <mat-option value="PRIORITY">Prioritario</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="form-row">
+          <mat-checkbox formControlName="includes_debt_management">
+            Incluye Gestión de Deudas
+          </mat-checkbox>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Actions -->
+  <div class="dialog-actions">
+    <button mat-button class="rounded-sm" (click)="onCancel()" [disabled]="loading">
+      Cancelar
+    </button>
+    <button mat-raised-button color="primary" class="rounded-sm" (click)="onSubmit()" [disabled]="loading || planForm.invalid">
+      <mat-spinner *ngIf="loading" diameter="20" class="inline-spinner"></mat-spinner>
+      <mat-icon *ngIf="!loading">{{ data.isEdit ? 'save' : 'add' }}</mat-icon>
+      {{ data.isEdit ? 'Actualizar' : 'Crear' }}
+    </button>
+  </div>
+</div>

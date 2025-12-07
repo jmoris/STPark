@@ -1,0 +1,68 @@
+// Estilos para el componente de facturas
+table {
+  width: 100%;
+}
+
+.mat-column-folio {
+  width: 10%;
+}
+
+.mat-column-tenant_name {
+  width: 15%;
+}
+
+.mat-column-client_name {
+  width: 18%;
+}
+
+.mat-column-client_rut {
+  width: 12%;
+}
+
+.mat-column-emission_date,
+.mat-column-payment_date {
+  width: 10%;
+}
+
+.mat-column-net_amount,
+.mat-column-iva_amount,
+.mat-column-total_amount {
+  width: 10%;
+  text-align: right;
+}
+
+.mat-column-status {
+  width: 10%;
+}
+
+.mat-column-actions {
+  width: 6%;
+  text-align: center;
+}
+
+// Estilos para el botón de pagar factura
+::ng-deep .pay-invoice-button {
+  color: #16a34a !important; // green-600
+  
+  .mat-icon {
+    color: #16a34a !important;
+  }
+  
+  span {
+    color: #16a34a !important;
+    font-weight: 600 !important;
+  }
+  
+  &:hover {
+    background-color: #dcfce7 !important; // green-100
+  }
+}
+
+// Responsive
+@media (max-width: 768px) {
+  .mat-column-client_name,
+  .mat-column-client_rut {
+    display: none;
+  }
+}
+

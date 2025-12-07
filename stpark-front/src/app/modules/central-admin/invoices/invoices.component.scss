@@ -1,0 +1,7 @@
+// Estilos para el componente de facturas en administración central
+
+// Botones sin bordes redondeados
+::ng-deep .no-rounded {
+  border-radius: 0 !important;
+}
+

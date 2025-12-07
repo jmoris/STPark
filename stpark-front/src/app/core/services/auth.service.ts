@@ -19,6 +19,7 @@ export interface User {
   role?: string;
   avatar?: string;
   status?: string;
+  is_central_admin?: boolean;
 }
 
 export interface LoginRequest {
@@ -139,6 +140,11 @@ export class AuthService {
     return user ? roles.includes(user.role) : false;
   }
 
+  isCentralAdmin(): boolean {
+    const user = this.getCurrentUser();
+    return user?.is_central_admin === true;
+  }
+
   getTenants(): Tenant[] {
     return this.tenantsSubject.value;
   }
@@ -151,9 +157,26 @@ export class AuthService {
     this.currentTenantSubject.next(tenant);
     if (tenant) {
       localStorage.setItem('current_tenant', JSON.stringify(tenant));
+      localStorage.removeItem('central_admin_mode');
     } else {
       localStorage.removeItem('current_tenant');
     }
+  }
+
+  /**
+   * Activar modo Administración Central
+   */
+  setCentralAdminMode(): void {
+    this.currentTenantSubject.next(null);
+    localStorage.removeItem('current_tenant');
+    localStorage.setItem('central_admin_mode', 'true');
+  }
+
+  /**
+   * Verificar si está en modo Administración Central
+   */
+  isCentralAdminMode(): boolean {
+    return localStorage.getItem('central_admin_mode') === 'true';
   }
 
   private setAuth(user: User, token: string, tenants: Tenant[]): void {
@@ -162,10 +185,16 @@ export class AuthService {
     this.tokenSubject.next(token);
     this.tenantsSubject.next(tenants);
     
-    // Si hay tenants, establecer el primero como default
-    if (tenants && tenants.length > 0) {
+    // Verificar si está en modo Administración Central
+    const centralAdminMode = this.isCentralAdminMode();
+    
+    // Si hay tenants y NO está en modo Administración Central, establecer el primero como default
+    if (tenants && tenants.length > 0 && !centralAdminMode) {
       console.log('Setting first tenant:', tenants[0]);
       this.setCurrentTenant(tenants[0]);
+    } else if (centralAdminMode) {
+      // Si está en modo Administración Central, asegurar que no hay tenant
+      this.currentTenantSubject.next(null);
     }
     
     // Guardar en localStorage
@@ -187,6 +216,7 @@ export class AuthService {
     localStorage.removeItem('current_user');
     localStorage.removeItem('tenants');
     localStorage.removeItem('current_tenant');
+    localStorage.removeItem('central_admin_mode');
   }
 
   private loadStoredAuth(): void {
@@ -201,8 +231,9 @@ export class AuthService {
     const userStr = localStorage.getItem('current_user');
     const tenantsStr = localStorage.getItem('tenants');
     const tenantStr = localStorage.getItem('current_tenant');
+    const centralAdminMode = localStorage.getItem('central_admin_mode') === 'true';
     
-    console.log('Loading stored auth data:', { hasToken: !!token, hasUser: !!userStr });
+    console.log('Loading stored auth data:', { hasToken: !!token, hasUser: !!userStr, centralAdminMode });
     
     if (token && userStr) {
       try {
@@ -214,7 +245,10 @@ export class AuthService {
           const tenants = JSON.parse(tenantsStr);
           this.tenantsSubject.next(tenants);
           
-          if (tenantStr) {
+          // Si está en modo Administración Central, no establecer tenant
+          if (centralAdminMode) {
+            this.currentTenantSubject.next(null);
+          } else if (tenantStr) {
             this.currentTenantSubject.next(JSON.parse(tenantStr));
           }
         }

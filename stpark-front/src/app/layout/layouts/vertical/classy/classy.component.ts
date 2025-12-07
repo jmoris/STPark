@@ -129,4 +129,11 @@ export class ClassyLayoutComponent implements OnInit, OnDestroy {
             navigation.toggle();
         }
     }
+
+    /**
+     * Navigate to settings
+     */
+    navigateToSettings(): void {
+        this._router.navigate(['/parking/settings']);
+    }
 }
