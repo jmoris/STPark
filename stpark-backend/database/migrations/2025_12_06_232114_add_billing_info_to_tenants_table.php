@@ -15,14 +15,28 @@ return new class extends Migration
     {
         Schema::table('tenants', function (Blueprint $table) {
             // Aplicar ->after() solo si el driver lo soporta (MySQL/MariaDB)
+            // Nota: 'name' no es una columna en tenants, está en el JSON 'data'
+            // Usamos 'id' como referencia, o si existe 'plan_id', después de ese
             if (DatabaseHelper::supportsAfterClause()) {
-                $table->string('rut')->nullable()->after('name');
-                $table->string('razon_social')->nullable()->after('rut');
-                $table->string('giro')->nullable()->after('razon_social');
-                $table->string('direccion')->nullable()->after('giro');
-                $table->string('comuna')->nullable()->after('direccion');
-                $table->integer('dias_credito')->nullable()->default(0)->after('comuna');
-                $table->string('correo_intercambio')->nullable()->after('dias_credito');
+                // Verificar si plan_id existe para usarlo como referencia
+                if (Schema::hasColumn('tenants', 'plan_id')) {
+                    $table->string('rut')->nullable()->after('plan_id');
+                    $table->string('razon_social')->nullable()->after('rut');
+                    $table->string('giro')->nullable()->after('razon_social');
+                    $table->string('direccion')->nullable()->after('giro');
+                    $table->string('comuna')->nullable()->after('direccion');
+                    $table->integer('dias_credito')->nullable()->default(0)->after('comuna');
+                    $table->string('correo_intercambio')->nullable()->after('dias_credito');
+                } else {
+                    // Si plan_id no existe, agregar después de id
+                    $table->string('rut')->nullable()->after('id');
+                    $table->string('razon_social')->nullable()->after('rut');
+                    $table->string('giro')->nullable()->after('razon_social');
+                    $table->string('direccion')->nullable()->after('giro');
+                    $table->string('comuna')->nullable()->after('direccion');
+                    $table->integer('dias_credito')->nullable()->default(0)->after('comuna');
+                    $table->string('correo_intercambio')->nullable()->after('dias_credito');
+                }
             } else {
                 // PostgreSQL: no soporta ->after(), las columnas se agregan al final
                 $table->string('rut')->nullable();
