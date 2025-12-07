@@ -305,6 +305,109 @@ class DatabaseHelper
         $sql = self::getSetColumnNotNullStatement($table, $column, $columnType);
         DB::statement($sql);
     }
+
+    /**
+     * Verificar si una columna puede usar ->after() según el driver
+     * PostgreSQL no soporta ->after(), MySQL/MariaDB sí
+     * 
+     * @return bool
+     */
+    public static function supportsAfterClause(): bool
+    {
+        $driver = DB::getDriverName();
+        return in_array($driver, ['mysql', 'mariadb']);
+    }
+
+    /**
+     * Aplicar ->after() solo si el driver lo soporta
+     * Útil para usar en migraciones: $table->string('column')->after('other') solo en MySQL/MariaDB
+     * 
+     * @param \Illuminate\Database\Schema\ColumnDefinition $columnDefinition
+     * @param string $afterColumn
+     * @return \Illuminate\Database\Schema\ColumnDefinition
+     */
+    public static function applyAfterIfSupported($columnDefinition, string $afterColumn)
+    {
+        if (self::supportsAfterClause()) {
+            return $columnDefinition->after($afterColumn);
+        }
+        return $columnDefinition;
+    }
+
+    /**
+     * Crear una columna enum compatible con PostgreSQL y MySQL/MariaDB
+     * PostgreSQL usa CHECK constraint, MySQL/MariaDB usa ENUM nativo
+     * 
+     * @param \Illuminate\Database\Schema\Blueprint $table
+     * @param string $column Nombre de la columna
+     * @param array $values Valores permitidos
+     * @param string|null $default Valor por defecto
+     * @return \Illuminate\Database\Schema\ColumnDefinition
+     */
+    public static function createEnumColumn($table, string $column, array $values, ?string $default = null)
+    {
+        $driver = DB::getDriverName();
+        
+        if ($driver === 'pgsql') {
+            // PostgreSQL: usar string con CHECK constraint
+            // El constraint se agregará después usando DB::statement en la migración
+            $columnDef = $table->string($column);
+            if ($default !== null) {
+                $columnDef->default($default);
+            }
+            
+            return $columnDef;
+        } else {
+            // MySQL/MariaDB: usar enum nativo
+            $columnDef = $table->enum($column, $values);
+            if ($default !== null) {
+                $columnDef->default($default);
+            }
+            return $columnDef;
+        }
+    }
+
+    /**
+     * Agregar constraint CHECK para una columna enum en PostgreSQL
+     * Debe llamarse después de crear la tabla
+     * 
+     * @param string $tableName Nombre de la tabla
+     * @param string $column Nombre de la columna
+     * @param array $values Valores permitidos
+     * @return void
+     */
+    public static function addEnumCheckConstraint(string $tableName, string $column, array $values): void
+    {
+        $driver = DB::getDriverName();
+        
+        if ($driver === 'pgsql') {
+            $valuesList = "'" . implode("', '", array_map(function($value) {
+                return addslashes($value);
+            }, $values)) . "'";
+            $constraintName = "{$tableName}_{$column}_check";
+            
+            DB::statement("ALTER TABLE {$tableName} ADD CONSTRAINT {$constraintName} CHECK ({$column} IN ({$valuesList}))");
+        }
+        // MySQL/MariaDB no necesita constraint adicional, usa ENUM nativo
+    }
+
+    /**
+     * Obtener el tipo de columna para BIGINT según el driver
+     * PostgreSQL no soporta UNSIGNED, MySQL/MariaDB sí
+     * 
+     * @param bool $unsigned Si debe ser unsigned (solo aplica a MySQL/MariaDB)
+     * @return string Tipo de columna
+     */
+    public static function getBigIntegerType(bool $unsigned = false): string
+    {
+        $driver = DB::getDriverName();
+        
+        if ($driver === 'pgsql') {
+            return 'bigInteger';
+        } else {
+            return $unsigned ? 'unsignedBigInteger' : 'bigInteger';
+        }
+    }
 }
 
 
