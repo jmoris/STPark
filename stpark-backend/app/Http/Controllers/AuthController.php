@@ -126,7 +126,7 @@ class AuthController extends Controller
                             'name' => $user->name,
                             'email' => $user->email,
                             'email_verified_at' => $user->email_verified_at,
-                            'is_central_admin' => $user->is_central_admin ?? false,
+                            'is_central_admin' => (bool) ($user->is_central_admin ?? false),
                         ],
                         'tenants' => $tenants,
                         'token' => $token

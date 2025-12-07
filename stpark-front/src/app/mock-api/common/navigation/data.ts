@@ -7,8 +7,10 @@ const isCentralAdmin = (): boolean => {
     try {
         const userStr = localStorage.getItem('current_user');
         if (userStr) {
-            const user = JSON.parse(userStr);
-            return user?.is_central_admin === true;
+            const user: any = JSON.parse(userStr);
+            // Aceptar tanto true como 1 (valor numérico desde la base de datos)
+            const value = user?.is_central_admin;
+            return value === true || value === 1 || Boolean(value);
         }
         return false;
     } catch {

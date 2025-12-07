@@ -19,7 +19,7 @@ export interface User {
   role?: string;
   avatar?: string;
   status?: string;
-  is_central_admin?: boolean;
+  is_central_admin?: boolean | number; // Acepta boolean o number (1/0) para compatibilidad
 }
 
 export interface LoginRequest {
@@ -142,7 +142,11 @@ export class AuthService {
 
   isCentralAdmin(): boolean {
     const user = this.getCurrentUser();
-    return user?.is_central_admin === true;
+    if (!user || user.is_central_admin === undefined || user.is_central_admin === null) {
+      return false;
+    }
+    // Aceptar tanto true como 1 (valor numérico desde la base de datos)
+    return user.is_central_admin === true || user.is_central_admin === 1;
   }
 
   getTenants(): Tenant[] {

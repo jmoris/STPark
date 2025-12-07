@@ -72,7 +72,7 @@ class UserController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'is_central_admin' => $user->is_central_admin ?? false,
+                'is_central_admin' => (bool) ($user->is_central_admin ?? false),
                 'created_at' => $user->created_at ? $user->created_at->toISOString() : null,
                 'updated_at' => $user->updated_at ? $user->updated_at->toISOString() : null,
                 'tenants_count' => $user->tenants_count ?? 0
@@ -138,7 +138,7 @@ class UserController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
-                    'is_central_admin' => $user->is_central_admin ?? false,
+                    'is_central_admin' => (bool) ($user->is_central_admin ?? false),
                     'created_at' => $user->created_at->toISOString(),
                     'tenants_count' => $user->tenants_count ?? 0
                 ]
@@ -192,7 +192,7 @@ class UserController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'is_central_admin' => $user->is_central_admin ?? false,
+                'is_central_admin' => (bool) ($user->is_central_admin ?? false),
                 'created_at' => $user->created_at ? $user->created_at->toISOString() : null,
                 'updated_at' => $user->updated_at ? $user->updated_at->toISOString() : null,
                 'tenants_count' => $user->tenants_count ?? 0,
@@ -265,7 +265,7 @@ class UserController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
-                    'is_central_admin' => $user->is_central_admin ?? false,
+                    'is_central_admin' => (bool) ($user->is_central_admin ?? false),
                     'created_at' => $user->created_at ? $user->created_at->toISOString() : null,
                     'updated_at' => $user->updated_at ? $user->updated_at->toISOString() : null,
                     'tenants_count' => $user->tenants_count ?? 0

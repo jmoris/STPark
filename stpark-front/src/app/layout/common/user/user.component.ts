@@ -43,7 +43,7 @@ export class UserComponent implements OnInit, OnDestroy {
     /* eslint-enable @typescript-eslint/naming-convention */
 
     @Input() showAvatar: boolean = true;
-    user: { id: string; name: string; email: string; avatar?: string; status?: string; is_central_admin?: boolean; } | null = null;
+    user: { id: string; name: string; email: string; avatar?: string; status?: string; is_central_admin?: boolean | number; } | null = null;
     tenants: Tenant[] = [];
     currentTenant: Tenant | null = null;
     isCentralAdminMode: boolean = false;
@@ -172,7 +172,11 @@ export class UserComponent implements OnInit, OnDestroy {
      * Check if user is central admin
      */
     get isCentralAdmin(): boolean {
-        return this.user?.is_central_admin === true;
+        if (!this.user || this.user.is_central_admin === undefined || this.user.is_central_admin === null) {
+            return false;
+        }
+        // Aceptar tanto true como 1 (valor numérico desde la base de datos)
+        return this.user.is_central_admin === true || this.user.is_central_admin === 1;
     }
 
     /**

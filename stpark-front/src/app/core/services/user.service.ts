@@ -8,7 +8,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  is_central_admin?: boolean;
+  is_central_admin?: boolean | number; // Acepta boolean o number (1/0) para compatibilidad
   created_at?: string;
   updated_at?: string;
   tenants_count?: number;
