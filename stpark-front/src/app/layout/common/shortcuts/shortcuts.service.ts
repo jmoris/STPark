@@ -5,6 +5,23 @@ import { map, Observable, ReplaySubject, switchMap, take, tap } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class ShortcutsService {
+
+    private _tooltip = 'Accesos directos';
+
+    /**
+     * Getter for tooltip
+     */
+    get tooltip(): string {
+        return this._tooltip;
+    }
+
+    /**
+     * Setter for tooltip
+     */
+    set tooltip(value: string) {
+        this._tooltip = value;
+    }
+
     private _shortcuts: ReplaySubject<Shortcut[]> = new ReplaySubject<
         Shortcut[]
     >(1);

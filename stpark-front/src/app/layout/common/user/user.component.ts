@@ -48,7 +48,23 @@ export class UserComponent implements OnInit, OnDestroy {
     currentTenant: Tenant | null = null;
     isCentralAdminMode: boolean = false;
 
+    private _tooltip = 'Perfil';
+
     private _unsubscribeAll: Subject<any> = new Subject<any>();
+
+    /**
+     * Getter for tooltip
+     */
+    get tooltip(): string {
+        return this._tooltip;
+    }
+
+    /**
+     * Setter for tooltip
+     */
+    set tooltip(value: string) {
+        this._tooltip = value;
+    }
 
     /**
      * Constructor

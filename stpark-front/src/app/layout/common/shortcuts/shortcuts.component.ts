@@ -43,6 +43,21 @@ export class ShortcutsComponent implements OnInit, OnDestroy {
     shortcuts: Shortcut[];
     private _overlayRef: OverlayRef;
     private _unsubscribeAll: Subject<any> = new Subject<any>();
+    private _tooltip = 'Accesos directos';
+
+    /**
+     * Getter for tooltip
+     */
+    get tooltip(): string {
+        return this._tooltip;
+    }
+
+    /**
+     * Setter for tooltip
+     */
+    set tooltip(value: string) {
+        this._tooltip = value;
+    }
 
     /**
      * Constructor

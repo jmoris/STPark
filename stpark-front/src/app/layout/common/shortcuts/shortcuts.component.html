@@ -1,6 +1,6 @@
 <!-- Shortcuts toggle -->
-<button mat-icon-button (click)="openPanel()" #shortcutsOrigin title="Accesos directos" [matTooltip]="'Accesos directos'">
-    <ng-icon [name]="'heroicons_outline:squares-plus' | iconName" title="Accesos directos"></ng-icon>
+<button mat-icon-button (click)="openPanel()" #shortcutsOrigin [matTooltip]="tooltip || 'Accesos directos'">
+    <ng-icon [name]="'heroicons_outline:squares-plus' | iconName"></ng-icon>
 </button>
 
 <!-- Shortcuts panel -->
