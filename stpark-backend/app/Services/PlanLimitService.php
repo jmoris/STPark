@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class PlanLimitService
 {
@@ -187,6 +188,49 @@ class PlanLimitService
         }
 
         return ['allowed' => true, 'current' => $currentCount, 'limit' => $features->max_pricing_rules];
+    }
+
+    /**
+     * Validar si se puede crear una nueva sesión de estacionamiento
+     * Valida el límite mensual de sesiones según el plan
+     */
+    public static function canCreateSession(): array
+    {
+        $features = self::getTenantPlanFeatures();
+        
+        if (!$features) {
+            // Si no hay plan asignado, permitir (comportamiento por defecto)
+            return ['allowed' => true];
+        }
+
+        // Si max_sessions es null, no hay límite
+        if ($features->max_sessions === null) {
+            return ['allowed' => true];
+        }
+
+        // Obtener inicio y fin del mes actual en timezone America/Santiago
+        // Luego convertir a UTC para comparar con los timestamps almacenados en la BD
+        $now = Carbon::now('America/Santiago');
+        $startOfMonth = $now->copy()->startOfMonth()->utc();
+        $endOfMonth = $now->copy()->endOfMonth()->utc();
+
+        // Contar solo las sesiones creadas en el mes actual (usando started_at)
+        // Esto es un límite mensual, no histórico
+        // Los timestamps en la BD están en UTC, por lo que comparamos con fechas UTC
+        $currentCount = DB::table('parking_sessions')
+            ->whereBetween('started_at', [$startOfMonth, $endOfMonth])
+            ->count();
+
+        if ($currentCount >= $features->max_sessions) {
+            return [
+                'allowed' => false,
+                'message' => "La suscripción contratada no permite más sesiones este mes. Límite mensual: {$features->max_sessions}",
+                'current' => $currentCount,
+                'limit' => $features->max_sessions
+            ];
+        }
+
+        return ['allowed' => true, 'current' => $currentCount, 'limit' => $features->max_sessions];
     }
 
     /**

@@ -185,8 +185,10 @@ class ParkingSessionController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             
+            $errorMessage = $e->getMessage();
+            
             // Detectar si no hay turno abierto
-            if ($e->getMessage() === 'NO_SHIFT_OPEN') {
+            if ($errorMessage === 'NO_SHIFT_OPEN') {
                 return response()->json([
                     'success' => false,
                     'error_code' => 'NO_SHIFT_OPEN',
@@ -194,9 +196,18 @@ class ParkingSessionController extends Controller
                 ], 422);
             }
             
+            // Detectar si se superó el límite de sesiones mensuales
+            if (str_contains($errorMessage, 'La suscripción contratada no permite más sesiones este mes')) {
+                return response()->json([
+                    'success' => false,
+                    'error_code' => 'PLAN_LIMIT_EXCEEDED',
+                    'message' => $errorMessage
+                ], 422);
+            }
+            
             return response()->json([
                 'success' => false,
-                'message' => 'Error al crear sesión: ' . $e->getMessage()
+                'message' => 'Error al crear sesión: ' . $errorMessage
             ], 500);
         }
     }
@@ -473,8 +484,10 @@ class ParkingSessionController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             
+            $errorMessage = $e->getMessage();
+            
             // Detectar si no hay turno abierto
-            if ($e->getMessage() === 'NO_SHIFT_OPEN') {
+            if ($errorMessage === 'NO_SHIFT_OPEN') {
                 return response()->json([
                     'success' => false,
                     'error_code' => 'NO_SHIFT_OPEN',
@@ -482,9 +495,18 @@ class ParkingSessionController extends Controller
                 ], 422);
             }
             
+            // Detectar si se superó el límite de sesiones mensuales
+            if (str_contains($errorMessage, 'La suscripción contratada no permite más sesiones este mes')) {
+                return response()->json([
+                    'success' => false,
+                    'error_code' => 'PLAN_LIMIT_EXCEEDED',
+                    'message' => $errorMessage
+                ], 422);
+            }
+            
             return response()->json([
                 'success' => false,
-                'message' => 'Error al crear sesión: ' . $e->getMessage()
+                'message' => 'Error al crear sesión: ' . $errorMessage
             ], 500);
         }
     }

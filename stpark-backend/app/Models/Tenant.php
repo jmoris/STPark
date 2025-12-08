@@ -24,6 +24,28 @@ class Tenant extends BaseTenant implements TenantWithDatabase {
         'correo_intercambio',
     ];
 
+    /**
+     * Define las columnas personalizadas que deben guardarse en columnas directas
+     * en lugar de en la columna JSON 'data'
+     */
+    public static function getCustomColumns(): array
+    {
+        return [
+            'id',
+            'plan_id',
+            'name',
+            'rut',
+            'razon_social',
+            'giro',
+            'direccion',
+            'comuna',
+            'dias_credito',
+            'correo_intercambio',
+            'created_at',
+            'updated_at',
+        ];
+    }
+
     public function databaseName(): string
     {
         return 'stpark_' . $this->getTenantKey(); // ej: acme -> stpark_acme

@@ -9,6 +9,7 @@ use App\Models\Street;
 use App\Models\Operator;
 use App\Services\PricingService;
 use App\Services\CurrentShiftService;
+use App\Services\PlanLimitService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -31,6 +32,12 @@ class ParkingSessionService
      */
     public function createSession(string $plate, int $sectorId, int $streetId, int $operatorId, bool $isFullDay = false): ParkingSession
     {
+        // Verificar límite de sesiones mensuales según el plan
+        $limitCheck = PlanLimitService::canCreateSession();
+        if (!$limitCheck['allowed']) {
+            throw new \Exception($limitCheck['message']);
+        }
+
         // Verificar si ya existe una sesión activa para esta placa en el mismo sector
         $activeSession = ParkingSession::where('plate', $plate)
             ->where('sector_id', $sectorId)
