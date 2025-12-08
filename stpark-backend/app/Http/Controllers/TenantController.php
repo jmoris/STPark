@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class TenantController extends Controller
 {
@@ -39,7 +40,7 @@ class TenantController extends Controller
             ], 403);
         }
 
-        $query = Tenant::with('plan')
+        $query = Tenant::with(['plan.feature'])
             ->withCount('users');
 
         // Aplicar filtros
@@ -69,8 +70,42 @@ class TenantController extends Controller
         $perPage = $request->get('per_page', 10);
         $tenants = $query->paginate($perPage);
 
-        // Formatear respuesta
+        // Formatear respuesta y agregar información de sesiones mensuales
         $formattedTenants = $tenants->getCollection()->map(function ($tenant) {
+            // Obtener límite de sesiones del plan
+            $maxSessions = null;
+            if ($tenant->plan && $tenant->plan->relationLoaded('feature') && $tenant->plan->feature) {
+                $maxSessions = $tenant->plan->feature->max_sessions;
+            }
+
+            // Contar sesiones del mes actual
+            $currentMonthSessions = 0;
+            try {
+                tenancy()->initialize($tenant);
+                
+                // Obtener inicio y fin del mes actual en timezone America/Santiago
+                // Luego convertir a UTC para comparar con los timestamps almacenados en la BD
+                $now = Carbon::now('America/Santiago');
+                $startOfMonth = $now->copy()->startOfMonth()->utc();
+                $endOfMonth = $now->copy()->endOfMonth()->utc();
+
+                // Contar sesiones del mes actual
+                $currentMonthSessions = DB::table('parking_sessions')
+                    ->whereBetween('started_at', [$startOfMonth, $endOfMonth])
+                    ->count();
+                    
+                tenancy()->end();
+            } catch (\Exception $e) {
+                Log::warning('Error obteniendo sesiones mensuales del tenant: ' . $e->getMessage(), [
+                    'tenant_id' => $tenant->id
+                ]);
+                try {
+                    tenancy()->end();
+                } catch (\Exception $e2) {
+                    // Ignorar
+                }
+            }
+
             return [
                 'id' => $tenant->id,
                 'name' => $tenant->name,
@@ -88,7 +123,9 @@ class TenantController extends Controller
                 'correo_intercambio' => $tenant->correo_intercambio,
                 'created_at' => $tenant->created_at ? $tenant->created_at->toISOString() : null,
                 'updated_at' => $tenant->updated_at ? $tenant->updated_at->toISOString() : null,
-                'users_count' => $tenant->users_count ?? 0
+                'users_count' => $tenant->users_count ?? 0,
+                'sessions_count' => $currentMonthSessions,
+                'max_sessions' => $maxSessions
             ];
         });
 

@@ -22,6 +22,8 @@ export interface Tenant {
   created_at?: string;
   updated_at?: string;
   users_count?: number;
+  sessions_count?: number;
+  max_sessions?: number | null;
   settings?: {
     name?: string;
     pos_tuu?: boolean;

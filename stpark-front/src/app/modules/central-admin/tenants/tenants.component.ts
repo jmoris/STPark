@@ -56,7 +56,7 @@ export class TenantsComponent implements OnInit, OnDestroy, AfterViewInit {
   
   tenants: Tenant[] = [];
   loading = false;
-  displayedColumns: string[] = ['id', 'name', 'plan', 'created_at', 'users_count', 'actions'];
+  displayedColumns: string[] = ['id', 'name', 'plan', 'sessions_count', 'created_at', 'users_count', 'actions'];
   
   // Paginación
   totalItems = 0;
@@ -167,6 +167,29 @@ export class TenantsComponent implements OnInit, OnDestroy, AfterViewInit {
 
   get totalUsers(): number {
     return this.tenants.reduce((sum, t) => sum + (t.users_count || 0), 0);
+  }
+
+  getSessionsDisplay(tenant: Tenant): string {
+    const current = tenant.sessions_count ?? 0;
+    const max = tenant.max_sessions;
+    
+    if (max === null || max === undefined) {
+      return `${current}`;
+    }
+    
+    return `${current}/${max}`;
+  }
+
+  getSessionsProgressColor(tenant: Tenant): string {
+    if (!tenant.max_sessions) return 'text-gray-600';
+    
+    const current = tenant.sessions_count ?? 0;
+    const max = tenant.max_sessions;
+    const percentage = (current / max) * 100;
+    
+    if (percentage >= 90) return 'text-red-600 font-semibold';
+    if (percentage >= 75) return 'text-orange-600 font-semibold';
+    return 'text-gray-600';
   }
 
   get tenantsThisMonth(): number {

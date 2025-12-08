@@ -118,6 +118,19 @@
             </td>
           </ng-container>
 
+          <!-- Sessions Count Column -->
+          <ng-container matColumnDef="sessions_count">
+            <th mat-header-cell *matHeaderCellDef>Sesiones Mensuales</th>
+            <td mat-cell *matCellDef="let tenant">
+              <div class="flex items-center gap-2">
+                <mat-icon class="text-gray-500 text-sm">local_parking</mat-icon>
+                <span [class]="getSessionsProgressColor(tenant)">
+                  {{ getSessionsDisplay(tenant) }}
+                </span>
+              </div>
+            </td>
+          </ng-container>
+
           <!-- Created At Column -->
           <ng-container matColumnDef="created_at">
             <th mat-header-cell *matHeaderCellDef mat-sort-header="created_at">Fecha de Inicio</th>
