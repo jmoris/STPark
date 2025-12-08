@@ -20,6 +20,7 @@ import { Subject, takeUntil } from 'rxjs';
 import { AuthService, Tenant, User } from 'app/core/services/auth.service';
 import { IconNamePipe } from 'app/core/icons/icon-name.pipe';
 import { EditProfileComponent } from './edit-profile/edit-profile.component';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 @Component({
     selector: 'user',
@@ -31,6 +32,7 @@ import { EditProfileComponent } from './edit-profile/edit-profile.component';
         MatButtonModule,
         MatMenuModule,
         MatIconModule,
+        MatTooltipModule,
         NgClass,
         MatDividerModule,
         NgIconsModule,

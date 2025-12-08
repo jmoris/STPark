@@ -19,6 +19,7 @@ import { Subject, takeUntil } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { AuthService } from 'app/core/services/auth.service';
 import { FacturAPIConfigModalComponent } from 'app/modules/central-admin/facturapi-config/facturapi-config-modal.component';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 @Component({
     selector: 'classic-layout',
@@ -29,6 +30,7 @@ import { FacturAPIConfigModalComponent } from 'app/modules/central-admin/factura
         FuseLoadingBarComponent,
         FuseVerticalNavigationComponent,
         MatButtonModule,
+        MatTooltipModule,
         NgIconsModule,
         IconNamePipe,
         FuseFullscreenComponent,
