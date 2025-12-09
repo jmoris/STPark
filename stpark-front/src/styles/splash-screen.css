@@ -54,8 +54,7 @@ body fuse-splash-screen .loading-logo {
     background: #021d3f;
     padding: 12px;
     box-sizing: border-box;
-    opacity: 0;
-    transition: opacity 0.3s ease-in-out;
+    opacity: 1;
 }
 
 body fuse-splash-screen .loading-logo.loaded {
