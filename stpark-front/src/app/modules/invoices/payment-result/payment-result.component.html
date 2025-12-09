@@ -1,0 +1,207 @@
+<div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+  <div class="max-w-3xl w-full">
+    <!-- Loading state -->
+    <div *ngIf="loading" class="flex justify-center items-center py-12">
+      <mat-spinner diameter="50"></mat-spinner>
+    </div>
+
+    <!-- Success State -->
+    <mat-card *ngIf="!loading && isSuccess()" class="shadow-lg">
+      <mat-card-content class="p-8">
+        <!-- Header Success -->
+        <div class="text-center mb-8">
+          <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100 mb-4">
+            <mat-icon class="text-green-600 text-5xl">check_circle</mat-icon>
+          </div>
+          <h1 class="text-3xl font-bold text-gray-900 mb-2">Transacción Autorizada</h1>
+          <p class="text-lg text-gray-600">Su pago ha sido procesado exitosamente</p>
+        </div>
+
+        <mat-divider class="mb-6"></mat-divider>
+
+        <!-- Información del Comercio -->
+        <div class="bg-blue-50 p-4 rounded-lg mb-6">
+          <p class="text-sm text-gray-600 mb-1">Comercio</p>
+          <p class="text-xl font-bold text-gray-900">{{ data?.commerce_name }}</p>
+        </div>
+
+        <!-- Detalles de la Transacción -->
+        <div class="space-y-4 mb-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Número de Orden</p>
+              <p class="text-lg font-semibold text-gray-900">{{ data?.buy_order || 'N/A' }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Folio de Factura</p>
+              <p class="text-lg font-semibold text-gray-900">{{ data?.folio || 'N/A' }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Monto</p>
+              <p class="text-lg font-semibold text-blue-600">{{ formatAmount(data?.amount) }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Moneda</p>
+              <p class="text-lg font-semibold text-gray-900">{{ data?.currency || 'CLP' }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Código de Autorización</p>
+              <p class="text-lg font-semibold text-gray-900">{{ data?.authorization_code || 'N/A' }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Fecha de la Transacción</p>
+              <p class="text-lg font-semibold text-gray-900">{{ formatDate(data?.payment_date) }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Tipo de Pago</p>
+              <p class="text-lg font-semibold text-gray-900">{{ data?.payment_type || 'N/A' }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Cantidad de Cuotas</p>
+              <p class="text-lg font-semibold text-gray-900">{{ data?.installments === '0' ? 'Sin cuotas' : (data?.installments || 'N/A') }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Últimos 4 Dígitos de la Tarjeta</p>
+              <p class="text-lg font-semibold text-gray-900">{{ data?.card_last4 ? '****' + data.card_last4 : 'N/A' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Descripción de Bienes/Servicios -->
+        <div class="bg-gray-50 p-4 rounded-lg mb-6">
+          <p class="text-sm font-semibold text-gray-700 mb-2">Descripción de Bienes y/o Servicios</p>
+          <p class="text-gray-900">{{ data?.description || ('Pago de factura' + (data?.folio ? ' N° ' + data.folio : '')) }}</p>
+        </div>
+
+        <!-- Botones -->
+        <div class="flex justify-center gap-4 mt-8">
+          <button mat-raised-button color="primary" (click)="goToInvoices()">
+            <mat-icon>arrow_back</mat-icon>
+            Volver a Facturas
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Failed State -->
+    <mat-card *ngIf="!loading && isFailed()" class="shadow-lg">
+      <mat-card-content class="p-8">
+        <!-- Header Failed -->
+        <div class="text-center mb-8">
+          <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-100 mb-4">
+            <mat-icon class="text-red-600 text-5xl">cancel</mat-icon>
+          </div>
+          <h1 class="text-3xl font-bold text-gray-900 mb-2">
+            Orden de Compra {{ data?.buy_order || 'XXXXXXX' }} Rechazada
+          </h1>
+          <p class="text-lg text-red-600 font-semibold">La transacción no pudo ser autorizada</p>
+        </div>
+
+        <mat-divider class="mb-6"></mat-divider>
+
+        <!-- Información Básica -->
+        <div class="space-y-4 mb-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Número de Orden</p>
+              <p class="text-lg font-semibold text-gray-900">{{ data?.buy_order || 'N/A' }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Comercio</p>
+              <p class="text-lg font-semibold text-gray-900">{{ data?.commerce_name || 'STPark' }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Folio de Factura</p>
+              <p class="text-lg font-semibold text-gray-900">{{ data?.folio || 'N/A' }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Código de Respuesta</p>
+              <p class="text-lg font-semibold text-gray-900">{{ data?.response_code || 'N/A' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mensaje de Rechazo -->
+        <div class="bg-red-50 border-l-4 border-red-500 p-6 mb-6">
+          <p class="text-red-800 font-semibold mb-3">Las posibles causas de este rechazo son:</p>
+          <ul class="list-disc list-inside space-y-2 text-red-700">
+            <li>Error en el ingreso de los datos de su tarjeta de crédito o débito (fecha y/o código de seguridad).</li>
+            <li>Su tarjeta de crédito o débito no cuenta con saldo suficiente.</li>
+            <li>Tarjeta aún no habilitada en el sistema financiero.</li>
+          </ul>
+        </div>
+
+        <!-- Botones -->
+        <div class="flex justify-center gap-4 mt-8">
+          <button mat-stroked-button (click)="goToInvoices()">
+            <mat-icon>arrow_back</mat-icon>
+            Volver a Facturas
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Cancelled State -->
+    <mat-card *ngIf="!loading && isCancelled()" class="shadow-lg">
+      <mat-card-content class="p-8">
+        <div class="text-center mb-8">
+          <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-yellow-100 mb-4">
+            <mat-icon class="text-yellow-600 text-5xl">warning</mat-icon>
+          </div>
+          <h1 class="text-3xl font-bold text-gray-900 mb-2">Transacción Cancelada</h1>
+          <p class="text-lg text-gray-600">El proceso de pago fue cancelado</p>
+        </div>
+
+        <mat-divider class="mb-6"></mat-divider>
+
+        <div class="space-y-4 mb-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Comercio</p>
+              <p class="text-lg font-semibold text-gray-900">{{ data?.commerce_name || 'STPark' }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-600 mb-1">Folio de Factura</p>
+              <p class="text-lg font-semibold text-gray-900">{{ data?.folio || 'N/A' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-center gap-4 mt-8">
+          <button mat-raised-button color="primary" (click)="goToInvoices()">
+            <mat-icon>arrow_back</mat-icon>
+            Volver a Facturas
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Error State -->
+    <mat-card *ngIf="!loading && isError()" class="shadow-lg">
+      <mat-card-content class="p-8">
+        <div class="text-center mb-8">
+          <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-100 mb-4">
+            <mat-icon class="text-red-600 text-5xl">error</mat-icon>
+          </div>
+          <h1 class="text-3xl font-bold text-gray-900 mb-2">Error en la Transacción</h1>
+          <p class="text-lg text-red-600">{{ data?.error_message || 'Ocurrió un error al procesar la transacción' }}</p>
+        </div>
+
+        <mat-divider class="mb-6"></mat-divider>
+
+        <div class="bg-gray-50 p-4 rounded-lg mb-6">
+          <p class="text-sm text-gray-600">Por favor, contacte con soporte si el problema persiste.</p>
+        </div>
+
+        <div class="flex justify-center gap-4 mt-8">
+          <button mat-stroked-button (click)="goToInvoices()">
+            <mat-icon>arrow_back</mat-icon>
+            Volver a Facturas
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>
+
+

@@ -212,8 +212,8 @@
   </mat-card>
 
   <!-- Modal de detalles de la factura -->
-  <div *ngIf="showDetailsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" (click)="closeDetailsModal()">
-    <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col" (click)="$event.stopPropagation()">
+  <div *ngIf="showDetailsModal" class="invoice-detail-modal-overlay" (click)="closeDetailsModal()">
+    <div class="invoice-detail-modal-content" (click)="$event.stopPropagation()">
       <!-- Loading state -->
       <div *ngIf="loadingDetails" class="flex justify-center items-center p-12">
         <mat-spinner diameter="50"></mat-spinner>

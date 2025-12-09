@@ -5,15 +5,21 @@ namespace App\Http\Controllers;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Tenant;
+use App\Services\WebPayService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redirect;
 
 class InvoiceController extends Controller
 {
+    public function __construct(
+        private WebPayService $webPayService
+    ) {}
+
     /**
      * Listar facturas con filtros
      * - Si es central admin: muestra todas las facturas
@@ -817,5 +823,339 @@ class InvoiceController extends Controller
             'CARD' => 'Tarjeta',
             default => $method
         };
+    }
+
+    /**
+     * Iniciar pago de factura con WebPay Plus
+     * Solo disponible para tenants (no central admin)
+     */
+    public function initiateWebPayPayment(Request $request, int $id): JsonResponse
+    {
+        try {
+            // Desconectar de cualquier tenancy activo para usar la BD central
+            tenancy()->end();
+            
+            $user = $request->user();
+            $isCentralAdmin = $user && $user->is_central_admin;
+            
+            // Solo tenants pueden pagar sus facturas
+            if ($isCentralAdmin) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Los administradores centrales no pueden pagar facturas con WebPay'
+                ], 403);
+            }
+
+            // Obtener tenant_id del header
+            $tenantId = $request->header('X-Tenant');
+            if (!$tenantId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tenant ID no proporcionado'
+                ], 400);
+            }
+            
+            $invoice = Invoice::with(['tenant', 'items'])->where('tenant_id', $tenantId)->findOrFail($id);
+            
+            // Verificar que la factura esté en estado UNPAID
+            if ($invoice->status !== Invoice::STATUS_UNPAID) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Solo se pueden pagar facturas impagas'
+                ], 400);
+            }
+
+            // Generar orden de compra única (buyOrder)
+            // Formato: INV-{ID}-{TIMESTAMP} (máximo 26 caracteres según documentación)
+            // Limitar timestamp para asegurar que no exceda 26 caracteres
+            $timestamp = substr(time(), -8); // Últimos 8 dígitos del timestamp
+            $buyOrder = 'INV-' . $invoice->id . '-' . $timestamp;
+            
+            // Asegurar que no exceda 26 caracteres
+            if (strlen($buyOrder) > 26) {
+                $buyOrder = substr($buyOrder, 0, 26);
+            }
+            
+            // Generar ID de sesión único
+            $sessionId = 'INVOICE-SESSION-' . $invoice->id . '-' . uniqid();
+            
+            // Monto a pagar (convertir a entero, ya que WebPay trabaja con centavos)
+            // En Chile, el monto se envía en pesos chilenos como entero
+            $amount = (int) round($invoice->total_amount);
+            
+            // URL de retorno (éxito o fallo)
+            // Usar la ruta pública en /api/invoices (no /api/parking) ya que WebPay no envía headers
+            $baseUrl = env('APP_URL', 'http://localhost:8000');
+            // La ruta debe ser accesible sin autenticación ni tenant ya que viene de WebPay
+            $returnUrl = $baseUrl . '/api/invoices/' . $invoice->id . '/webpay/return';
+
+            // Crear transacción en WebPay
+            $transaction = $this->webPayService->createTransaction(
+                $buyOrder,
+                $sessionId,
+                $amount,
+                $returnUrl
+            );
+
+            // Guardar el token y buyOrder en la base de datos para referencia posterior
+            // Podrías crear una tabla webpay_transactions para esto, pero por ahora
+            // lo guardamos temporalmente. En producción, deberías persistir esto.
+            DB::beginTransaction();
+            
+            // Actualizar la factura con información del pago pendiente
+            // Podrías agregar campos a la tabla invoices: webpay_token, webpay_buy_order
+            // Por ahora, solo registramos en logs
+            Log::info('WebPay payment initiated for invoice', [
+                'invoice_id' => $invoice->id,
+                'buy_order' => $buyOrder,
+                'token' => $transaction->getToken(),
+                'amount' => $amount
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'token' => $transaction->getToken(),
+                    'url' => $transaction->getUrl(),
+                    'buy_order' => $buyOrder
+                ],
+                'message' => 'Transacción creada exitosamente'
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error initiating WebPay payment', [
+                'invoice_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al iniciar pago con WebPay: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Manejar retorno de WebPay (éxito o fallo)
+     * Esta es la URL a la que WebPay redirige después del pago
+     * NOTA: Esta ruta debe ser accesible sin autenticación ya que viene de WebPay
+     */
+    public function handleWebPayReturn(Request $request, int $id)
+    {
+        try {
+            // Desconectar de cualquier tenancy activo para usar la BD central
+            tenancy()->end();
+            
+            // Primero obtener la factura para saber a qué tenant pertenece
+            $invoice = Invoice::findOrFail($id);
+            $tenantId = $invoice->tenant_id;
+            
+            // Inicializar el tenant manualmente si existe
+            if ($tenantId) {
+                try {
+                    $tenant = \App\Models\Tenant::find($tenantId);
+                    if ($tenant) {
+                        tenancy()->initialize($tenant);
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Could not initialize tenant for WebPay return', [
+                        'tenant_id' => $tenantId,
+                        'invoice_id' => $id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
+            $token = $request->input('token_ws');
+            
+            if (!$token) {
+                // El usuario canceló o hubo un error
+                $frontendUrl = env('FRONTEND_URL', 'http://localhost:4200');
+                $commerceName = $invoice->tenant ? $invoice->tenant->name : 'STPark';
+                $resultParams = http_build_query([
+                    'status' => 'cancelled',
+                    'invoice_id' => $invoice->id,
+                    'commerce_name' => $commerceName,
+                    'folio' => $invoice->folio ?? ''
+                ]);
+                return Redirect::to($frontendUrl . '/payment-result?' . $resultParams);
+            }
+
+            // Confirmar la transacción con WebPay
+            $commitResponse = $this->webPayService->commitTransaction($token);
+            
+            // Verificar respuesta de WebPay
+            $responseCode = $commitResponse->getResponseCode();
+            $status = $commitResponse->getStatus();
+            
+            // Cargar relaciones de la factura
+            $invoice->load(['tenant', 'items']);
+            
+            DB::beginTransaction();
+            
+            if ($status === 'AUTHORIZED' && $responseCode === 0) {
+                // Pago exitoso
+                // El monto viene en pesos chilenos como entero (no centavos)
+                $amount = (float) $commitResponse->getAmount();
+                
+                // Verificar que el monto coincida con el de la factura (con tolerancia de redondeo)
+                $invoiceAmount = (int) round($invoice->total_amount);
+                if (abs($amount - $invoiceAmount) > 1) {
+                    Log::warning('WebPay payment amount mismatch', [
+                        'invoice_id' => $invoice->id,
+                        'invoice_amount' => $invoiceAmount,
+                        'webpay_amount' => $amount
+                    ]);
+                }
+                
+                // Obtener todos los datos de la respuesta de WebPay
+                $buyOrder = $commitResponse->getBuyOrder();
+                $authorizationCode = $commitResponse->getAuthorizationCode() ?? null;
+                $paymentTypeCode = $commitResponse->getPaymentTypeCode() ?? null;
+                $installmentsNumber = $commitResponse->getInstallmentsNumber() ?? 0;
+                $transactionDate = $commitResponse->getTransactionDate() ?? now()->format('Y-m-d H:i:s');
+                
+                // Obtener número de tarjeta (últimos 4 dígitos)
+                $last4Digits = null;
+                try {
+                    $cardNumber = $commitResponse->getCardNumber();
+                    if ($cardNumber) {
+                        // El SDK devuelve el número completo, extraer últimos 4 dígitos
+                        $last4Digits = strlen($cardNumber) <= 4 ? $cardNumber : substr($cardNumber, -4);
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Error getting card number', [
+                        'error' => $e->getMessage()
+                    ]);
+                }
+                
+                // Determinar tipo de pago (Débito o Crédito)
+                // VD = Redcompra (Débito), VP = Venta Prepago (Débito), VN = Venta Normal (Crédito), VC = Venta en cuotas (Crédito)
+                $paymentType = 'N/A';
+                if ($paymentTypeCode) {
+                    $debitCodes = ['VD', 'VP'];
+                    $paymentType = in_array($paymentTypeCode, $debitCodes) ? 'Débito' : 'Crédito';
+                }
+                
+                // Obtener nombre del comercio (tenant)
+                $commerceName = $invoice->tenant ? $invoice->tenant->name : 'STPark';
+                
+                // Actualizar factura
+                $invoice->update([
+                    'status' => Invoice::STATUS_PAID,
+                    'payment_date' => now(),
+                    'notes' => ($invoice->notes ?? '') . "\n\n[PAGO WEBPAY] " . now()->format('Y-m-d H:i:s') . 
+                              " - Token: " . $token .
+                              " - Orden de compra: " . $buyOrder .
+                              " - Código de autorización: " . ($authorizationCode ?? 'N/A') .
+                              " - Monto: $" . number_format($amount, 0, ',', '.') .
+                              " - Tipo de pago: " . $paymentType .
+                              " - Cuotas: " . $installmentsNumber .
+                              " - Tarjeta: ****" . ($last4Digits ?? 'N/A')
+                ]);
+
+                Log::info('WebPay payment successful', [
+                    'invoice_id' => $invoice->id,
+                    'token' => $token,
+                    'buy_order' => $buyOrder,
+                    'authorization_code' => $authorizationCode,
+                    'amount' => $amount,
+                    'payment_type' => $paymentType,
+                    'installments' => $installmentsNumber
+                ]);
+
+                DB::commit();
+
+                // Construir descripción de bienes/servicios desde los items de la factura
+                $description = 'Pago de factura';
+                if ($invoice->folio) {
+                    $description .= ' N° ' . $invoice->folio;
+                }
+                if ($invoice->items && $invoice->items->count() > 0) {
+                    $itemDescriptions = $invoice->items->pluck('description')->toArray();
+                    if (count($itemDescriptions) > 0) {
+                        $description .= ' - ' . implode(', ', $itemDescriptions);
+                    }
+                }
+                
+                // Redirigir al frontend con todos los datos necesarios para la página de resultados
+                $frontendUrl = env('FRONTEND_URL', 'http://localhost:4200');
+                $resultParams = http_build_query([
+                    'status' => 'success',
+                    'invoice_id' => $invoice->id,
+                    'buy_order' => $buyOrder,
+                    'commerce_name' => $commerceName,
+                    'amount' => $amount,
+                    'currency' => 'CLP',
+                    'authorization_code' => $authorizationCode ?? '',
+                    'payment_date' => $transactionDate,
+                    'payment_type' => $paymentType,
+                    'installments' => $installmentsNumber,
+                    'card_last4' => $last4Digits ?? '',
+                    'folio' => $invoice->folio ?? '',
+                    'description' => $description
+                ]);
+                return Redirect::to($frontendUrl . '/payment-result?' . $resultParams);
+                
+            } else {
+                // Pago fallido
+                $buyOrder = $commitResponse->getBuyOrder() ?? 'N/A';
+                
+                Log::warning('WebPay payment failed', [
+                    'invoice_id' => $invoice->id,
+                    'token' => $token,
+                    'status' => $status,
+                    'response_code' => $responseCode,
+                    'buy_order' => $buyOrder
+                ]);
+
+                DB::commit();
+
+                // Obtener nombre del comercio
+                $commerceName = $invoice->tenant ? $invoice->tenant->name : 'STPark';
+                
+                // Redirigir al frontend con datos del fallo
+                $frontendUrl = env('FRONTEND_URL', 'http://localhost:4200');
+                $resultParams = http_build_query([
+                    'status' => 'failed',
+                    'invoice_id' => $invoice->id,
+                    'buy_order' => $buyOrder,
+                    'commerce_name' => $commerceName,
+                    'response_code' => $responseCode,
+                    'folio' => $invoice->folio ?? ''
+                ]);
+                return Redirect::to($frontendUrl . '/payment-result?' . $resultParams);
+            }
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error handling WebPay return', [
+                'invoice_id' => $id,
+                'token' => $request->input('token_ws'),
+                'error' => $e->getMessage()
+            ]);
+            
+            // Intentar obtener la factura para mostrar información básica
+            try {
+                $invoice = Invoice::find($id);
+                $commerceName = $invoice && $invoice->tenant ? $invoice->tenant->name : 'STPark';
+                $folio = $invoice ? ($invoice->folio ?? '') : '';
+            } catch (\Exception $ex) {
+                $commerceName = 'STPark';
+                $folio = '';
+            }
+            
+            $frontendUrl = env('FRONTEND_URL', 'http://localhost:4200');
+            $resultParams = http_build_query([
+                'status' => 'error',
+                'invoice_id' => $id,
+                'commerce_name' => $commerceName,
+                'folio' => $folio,
+                'error_message' => 'Ocurrió un error al procesar la transacción'
+            ]);
+            return Redirect::to($frontendUrl . '/payment-result?' . $resultParams);
+        }
     }
 }

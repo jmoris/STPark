@@ -99,6 +99,15 @@ export class InvoiceService {
   }
 
   /**
+   * Iniciar pago de factura con WebPay Plus
+   * Disponible para tenants
+   */
+  initiateWebPayPayment(invoiceId: number): Observable<ApiResponse<{token: string, url: string, buy_order: string}>> {
+    const url = `${this.baseUrlTenant}/${invoiceId}/webpay/initiate`;
+    return this.http.post<ApiResponse<{token: string, url: string, buy_order: string}>>(url, {});
+  }
+
+  /**
    * Formatear monto en pesos chilenos
    */
   formatAmount(amount: number): string {

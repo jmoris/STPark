@@ -72,6 +72,18 @@ export const appRoutes: Route[] = [
         ]   
     },
 
+    // Payment result route (pública, sin autenticación - viene de WebPay)
+    {
+        path: '',
+        component: LayoutComponent,
+        data: {
+            layout: 'empty'
+        },
+        children: [
+            {path: 'payment-result', loadComponent: () => import('app/modules/invoices/payment-result/payment-result.component').then(m => m.PaymentResultComponent)},
+        ]
+    },
+
     // Admin routes
     {
         path: '',

@@ -26,6 +26,10 @@ Route::prefix('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']); // Logout usuario
 });
 
+// Ruta pública para el retorno de WebPay (sin autenticación ni tenant)
+// Esta ruta debe ser pública porque WebPay redirige sin headers de autenticación
+Route::get('/invoices/{id}/webpay/return', [\App\Http\Controllers\InvoiceController::class, 'handleWebPayReturn']);
+
 // Rutas protegidas del tenant central (requieren autenticación Sanctum)
 Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('tenants')->group(function () {

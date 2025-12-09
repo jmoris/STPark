@@ -66,3 +66,63 @@ table {
   }
 }
 
+// Estilos para los snackbars de notificación
+::ng-deep {
+  .success-snackbar {
+    background-color: #16a34a !important; // green-600
+    color: white !important;
+    
+    .mat-mdc-snack-bar-action {
+      color: white !important;
+    }
+  }
+
+  .error-snackbar {
+    background-color: #dc2626 !important; // red-600
+    color: white !important;
+    
+    .mat-mdc-snack-bar-action {
+      color: white !important;
+    }
+  }
+
+  .warning-snackbar {
+    background-color: #ea580c !important; // orange-600
+    color: white !important;
+    
+    .mat-mdc-snack-bar-action {
+      color: white !important;
+    }
+  }
+}
+
+// Estilos para el modal de detalles de factura
+// Asegurar que el modal esté por encima del sidebar y otros elementos
+.invoice-detail-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999 !important; // Muy alto para estar por encima del sidebar (z-10) y header (z-49)
+  backdrop-filter: blur(2px);
+}
+
+.invoice-detail-modal-content {
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  max-width: 56rem; // max-w-4xl
+  width: 100%;
+  margin: 1rem;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  z-index: 10000 !important; // Aún más alto que el overlay
+  position: relative;
+}
+

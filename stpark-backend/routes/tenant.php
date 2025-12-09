@@ -183,6 +183,9 @@ Route::middleware([
         Route::get('/{id}', [InvoiceController::class, 'show']); // Obtener factura por ID del tenant actual
         Route::put('/{id}', [InvoiceController::class, 'update']); // Actualizar factura del tenant actual
         Route::delete('/{id}', [InvoiceController::class, 'destroy']); // Eliminar factura del tenant actual
+        Route::post('/{id}/webpay/initiate', [InvoiceController::class, 'initiateWebPayPayment']); // Iniciar pago con WebPay
+        // NOTA: La ruta de retorno de WebPay está en routes/api.php como ruta pública
+        // ya que WebPay no envía headers de autenticación ni X-Tenant
     });
 
 });
