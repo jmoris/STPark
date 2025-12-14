@@ -184,6 +184,16 @@ export class StreetsComponent implements OnInit, OnDestroy, AfterViewInit {
     return (street as any).operator_assignments?.length || 0;
   }
 
+  getSessionsCountText(street: Street): string {
+    const count = this.getSessionsCount(street);
+    return `${count} sesión${count !== 1 ? 'es' : ''}`;
+  }
+
+  getOperatorsCountText(street: Street): string {
+    const count = this.getOperatorsCount(street);
+    return `${count} operador${count !== 1 ? 'es' : ''}`;
+  }
+
   createStreet(): void {
     const dialogRef = this.dialog.open(StreetFormComponent, {
       width: '600px',
@@ -319,11 +329,13 @@ export class StreetsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   getStreetsWithSessions(): number {
-    return this.streets.filter(street => this.getSessionsCount(street) > 0).length;
+    // Sumar el total de sesiones de todas las calles filtradas
+    return this.streets.reduce((total, street) => total + this.getSessionsCount(street), 0);
   }
 
   getStreetsWithOperators(): number {
-    return this.streets.filter(street => this.getOperatorsCount(street) > 0).length;
+    // Sumar el total de operadores de todas las calles filtradas
+    return this.streets.reduce((total, street) => total + this.getOperatorsCount(street), 0);
   }
 
   // Manejo de paginación
