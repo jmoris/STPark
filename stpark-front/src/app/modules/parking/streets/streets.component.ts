@@ -315,7 +315,7 @@ export class StreetsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   getTotalStreetsCount(): number {
-    return this.streets.length;
+    return this.totalItems; // Total de todas las calles (considerando paginación)
   }
 
   getStreetsWithSessions(): number {

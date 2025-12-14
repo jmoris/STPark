@@ -110,6 +110,7 @@ export class PaymentDetailsModalComponent implements OnChanges {
       case 'PAID': return 'Pagada';
       case 'CLOSED': return 'Cerrada';
       case 'CANCELED': return 'Cancelada';
+      case 'COMPLETED': return 'Completada';
       default: return status;
     }
   }

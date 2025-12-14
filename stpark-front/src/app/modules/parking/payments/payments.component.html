@@ -120,10 +120,6 @@
                   <mat-icon>visibility</mat-icon>
                   Ver detalles
                 </button>
-                <button mat-menu-item (click)="printReceipt(payment)">
-                  <mat-icon>receipt</mat-icon>
-                  Imprimir recibo
-                </button>
                 <button mat-menu-item *ngIf="payment.status === 'PENDING'" (click)="retryPayment(payment)">
                   <mat-icon>refresh</mat-icon>
                   Reintentar
