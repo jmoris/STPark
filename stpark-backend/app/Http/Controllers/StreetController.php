@@ -16,7 +16,8 @@ class StreetController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Street::with(['sector']);
+        $query = Street::with(['sector'])
+            ->withCount(['parkingSessions as sessions_count', 'operators as operators_count']);
 
         // Aplicar filtros
         if ($request->filled('sector_id')) {
@@ -27,9 +28,14 @@ class StreetController extends Controller
             $query->where('name', 'like', '%' . $request->name . '%');
         }
 
+        // Aplicar ordenamiento
+        $sortBy = $request->get('sort_by', 'name');
+        $sortOrder = $request->get('sort_order', 'asc');
+        $query->orderBy($sortBy, $sortOrder);
+
         // Aplicar paginación
         $perPage = $request->get('per_page', 10);
-        $streets = $query->orderBy('name')->paginate($perPage);
+        $streets = $query->paginate($perPage);
 
         return response()->json([
             'success' => true,
