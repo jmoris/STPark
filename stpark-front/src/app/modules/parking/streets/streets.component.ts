@@ -177,10 +177,18 @@ export class StreetsComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   getSessionsCount(street: Street): number {
+    // El backend envía sessions_count como número, si no existe, intentar contar el array
+    if (street.sessions_count !== undefined) {
+      return street.sessions_count;
+    }
     return (street as any).parking_sessions?.length || 0;
   }
 
   getOperatorsCount(street: Street): number {
+    // El backend envía operators_count como número, si no existe, intentar contar el array
+    if (street.operators_count !== undefined) {
+      return street.operators_count;
+    }
     return (street as any).operator_assignments?.length || 0;
   }
 

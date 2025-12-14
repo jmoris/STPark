@@ -56,6 +56,9 @@ export interface Street {
   sector?: Sector;
   parking_sessions?: ParkingSession[];
   operator_assignments?: OperatorAssignment[];
+  // Campos calculados del backend
+  sessions_count?: number;
+  operators_count?: number;
 }
 
 export interface Operator {
