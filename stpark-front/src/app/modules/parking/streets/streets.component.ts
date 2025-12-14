@@ -279,22 +279,24 @@ export class StreetsComponent implements OnInit, OnDestroy, AfterViewInit {
       },
       {
         label: 'Sesiones de Estacionamiento',
-        key: 'parking_sessions',
+        key: 'sessions_count',
         icon: 'directions_car',
         type: 'text',
-        format: (sessions) => {
-          const count = sessions ? sessions.length : 0;
-          return `${count} sesión${count !== 1 ? 'es' : ''}`;
+        format: (count) => {
+          const sessionsCount = count !== null && count !== undefined ? count : 
+            (street.parking_sessions ? street.parking_sessions.length : 0);
+          return `${sessionsCount} sesión${sessionsCount !== 1 ? 'es' : ''}`;
         }
       },
       {
         label: 'Operadores Asignados',
-        key: 'operator_assignments',
+        key: 'operators_count',
         icon: 'people',
         type: 'text',
-        format: (assignments) => {
-          const count = assignments ? assignments.length : 0;
-          return `${count} operador${count !== 1 ? 'es' : ''}`;
+        format: (count) => {
+          const operatorsCount = count !== null && count !== undefined ? count : 
+            (street.operator_assignments ? street.operator_assignments.length : 0);
+          return `${operatorsCount} operador${operatorsCount !== 1 ? 'es' : ''}`;
         }
       },
       {
