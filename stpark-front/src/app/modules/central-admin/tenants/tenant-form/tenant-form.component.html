@@ -117,6 +117,35 @@
       </div>
     </div>
 
+    <!-- Configuración de FacturAPI (solo en edición) -->
+    <div class="mb-6" *ngIf="data.isEdit">
+      <h3 class="text-lg font-semibold mb-4 text-gray-700">Configuración de FacturAPI</h3>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>Ambiente</mat-label>
+          <mat-select formControlName="facturapi_environment">
+            <mat-option value="">Seleccione un ambiente</mat-option>
+            <mat-option value="dev">Desarrollo (dev.facturapi.cl)</mat-option>
+            <mat-option value="prod">Producción (prod.facturapi.cl)</mat-option>
+          </mat-select>
+          <mat-icon matPrefix>cloud</mat-icon>
+          <mat-hint>Ambiente de FacturAPI a utilizar</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>Token FacturAPI</mat-label>
+          <input matInput type="password" formControlName="facturapi_token" placeholder="Token de FacturAPI">
+          <mat-icon matPrefix>vpn_key</mat-icon>
+          <mat-hint>Token de autenticación para FacturAPI</mat-hint>
+        </mat-form-field>
+      </div>
+      <p class="text-sm text-gray-500 mt-2">
+        <mat-icon class="align-middle text-base">info</mat-icon>
+        Si no se configura, se utilizará la configuración global de FacturAPI.
+      </p>
+    </div>
+
     <!-- Configuración del Sistema (solo en edición) -->
     <div class="mb-6" *ngIf="data.isEdit && settingsForm">
       <h3 class="text-lg font-semibold mb-4 text-gray-700">Configuración del Sistema</h3>
@@ -142,11 +171,19 @@
             </mat-error>
           </mat-form-field>
 
-          <div class="flex items-center mt-6">
-            <mat-checkbox formControlName="pos_tuu">
-              <span class="ml-2">POS TUU Habilitado</span>
-            </mat-checkbox>
-            <mat-icon class="ml-2 text-gray-500" [matTooltip]="'Habilita la integración con POS TUU'">info</mat-icon>
+          <div class="flex flex-col gap-4 mt-6">
+            <div class="flex items-center">
+              <mat-checkbox formControlName="pos_tuu">
+                <span class="ml-2">POS TUU Habilitado</span>
+              </mat-checkbox>
+              <mat-icon class="ml-2 text-gray-500" [matTooltip]="'Habilita la integración con POS TUU'">info</mat-icon>
+            </div>
+            <div class="flex items-center">
+              <mat-checkbox formControlName="boleta_electronica">
+                <span class="ml-2">Boleta Electrónica Habilitada</span>
+              </mat-checkbox>
+              <mat-icon class="ml-2 text-gray-500" [matTooltip]="'Habilita la emisión de boletas electrónicas'">info</mat-icon>
+            </div>
           </div>
         </div>
       </div>

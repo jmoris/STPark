@@ -7,6 +7,9 @@ use App\Models\Payment;
 use App\Models\Debt;
 use App\Models\Operator;
 use App\Models\Sector;
+use App\Models\Shift;
+use App\Models\PricingProfile;
+use App\Models\PricingRule;
 use App\Helpers\DatabaseHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -27,6 +30,118 @@ class ReportController extends Controller
         $to = Carbon::parse($dateTo)->endOfDay();
         
         return [$from, $to];
+    }
+
+    /**
+     * Obtiene el horario de trabajo basado en los perfiles de precios del tenant
+     * Retorna un array con 'start_hour' y 'end_hour' en formato HH:mm
+     * Si end_hour es menor que start_hour, significa que cruza medianoche
+     */
+    private function getWorkingHoursFromPricingProfiles(): array
+    {
+        // Obtener todos los sectores del tenant
+        $sectors = Sector::where('is_active', true)->get();
+        
+        if ($sectors->isEmpty()) {
+            // Si no hay sectores, usar horario por defecto (00:00 a 23:59)
+            return ['start_hour' => '00:00', 'end_hour' => '23:59'];
+        }
+        
+        $earliestStart = null;
+        $latestEnd = null;
+        
+        // Obtener todos los perfiles de precios activos
+        $pricingProfiles = PricingProfile::whereIn('sector_id', $sectors->pluck('id'))
+            ->where('is_active', true)
+            ->get();
+        
+        if ($pricingProfiles->isEmpty()) {
+            // Si no hay perfiles, usar horario por defecto
+            return ['start_hour' => '00:00', 'end_hour' => '23:59'];
+        }
+        
+        // Obtener todas las reglas activas de los perfiles
+        $pricingRules = PricingRule::whereIn('profile_id', $pricingProfiles->pluck('id'))
+            ->where('is_active', true)
+            ->whereNotNull('start_time')
+            ->whereNotNull('end_time')
+            ->get();
+        
+        if ($pricingRules->isEmpty()) {
+            // Si no hay reglas con horarios, usar horario por defecto
+            return ['start_hour' => '00:00', 'end_hour' => '23:59'];
+        }
+        
+        // Encontrar la hora de inicio más temprana y la hora de fin más tardía
+        foreach ($pricingRules as $rule) {
+            $startTime = $rule->start_time;
+            $endTime = $rule->end_time;
+            
+            // Normalizar formato (asegurar HH:mm:ss)
+            if (strlen($startTime) == 5) {
+                $startTime .= ':00';
+            }
+            if (strlen($endTime) == 5) {
+                $endTime .= ':00';
+            }
+            
+            // Extraer solo hora y minuto (HH:mm)
+            $startHour = substr($startTime, 0, 5);
+            $endHour = substr($endTime, 0, 5);
+            
+            // Convertir a minutos desde medianoche para comparar
+            $startMinutes = $this->timeToMinutes($startHour);
+            $endMinutes = $this->timeToMinutes($endHour);
+            
+            // Si end_hour es menor que start_hour, significa que cruza medianoche
+            // En ese caso, end_hour realmente es del día siguiente
+            if ($endMinutes < $startMinutes) {
+                // Cruza medianoche: end_hour es del día siguiente
+                $endMinutes += 24 * 60; // Agregar 24 horas
+            }
+            
+            // Actualizar earliestStart y latestEnd
+            if ($earliestStart === null || $startMinutes < $earliestStart) {
+                $earliestStart = $startMinutes;
+            }
+            
+            if ($latestEnd === null || $endMinutes > $latestEnd) {
+                $latestEnd = $endMinutes;
+            }
+        }
+        
+        // Convertir de vuelta a formato HH:mm
+        $startHour = $this->minutesToTime($earliestStart);
+        
+        // Si latestEnd es >= 24 horas, significa que cruza medianoche
+        if ($latestEnd >= 24 * 60) {
+            $latestEnd -= 24 * 60;
+        }
+        $endHour = $this->minutesToTime($latestEnd);
+        
+        return [
+            'start_hour' => $startHour,
+            'end_hour' => $endHour
+        ];
+    }
+
+    /**
+     * Convierte una hora en formato HH:mm a minutos desde medianoche
+     */
+    private function timeToMinutes(string $time): int
+    {
+        list($hours, $minutes) = explode(':', $time);
+        return (int)$hours * 60 + (int)$minutes;
+    }
+
+    /**
+     * Convierte minutos desde medianoche a formato HH:mm
+     */
+    private function minutesToTime(int $minutes): string
+    {
+        $hours = floor($minutes / 60);
+        $mins = $minutes % 60;
+        return sprintf('%02d:%02d', $hours, $mins);
     }
 
     /**
@@ -601,23 +716,58 @@ class ReportController extends Controller
 
     /**
      * Dashboard con resumen general
+     * Filtra las sesiones basándose en la fecha seleccionada y el horario de trabajo
+     * determinado por los perfiles de precios del tenant
      */
     public function dashboard(Request $request): JsonResponse
     {
         $date = $request->get('date', now()->format('Y-m-d'));
         
-        // Sesiones activas (independiente de la fecha de inicio)
+        // Obtener horario de trabajo desde los perfiles de precios
+        $workingHours = $this->getWorkingHoursFromPricingProfiles();
+        $startHour = $workingHours['start_hour'];
+        $endHour = $workingHours['end_hour'];
+        
+        // Parsear la fecha seleccionada
+        $dateCarbon = Carbon::parse($date);
+        
+        // Construir rango de fechas basado en el horario de trabajo
+        // Si end_hour < start_hour, significa que cruza medianoche
+        $startMinutes = $this->timeToMinutes($startHour);
+        $endMinutes = $this->timeToMinutes($endHour);
+        $crossesMidnight = $endMinutes < $startMinutes;
+        
+        // Fecha/hora de inicio: fecha seleccionada + hora de inicio
+        $periodStart = $dateCarbon->copy();
+        list($startH, $startM) = explode(':', $startHour);
+        $periodStart->setTime((int)$startH, (int)$startM, 0);
+        
+        // Fecha/hora de fin: si cruza medianoche, es del día siguiente
+        $periodEnd = $dateCarbon->copy();
+        list($endH, $endM) = explode(':', $endHour);
+        if ($crossesMidnight) {
+            // Cruza medianoche: agregar un día
+            $periodEnd->addDay()->setTime((int)$endH, (int)$endM, 59);
+        } else {
+            // Mismo día
+            $periodEnd->setTime((int)$endH, (int)$endM, 59);
+        }
+        
+        // Sesiones activas que comenzaron dentro del período de trabajo
         $activeSessions = ParkingSession::active()
+                                      ->where('started_at', '>=', $periodStart)
+                                      ->where('started_at', '<=', $periodEnd)
                                       ->with(['sector', 'street'])
                                       ->get();
 
-        // Sesiones completadas del día con sus pagos
-        $todaySessions = ParkingSession::whereDate('started_at', $date)
-                                      ->where('status', 'COMPLETED')
+        // Sesiones completadas dentro del período de trabajo
+        $todaySessions = ParkingSession::where('status', 'COMPLETED')
+                                      ->where('started_at', '>=', $periodStart)
+                                      ->where('started_at', '<=', $periodEnd)
                                       ->with(['sector', 'payments'])
                                       ->get();
 
-        // Calcular total de ventas del día (suma de payments completados)
+        // Calcular total de ventas del período (suma de payments completados)
         $todaySalesTotal = 0;
         $todaySalesBySector = [];
         
@@ -640,36 +790,83 @@ class ReportController extends Controller
             }
         }
 
-        // Pagos del día
-        $todayPayments = Payment::whereDate('created_at', $date)->get();
+        // Pagos dentro del período de trabajo
+        $todayPayments = Payment::where('created_at', '>=', $periodStart)
+                               ->where('created_at', '<=', $periodEnd)
+                               ->where('status', 'COMPLETED')
+                               ->get();
 
-        // Deudas pendientes
+        // Deudas pendientes (mantener todas, no filtrar por período)
         $pendingDebts = Debt::pending()->get();
 
-        // Sesiones activas por hora del día seleccionado
-        // Para cada hora, contamos cuántas sesiones estaban activas en ese momento
-        $dateCarbon = Carbon::parse($date);
+        // Sesiones activas por hora dentro del horario de trabajo
         $hourlyData = [];
         
-        for ($hour = 0; $hour < 24; $hour++) {
-            // Hora de inicio de la hora actual (ej: 10:00:00)
-            $hourStart = $dateCarbon->copy()->setTime($hour, 0, 0);
+        // Determinar el rango de horas a mostrar
+        $startHourInt = (int)explode(':', $startHour)[0];
+        $endHourInt = (int)explode(':', $endHour)[0];
+        
+        if ($crossesMidnight) {
+            // Si cruza medianoche, mostrar desde startHour hasta 23 y luego de 0 hasta endHour
+            // Horas del día seleccionado (desde startHour hasta 23:59)
+            for ($hour = $startHourInt; $hour < 24; $hour++) {
+                $hourStart = $dateCarbon->copy()->setTime($hour, 0, 0);
+                
+                $activeCount = ParkingSession::where('started_at', '>=', $periodStart)
+                    ->where('started_at', '<=', $periodEnd)
+                    ->where('started_at', '<=', $hourStart)
+                    ->where(function($query) use ($hourStart) {
+                        $query->whereNull('ended_at')
+                              ->orWhere('ended_at', '>', $hourStart);
+                    })
+                    ->count();
+                
+                $hourlyData[] = [
+                    'hour' => $hour,
+                    'count' => $activeCount
+                ];
+            }
             
-            // Contar sesiones que estaban activas en esta hora
-            // Una sesión estaba activa si:
-            // - Comenzó antes o en esa hora: started_at <= hourStart
-            // - Y no había terminado en ese momento: (ended_at IS NULL OR ended_at > hourStart)
-            $activeCount = ParkingSession::where('started_at', '<=', $hourStart)
-                ->where(function($query) use ($hourStart) {
-                    $query->whereNull('ended_at')
-                          ->orWhere('ended_at', '>', $hourStart);
-                })
-                ->count();
-            
-            $hourlyData[] = [
-                'hour' => $hour,
-                'count' => $activeCount
-            ];
+            // Horas del día siguiente (desde 00:00 hasta endHour)
+            $nextDay = $dateCarbon->copy()->addDay();
+            for ($hour = 0; $hour <= $endHourInt; $hour++) {
+                $hourStart = $nextDay->copy()->setTime($hour, 0, 0);
+                
+                $activeCount = ParkingSession::where('started_at', '>=', $periodStart)
+                    ->where('started_at', '<=', $periodEnd)
+                    ->where('started_at', '<=', $hourStart)
+                    ->where(function($query) use ($hourStart) {
+                        $query->whereNull('ended_at')
+                              ->orWhere('ended_at', '>', $hourStart);
+                    })
+                    ->count();
+                
+                // Para el día siguiente, mostrar la hora como 24+hour para mantener continuidad
+                // pero en el frontend se mostrará como 00, 01, 02, etc.
+                $hourlyData[] = [
+                    'hour' => $hour,
+                    'count' => $activeCount
+                ];
+            }
+        } else {
+            // Mismo día, mostrar desde startHour hasta endHour
+            for ($hour = $startHourInt; $hour <= $endHourInt; $hour++) {
+                $hourStart = $dateCarbon->copy()->setTime($hour, 0, 0);
+                
+                $activeCount = ParkingSession::where('started_at', '>=', $periodStart)
+                    ->where('started_at', '<=', $periodEnd)
+                    ->where('started_at', '<=', $hourStart)
+                    ->where(function($query) use ($hourStart) {
+                        $query->whereNull('ended_at')
+                              ->orWhere('ended_at', '>', $hourStart);
+                    })
+                    ->count();
+                
+                $hourlyData[] = [
+                    'hour' => $hour,
+                    'count' => $activeCount
+                ];
+            }
         }
 
         $dashboard = [

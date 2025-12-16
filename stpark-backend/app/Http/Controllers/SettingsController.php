@@ -73,6 +73,7 @@ class SettingsController extends Controller
             'name' => 'STPark - Sistema de Estacionamientos',
             'language' => 'es',
             'pos_tuu' => false, // Configuración de POS TUU (solo lectura para usuarios, solo administradores pueden cambiar)
+            'boleta_electronica' => false, // Configuración de Boleta Electrónica (solo lectura para usuarios, solo administradores pueden cambiar)
             'max_capacity' => 0 // Capacidad máxima de vehículos en el estacionamiento
         ];
         
@@ -135,6 +136,7 @@ class SettingsController extends Controller
             'name' => !empty($config['name']) ? $config['name'] : $defaultConfig['name'],
             'language' => !empty($config['language']) ? $config['language'] : $defaultConfig['language'],
             'pos_tuu' => isset($config['pos_tuu']) ? (bool) $config['pos_tuu'] : $defaultConfig['pos_tuu'],
+            'boleta_electronica' => isset($config['boleta_electronica']) ? (bool) $config['boleta_electronica'] : $defaultConfig['boleta_electronica'],
             'max_capacity' => isset($config['max_capacity']) ? (int) $config['max_capacity'] : $defaultConfig['max_capacity'],
             'plan_name' => $planName
         ];
@@ -154,7 +156,7 @@ class SettingsController extends Controller
 
     /**
      * Guardar la configuración general
-     * NOTA: pos_tuu no se puede cambiar desde aquí (solo administradores)
+     * NOTA: pos_tuu y boleta_electronica no se pueden cambiar desde aquí (solo administradores)
      */
     public function saveGeneral(Request $request)
     {
@@ -162,15 +164,16 @@ class SettingsController extends Controller
             'name' => 'required|string|max:255',
             'language' => 'required|string|max:10',
             'max_capacity' => 'nullable|integer|min:0'
-            // pos_tuu NO se incluye aquí - solo puede ser modificado por administradores directamente en la BD
+            // pos_tuu y boleta_electronica NO se incluyen aquí - solo pueden ser modificados por administradores directamente en la BD
         ]);
 
-        // Obtener la configuración actual para preservar pos_tuu
+        // Obtener la configuración actual para preservar pos_tuu y boleta_electronica
         $currentSetting = Settings::where('key', 'general')->first();
         $currentConfig = $currentSetting ? $currentSetting->value : [];
         
-        // Preservar pos_tuu del valor actual (no permitir que usuarios lo cambien)
+        // Preservar pos_tuu y boleta_electronica del valor actual (no permitir que usuarios lo cambien)
         $validated['pos_tuu'] = isset($currentConfig['pos_tuu']) ? (bool) $currentConfig['pos_tuu'] : false;
+        $validated['boleta_electronica'] = isset($currentConfig['boleta_electronica']) ? (bool) $currentConfig['boleta_electronica'] : false;
         
         // Si max_capacity no viene en la petición, preservar el valor actual o usar 0 por defecto
         if (!isset($validated['max_capacity'])) {
@@ -182,7 +185,8 @@ class SettingsController extends Controller
         \Log::info('Settings: Guardando configuración general', [
             'name' => $validated['name'],
             'language' => $validated['language'],
-            'pos_tuu' => $validated['pos_tuu'] . ' (preservado, no modificable por usuarios)'
+            'pos_tuu' => $validated['pos_tuu'] . ' (preservado, no modificable por usuarios)',
+            'boleta_electronica' => $validated['boleta_electronica'] . ' (preservado, no modificable por usuarios)'
         ]);
 
         $setting = Settings::updateOrCreate(

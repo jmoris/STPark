@@ -280,6 +280,12 @@ export class TenantsComponent implements OnInit, OnDestroy, AfterViewInit {
             type: 'boolean'
           },
           {
+            label: 'Boleta Electrónica Habilitada',
+            key: 'settings.boleta_electronica',
+            icon: 'receipt',
+            type: 'boolean'
+          },
+          {
             label: 'Idioma',
             key: 'settings.language',
             icon: 'language',

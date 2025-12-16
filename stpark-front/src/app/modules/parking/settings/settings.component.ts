@@ -66,6 +66,7 @@ export class SettingsComponent implements OnInit {
       language: ['es', [Validators.required]],
       plan_name: ['Sin plan'], // Se deshabilitará después de cargar
       pos_tuu: [{ value: false, disabled: true }], // Solo lectura - solo administradores pueden cambiar
+      boleta_electronica: [{ value: false, disabled: true }], // Solo lectura - solo administradores pueden cambiar
       max_capacity: [0, [Validators.required, Validators.min(0)]]
     });
 
@@ -98,27 +99,47 @@ export class SettingsComponent implements OnInit {
             this.planName = planName;
             console.log('Plan name asignado:', this.planName);
             
-            // Excluir plan_name del patchValue ya que lo actualizamos por separado
-            const { plan_name, ...formData } = response.data;
+            // Excluir plan_name, pos_tuu y boleta_electronica del patchValue ya que los actualizamos por separado
+            const { plan_name, pos_tuu, boleta_electronica, ...formData } = response.data;
             
             // Actualizar los demás campos del formulario
             this.generalForm.patchValue(formData);
             
-            // Actualizar el plan_name en el FormControl y luego deshabilitarlo
+            // Actualizar plan_name, pos_tuu y boleta_electronica (campos deshabilitados)
             setTimeout(() => {
+              // Actualizar plan_name
               const planNameControl = this.generalForm.get('plan_name');
               if (planNameControl) {
-                // Asegurarse de que el control esté habilitado antes de establecer el valor
                 if (planNameControl.disabled) {
                   planNameControl.enable({ emitEvent: false });
                 }
                 planNameControl.setValue(planName, { emitEvent: false });
-                console.log('Plan name establecido en FormControl:', planNameControl.value);
-                
-                // Deshabilitar después de un pequeño delay para que Angular renderice el valor
                 setTimeout(() => {
                   planNameControl.disable({ emitEvent: false });
-                  console.log('Plan name deshabilitado. Valor final:', planNameControl.value);
+                }, 100);
+              }
+
+              // Actualizar pos_tuu
+              const posTuuControl = this.generalForm.get('pos_tuu');
+              if (posTuuControl && response.data.pos_tuu !== undefined) {
+                if (posTuuControl.disabled) {
+                  posTuuControl.enable({ emitEvent: false });
+                }
+                posTuuControl.setValue(response.data.pos_tuu, { emitEvent: false });
+                setTimeout(() => {
+                  posTuuControl.disable({ emitEvent: false });
+                }, 100);
+              }
+
+              // Actualizar boleta_electronica
+              const boletaElectronicaControl = this.generalForm.get('boleta_electronica');
+              if (boletaElectronicaControl && response.data.boleta_electronica !== undefined) {
+                if (boletaElectronicaControl.disabled) {
+                  boletaElectronicaControl.enable({ emitEvent: false });
+                }
+                boletaElectronicaControl.setValue(response.data.boleta_electronica, { emitEvent: false });
+                setTimeout(() => {
+                  boletaElectronicaControl.disable({ emitEvent: false });
                 }, 100);
               }
             }, 0);
@@ -195,8 +216,8 @@ export class SettingsComponent implements OnInit {
     }
 
     this.loading = true;
-    // Excluir pos_tuu y plan_name del objeto a enviar (solo lectura, el backend los preserva automáticamente)
-    const { pos_tuu, plan_name, ...config } = this.generalForm.getRawValue();
+    // Excluir pos_tuu, boleta_electronica y plan_name del objeto a enviar (solo lectura, el backend los preserva automáticamente)
+    const { pos_tuu, boleta_electronica, plan_name, ...config } = this.generalForm.getRawValue();
 
     this.http.post(`${environment.apiUrl}/settings/general`, config)
       .subscribe({
@@ -250,6 +271,7 @@ export class SettingsComponent implements OnInit {
       name: 'STPark - Sistema de Estacionamientos',
       language: 'es',
       pos_tuu: false,
+      boleta_electronica: false,
       max_capacity: 0
     });
     

@@ -404,6 +404,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               sequenceNumber: sequenceNumber,
               minAmount: getMinAmountFromBreakdown(),
               isFullDay: isFullDay,
+              // Datos de FacturaPi si están disponibles (para pagos en efectivo con boleta electrónica)
+              ted: response.data?.payment?.ted || response.data?.ted || undefined,
+              folio: response.data?.payment?.folio || undefined,
+              tenantRut: response.data?.payment?.tenant_rut || undefined,
+              tenantRazonSocial: response.data?.payment?.tenant_razon_social || undefined,
+              tenantGiro: response.data?.payment?.tenant_giro || undefined,
+              tenantDireccion: response.data?.payment?.tenant_direccion || undefined,
+              tenantComuna: response.data?.payment?.tenant_comuna || undefined,
+              ivaAmount: response.data?.payment?.iva_amount !== undefined ? response.data.payment.iva_amount : undefined,
+              sucsii: response.data?.payment?.sucsii || undefined,
             };
 
             const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
@@ -443,6 +453,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 sequenceNumber: sequenceNumber,
                 minAmount: getMinAmountFromBreakdown(),
                 isFullDay: isFullDay,
+                // TED de FacturaPi si está disponible (para pagos en efectivo con boleta electrónica)
+                ted: response.data?.payment?.ted || response.data?.ted || undefined,
               };
               
               const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
@@ -768,6 +780,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 parseFloat(amountPaid) - (estimatedAmount || 0) : undefined,
               minAmount: getMinAmountFromBreakdown(),
               isFullDay: isFullDay,
+              // Datos de FacturaPi si están disponibles (para pagos en efectivo con boleta electrónica)
+              ted: response.data?.payment?.ted || response.data?.ted || undefined,
+              folio: response.data?.payment?.folio || undefined,
+              tenantRut: response.data?.payment?.tenant_rut || undefined,
+              tenantRazonSocial: response.data?.payment?.tenant_razon_social || undefined,
+              tenantGiro: response.data?.payment?.tenant_giro || undefined,
+              tenantDireccion: response.data?.payment?.tenant_direccion || undefined,
+              tenantComuna: response.data?.payment?.tenant_comuna || undefined,
+              ivaAmount: response.data?.payment?.iva_amount !== undefined ? response.data.payment.iva_amount : undefined,
+              sucsii: response.data?.payment?.sucsii || undefined,
             };
             
             const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
@@ -813,6 +835,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   parseFloat(amountPaid) - (estimatedAmount || 0) : undefined,
                 minAmount: getMinAmountFromBreakdown(), // Puede ser undefined para deudas
                 isFullDay: isFullDay,
+                // Datos de FacturaPi si están disponibles (para pagos en efectivo con boleta electrónica)
+                ted: response.data?.payment?.ted || response.data?.ted || undefined,
+                folio: response.data?.payment?.folio || undefined,
+                tenantRut: response.data?.payment?.tenant_rut || undefined,
+                ivaAmount: response.data?.payment?.iva_amount !== undefined ? response.data.payment.iva_amount : undefined,
+                sucsii: response.data?.payment?.sucsii || undefined,
               };
               
               const printed = await ticketPrinterService.printCheckoutTicket(ticketData);

@@ -21,26 +21,22 @@ class Tenant extends BaseTenant implements TenantWithDatabase {
         'direccion',
         'comuna',
         'dias_credito',
-        'correo_intercambio',
+        'correo_dte',
+        'facturapi_environment',
+        'facturapi_token',
     ];
 
     /**
      * Define las columnas personalizadas que deben guardarse en columnas directas
      * en lugar de en la columna JSON 'data'
+     * Solo mantenemos id, plan_id (para relaciones), created_at y updated_at
+     * Todo lo demás se guarda en el JSON 'data'
      */
     public static function getCustomColumns(): array
     {
         return [
             'id',
-            'plan_id',
-            'name',
-            'rut',
-            'razon_social',
-            'giro',
-            'direccion',
-            'comuna',
-            'dias_credito',
-            'correo_intercambio',
+            'plan_id', // Necesario para relaciones de Eloquent
             'created_at',
             'updated_at',
         ];

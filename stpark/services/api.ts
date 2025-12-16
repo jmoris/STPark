@@ -641,7 +641,8 @@ class ApiService {
           name: 'STPark - Sistema de Gestión de Estacionamientos',
           currency: 'CLP',
           timezone: 'America/Santiago',
-          language: 'es'
+          language: 'es',
+          pos_tuu: false
         };
         
         // Asegurar que todos los campos estén presentes
@@ -670,7 +671,8 @@ class ApiService {
           name: 'STPark - Sistema de Gestión de Estacionamientos',
           currency: 'CLP',
           timezone: 'America/Santiago',
-          language: 'es'
+          language: 'es',
+          pos_tuu: false
         }
       };
     } catch (error) {
@@ -682,7 +684,8 @@ class ApiService {
           name: 'STPark - Sistema de Gestión de Estacionamientos',
           currency: 'CLP',
           timezone: 'America/Santiago',
-          language: 'es'
+          language: 'es',
+          pos_tuu: false
         }
       };
     }

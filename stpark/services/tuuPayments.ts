@@ -1,4 +1,5 @@
 import { TuuPayment, type PaymentData, type PaymentResult } from 'react-native-tuu-printer';
+import { CONFIG } from '@/config/app';
 
 // ============================================================================
 // CONFIGURACIÓN DE ENTORNO - CAMBIAR ESTA CONSTANTE SEGÚN NECESITES
@@ -11,7 +12,7 @@ import { TuuPayment, type PaymentData, type PaymentResult } from 'react-native-t
  * 
  * IMPORTANTE: Cambiar a false antes de hacer builds de producción
  */
-const TUU_DEVELOPMENT_MODE = false;
+const TUU_DEVELOPMENT_MODE = true;
 // ============================================================================
 
 // Re-exportar el tipo PaymentData para compatibilidad
@@ -217,7 +218,7 @@ class TuuPaymentsService {
       dteType: paymentData.dteType ?? 48,
       extraData: paymentData.extraData || {
         sourceName: 'STPark',
-        sourceVersion: '1.0.0',
+        sourceVersion: CONFIG.VERSION,
       },
     };
 

@@ -84,6 +84,8 @@ export class TenantFormComponent implements OnInit {
       comuna: [''],
       dias_credito: [0, [Validators.min(0)]],
       correo_intercambio: ['', [Validators.email]],
+      facturapi_environment: [''],
+      facturapi_token: [''],
       user: this.fb.group({
         name: ['', isEdit ? [] : [Validators.required, Validators.minLength(2)]],
         email: ['', isEdit ? [] : [Validators.required, Validators.email]],
@@ -96,6 +98,7 @@ export class TenantFormComponent implements OnInit {
       formControls.settings = this.fb.group({
         name: ['', Validators.required],
         pos_tuu: [false],
+        boleta_electronica: [false],
         max_capacity: [0, [Validators.min(0)]]
       });
     }
@@ -120,7 +123,9 @@ export class TenantFormComponent implements OnInit {
         direccion: this.data.tenant.direccion || '',
         comuna: this.data.tenant.comuna || '',
         dias_credito: this.data.tenant.dias_credito || 0,
-        correo_intercambio: this.data.tenant.correo_intercambio || ''
+        correo_intercambio: this.data.tenant.correo_intercambio || '',
+        facturapi_environment: this.data.tenant.facturapi_environment || '',
+        facturapi_token: this.data.tenant.facturapi_token || ''
       };
 
       // Agregar settings si el control existe
@@ -129,6 +134,7 @@ export class TenantFormComponent implements OnInit {
         formValue.settings = {
           name: settings.name || 'STPark - Sistema de Estacionamientos',
           pos_tuu: settings.pos_tuu !== undefined ? Boolean(settings.pos_tuu) : false,
+          boleta_electronica: settings.boleta_electronica !== undefined ? Boolean(settings.boleta_electronica) : false,
           max_capacity: settings.max_capacity !== undefined ? Number(settings.max_capacity) : 0
         };
         
@@ -194,7 +200,9 @@ export class TenantFormComponent implements OnInit {
           direccion: formValue.direccion?.trim() || null,
           comuna: formValue.comuna?.trim() || null,
           dias_credito: formValue.dias_credito ? parseInt(formValue.dias_credito) : 0,
-          correo_intercambio: formValue.correo_intercambio?.trim() || null
+          correo_intercambio: formValue.correo_intercambio?.trim() || null,
+          facturapi_environment: formValue.facturapi_environment?.trim() || null,
+          facturapi_token: formValue.facturapi_token?.trim() || null
         };
 
         // Incluir settings si existen
@@ -202,6 +210,7 @@ export class TenantFormComponent implements OnInit {
           updateData.settings = {
             name: formValue.settings.name?.trim() || 'STPark - Sistema de Estacionamientos',
             pos_tuu: formValue.settings.pos_tuu !== undefined ? formValue.settings.pos_tuu : false,
+            boleta_electronica: formValue.settings.boleta_electronica !== undefined ? formValue.settings.boleta_electronica : false,
             max_capacity: formValue.settings.max_capacity !== undefined ? parseInt(formValue.settings.max_capacity) : 0
           };
         }
@@ -232,6 +241,8 @@ export class TenantFormComponent implements OnInit {
           comuna: formValue.comuna?.trim() || null,
           dias_credito: formValue.dias_credito ? parseInt(formValue.dias_credito) : 0,
           correo_intercambio: formValue.correo_intercambio?.trim() || null,
+          facturapi_environment: formValue.facturapi_environment?.trim() || null,
+          facturapi_token: formValue.facturapi_token?.trim() || null,
           user: {
             name: formValue.user.name.trim(),
             email: formValue.user.email.trim().toLowerCase(),

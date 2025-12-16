@@ -33,6 +33,15 @@ export interface CheckoutTicketData extends TicketData {
   sequenceNumber?: string; // Número de secuencia de la transacción TUU
   minAmount?: number; // Monto mínimo configurado en el perfil de precios
   isFullDay?: boolean; // Indica si es un ticket de ingreso diario
+  ted?: string; // Timbre Electrónico de Documento (TED) retornado por FacturaPi
+  tenantRut?: string; // RUT del tenant retornado por FacturaPi
+  tenantRazonSocial?: string; // Razón social del tenant
+  tenantGiro?: string; // Giro del tenant
+  tenantDireccion?: string; // Dirección del tenant
+  tenantComuna?: string; // Comuna del tenant
+  folio?: string; // Número de folio retornado por FacturaPi
+  ivaAmount?: number; // Cantidad de IVA retornada por FacturaPi
+  sucsii?: string; // Sucursal SII retornada por FacturaPi
 }
 
 export interface ShiftCloseTicketData {
@@ -139,7 +148,7 @@ class TicketPrinterService {
         await TuuPrinter.addTextLine(`Monto minimo: ${this.formatAmount(data.minAmount)}`, {align: 0, size: 24, bold: false, italic: false});
         await TuuPrinter.addBlankLines(1);
       }
-      await TuuPrinter.addTextLine(`Monto a pagar: ${this.formatAmount(data.amount)}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Monto a pagar: ${this.formatAmount(data.amount)}`, {align: 0, size: 24, bold: true, italic: false});
       
       // Si es ingreso diario, mostrar el texto centrado debajo del monto
       if (data.isFullDay) {
@@ -173,6 +182,76 @@ class TicketPrinterService {
       return true;
     } catch (error) {
       console.error('Error imprimiendo con TUU:', error);
+      return false;
+    }
+  }
+
+  // Imprimir ticket de checkout con PDF417 (TED de FacturaPi)
+  private async printCheckoutTicketWithPdf417(data: CheckoutTicketData): Promise<boolean> {
+    try {
+      await TuuPrinter.init();
+      // Si es día completo, usar solo fecha (sin hora), sino usar fecha y hora
+      const startTime = data.isFullDay 
+        ? this.formatDateOnly(data.startTime) 
+        : this.formatDateTime(data.startTime);
+      const endTime = data.isFullDay 
+        ? this.formatDateOnly(data.endTime) 
+        : this.formatDateTime(data.endTime);
+      const duration = data.isFullDay ? 'Día completo' : (data.duration || 'N/A');
+      const locationInfo = this.getLocationInfo(data);
+      const systemName = await this.getSystemName();
+      
+      //await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      //await TuuPrinter.addTextLine('TICKET DE SALIDA', {align: 1, size: 24, bold: false, italic: false});
+      //await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('------------------------------------------------------', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`R.U.T.: ${data.tenantRut}`, {align: 1, size: 20, bold: false, italic: false});
+      await TuuPrinter.addTextLine('BOLETA ELECTRÓNICA', {align: 1, size: 20, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Nº ${data.folio || ''}`, {align: 1, size: 20, bold: false, italic: false});
+      await TuuPrinter.addTextLine('------------------------------------------------------', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`S.I.I. - ${data.sucsii}`, {align: 1, size: 20, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      // Mostrar razón social del tenant
+      if (data.tenantRazonSocial) {
+        await TuuPrinter.addTextLine(data.tenantRazonSocial, {align: 0, size: 20, bold: true, italic: false});
+      }
+      // Mostrar giro del tenant debajo de la razón social
+      if (data.tenantGiro) {
+        await TuuPrinter.addTextLine(data.tenantGiro, {align: 0, size: 18, bold: false, italic: false});
+      }
+      // Mostrar dirección y comuna del tenant
+      const direccionCompleta = [data.tenantDireccion, data.tenantComuna].filter(Boolean).join(', ');
+      if (direccionCompleta) {
+        await TuuPrinter.addTextLine(direccionCompleta, {align: 0, size: 20, bold: false, italic: false});
+      }
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine(`Patente: ${data.plate}`, {align: 0, size: 20, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Ingreso: ${startTime}`, {align: 0, size: 20, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Salida: ${endTime}`, {align: 0, size: 20, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Duracion: ${duration}`, {align: 0, size: 20, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+
+      // Mostrar IVA antes del monto a pagar si está disponible
+      if (data.ivaAmount !== undefined && data.ivaAmount !== null) {
+        await TuuPrinter.addTextLine(`Esta venta incluye IVA: ${this.formatAmount(data.ivaAmount)}`, {align: 0, size: 20, bold: false, italic: false});
+      }
+      await TuuPrinter.addTextLine(`Monto a pagar: ${this.formatAmount(data.amount)}`, {align: 0, size: 20, bold: true, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      
+      // Si hay TED, mostrar información de boleta electrónica y PDF417
+      if (data.ted) {
+        // Agregar el timbre PDF417 con el TED
+        await TuuPrinter.addPdf417(data.ted, { align: 1, width: 384, height: 192 });
+        await TuuPrinter.addTextLine('Timbre Electrónico SII', {align: 1, size: 18, bold: false, italic: false});
+        await TuuPrinter.addTextLine('Resolución 0 de 2025', {align: 1, size: 18, bold: false, italic: false});
+        await TuuPrinter.addTextLine('Verifique documento en sii.cl', {align: 1, size: 18, bold: false, italic: false});
+        await TuuPrinter.addBlankLines(1);
+      }
+      await TuuPrinter.addBlankLines(5);
+      await TuuPrinter.beginPrint();
+      return true;
+    } catch (error) {
+      console.error('Error imprimiendo con TUU (PDF417):', error);
       return false;
     }
   }
@@ -596,10 +675,22 @@ Total Transacciones: ${totalTransactions}
       const tuuConnected = await this.isTuuPrinterConnected();
       if (tuuConnected) {
         console.log('Usando impresora TUU para ticket de checkout');
-        const printed = await this.printCheckoutTicketWithTuu(data);
-        if (printed) {
-          console.log('Ticket de checkout impreso exitosamente con TUU');
-          return true;
+        
+        // Si hay TED, usar la función con PDF417
+        if (data.ted) {
+          console.log('Imprimiendo ticket con PDF417 (TED de FacturaPi)');
+          const printed = await this.printCheckoutTicketWithPdf417(data);
+          if (printed) {
+            console.log('Ticket de checkout con PDF417 impreso exitosamente con TUU');
+            return true;
+          }
+        } else {
+          // Usar la función normal con datos de tarjeta si los hay
+          const printed = await this.printCheckoutTicketWithTuu(data);
+          if (printed) {
+            console.log('Ticket de checkout impreso exitosamente con TUU');
+            return true;
+          }
         }
         console.log('Error imprimiendo con TUU, intentando Bluetooth...');
       }

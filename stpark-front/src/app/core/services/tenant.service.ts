@@ -19,6 +19,8 @@ export interface Tenant {
   comuna?: string;
   dias_credito?: number;
   correo_intercambio?: string;
+  facturapi_environment?: string | null;
+  facturapi_token?: string | null;
   created_at?: string;
   updated_at?: string;
   users_count?: number;
@@ -27,6 +29,7 @@ export interface Tenant {
   settings?: {
     name?: string;
     pos_tuu?: boolean;
+    boleta_electronica?: boolean;
     max_capacity?: number;
     language?: string;
     currency?: string;
@@ -46,6 +49,8 @@ export interface CreateTenantRequest {
   comuna?: string | null;
   dias_credito?: number;
   correo_intercambio?: string | null;
+  facturapi_environment?: string | null;
+  facturapi_token?: string | null;
   user: {
     name: string;
     email: string;

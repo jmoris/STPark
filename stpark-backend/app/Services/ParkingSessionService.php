@@ -7,11 +7,14 @@ use App\Models\Debt;
 use App\Models\Sector;
 use App\Models\Street;
 use App\Models\Operator;
+use App\Models\Settings;
 use App\Services\PricingService;
 use App\Services\CurrentShiftService;
 use App\Services\PlanLimitService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class ParkingSessionService
 {
@@ -345,7 +348,27 @@ class ParkingSessionService
                     'notes' => "Pago {$paymentMethod} por {$amount}",
                 ]);
 
+                // Si el pago es en efectivo y la boleta electrónica está activada, enviar a facturapi
+                $facturapiData = null;
+                if ($paymentMethod === 'CASH') {
+                    $facturapiData = $this->sendElectronicReceiptToFacturAPI($session, $payment, $amount);
+                }
+
+                // Cargar el pago con sus relaciones
+                $payment->refresh();
                 $result['payment'] = $payment;
+                // Incluir todos los datos de FacturaPi en la respuesta si están disponibles
+                if ($facturapiData) {
+                    $result['payment']->ted = $facturapiData['ted'] ?? null;
+                    $result['payment']->folio = $facturapiData['folio'] ?? null;
+                    $result['payment']->tenant_rut = $facturapiData['tenantRut'] ?? null;
+                    $result['payment']->tenant_razon_social = $facturapiData['tenantRazonSocial'] ?? null;
+                    $result['payment']->tenant_giro = $facturapiData['tenantGiro'] ?? null;
+                    $result['payment']->tenant_direccion = $facturapiData['tenantDireccion'] ?? null;
+                    $result['payment']->tenant_comuna = $facturapiData['tenantComuna'] ?? null;
+                    $result['payment']->iva_amount = $facturapiData['ivaAmount'] ?? null;
+                    $result['payment']->sucsii = $facturapiData['sucsii'] ?? null;
+                }
                 $result['message'] = 'Checkout procesado exitosamente';
             }
 
@@ -476,5 +499,187 @@ class ParkingSessionService
             'total_amount' => $totalAmount,
             'debts' => $debts
         ];
+    }
+
+    /**
+     * Enviar boleta electrónica a FacturAPI cuando el pago es en efectivo
+     * Retorna un array con los datos de FacturaPi (ted, folio, tenantRut, ivaAmount, sucsii)
+     */
+    private function sendElectronicReceiptToFacturAPI(ParkingSession $session, $payment, float $amount): ?array
+    {
+        try {
+            // Verificar si la boleta electrónica está activada en el tenant
+            $setting = Settings::where('key', 'general')->first();
+            $config = $setting ? $setting->value : [];
+            $boletaElectronica = isset($config['boleta_electronica']) ? (bool) $config['boleta_electronica'] : false;
+
+            if (!$boletaElectronica) {
+                Log::info('Boleta electrónica no está activada para este tenant, no se enviará a FacturAPI');
+                return null;
+            }
+
+            // Obtener información del tenant desde la conexión central
+            $tenantId = tenant('id');
+            if (!$tenantId) {
+                Log::warning('No se pudo obtener el ID del tenant para enviar boleta electrónica');
+                return null;
+            }
+
+            $centralConnection = config('tenancy.database.central_connection', 'central');
+            $tenantRow = DB::connection($centralConnection)->table('tenants')
+                ->where('id', $tenantId)
+                ->first();
+
+            if (!$tenantRow) {
+                Log::warning('No se encontró el tenant para enviar boleta electrónica');
+                return null;
+            }
+
+            // Los campos personalizados están en el JSON 'data'
+            $tenantData = is_string($tenantRow->data) ? json_decode($tenantRow->data, true) : ($tenantRow->data ?? []);
+            
+            // Acceder a los campos desde el JSON data
+            $facturapiEnvironment = $tenantData['facturapi_environment'] ?? null;
+            $facturapiToken = $tenantData['facturapi_token'] ?? null;
+            
+            // También verificar campos directos por si acaso (aunque deberían estar en data)
+            if (!$facturapiEnvironment && isset($tenantRow->facturapi_environment)) {
+                $facturapiEnvironment = $tenantRow->facturapi_environment;
+            }
+            if (!$facturapiToken && isset($tenantRow->facturapi_token)) {
+                $facturapiToken = $tenantRow->facturapi_token;
+            }
+
+            // Si el tenant no tiene configuración, usar la configuración global
+            // IMPORTANTE: Terminar tenancy antes de acceder a la configuración global
+            if (!$facturapiEnvironment || !$facturapiToken) {
+                try {
+                    tenancy()->end();
+                    $facturapiConfig = \App\Http\Controllers\FacturAPIConfigController::getActiveConfig();
+                    $facturapiEnvironment = $facturapiEnvironment ?? $facturapiConfig['environment'] ?? 'dev';
+                    $facturapiToken = $facturapiToken ?? $facturapiConfig['token'] ?? '';
+                    // Re-inicializar tenancy después de acceder a la configuración global
+                    $tenantModel = \App\Models\Tenant::find($tenantId);
+                    if ($tenantModel) {
+                        tenancy()->initialize($tenantModel);
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Error obteniendo configuración global de FacturAPI: ' . $e->getMessage());
+                    // Intentar re-inicializar tenancy si falló
+                    try {
+                        $tenantModel = \App\Models\Tenant::find($tenantId);
+                        if ($tenantModel) {
+                            tenancy()->initialize($tenantModel);
+                        }
+                    } catch (\Exception $e2) {
+                        // Ignorar
+                    }
+                }
+            }
+
+            if (empty($facturapiToken)) {
+                Log::warning('Token de FacturAPI no configurado, no se puede enviar boleta electrónica');
+                return null;
+            }
+
+            // Determinar endpoint según el ambiente
+            $endpoints = [
+                'dev' => 'https://dev.facturapi.cl/api',
+                'prod' => 'https://prod.facturapi.cl/api'
+            ];
+            $facturapiEndpoint = $endpoints[$facturapiEnvironment] ?? $endpoints['dev'];
+
+            // Validar que el tenant tenga los datos necesarios
+            // Acceder a rut y razon_social desde el JSON data
+            $tenantRut = $tenantData['rut'] ?? ($tenantRow->rut ?? null);
+            $tenantRazonSocial = $tenantData['razon_social'] ?? ($tenantRow->razon_social ?? null);
+            $tenantGiro = $tenantData['giro'] ?? ($tenantRow->giro ?? null);
+            $tenantDireccion = $tenantData['direccion'] ?? ($tenantRow->direccion ?? null);
+            $tenantComuna = $tenantData['comuna'] ?? ($tenantRow->comuna ?? null);
+            
+            if (empty($tenantRut) || empty($tenantRazonSocial)) {
+                Log::warning('El tenant no tiene configurados los datos de facturación necesarios (RUT y Razón Social)');
+                return null;
+            }
+
+            // Preparar datos de la boleta electrónica para FacturAPI
+            // Tipo 39 = Boleta Electrónica
+            // Nota: Las boletas en Chile NO tienen IVA, se envía el monto total directamente
+            $tenantActeco = $tenantData['acteco'] ?? ($tenantRow->acteco ?? 561000);
+            
+            $facturapiData = [
+                'contribuyente' => $tenantRut,
+                'acteco' => $tenantActeco, // Código de actividad económica
+                'tipo' => 39, // Tipo 39 = Boleta Electrónica
+                'fecha' => null, // null para que FacturAPI genere la fecha automáticamente
+                'sucursal' => null,
+                'forma_pago' => 1, // 1 = Contado (efectivo)
+                'detalles' => [
+                    [
+                        'nombre' => 'Estacionamiento',
+                        'unidad' => 'Und',
+                        'precio' => $amount, // Monto total (las boletas no tienen IVA)
+                        'cantidad' => 1,
+                    ]
+                ],
+                'return_ted' => true,
+            ];
+
+            // Realizar llamada a FacturAPI
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $facturapiToken,
+                'Content-Type' => 'application/json',
+            ])->post($facturapiEndpoint . '/boletas', $facturapiData);
+
+            // Verificar si la respuesta fue exitosa
+            if (!$response->successful()) {
+                $errorData = $response->json();
+                Log::error('Error al emitir boleta electrónica en FacturAPI', [
+                    'session_id' => $session->id,
+                    'payment_id' => $payment->id,
+                    'error' => $errorData['message'] ?? 'Error desconocido'
+                ]);
+                return null;
+            }
+
+            $responseData = $response->json();
+            $ted = $responseData['ted'] ?? null;
+            $folio = $responseData['folio'] ?? null;
+            // El IVA está en totales.iva según la respuesta de FacturaPi
+            $ivaAmount = $responseData['totales']['iva'] ?? 0;
+            $sucsii = $responseData['sucsii'] ?? null;
+            
+            Log::info('Boleta electrónica emitida en FacturAPI', [
+                'session_id' => $session->id,
+                'payment_id' => $payment->id,
+                'folio' => $folio ?? 'N/A',
+                'ted' => $ted ? 'presente' : 'no presente',
+                'iva_amount' => $ivaAmount,
+                'sucsii' => $sucsii,
+                'response' => $responseData
+            ]);
+
+            return [
+                'ted' => $ted,
+                'folio' => $folio,
+                'tenantRut' => $tenantRut,
+                'tenantRazonSocial' => $tenantRazonSocial,
+                'tenantGiro' => $tenantGiro,
+                'tenantDireccion' => $tenantDireccion,
+                'tenantComuna' => $tenantComuna,
+                'ivaAmount' => $ivaAmount,
+                'sucsii' => $sucsii
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Error al enviar boleta electrónica a FacturAPI', [
+                'session_id' => $session->id,
+                'payment_id' => $payment->id ?? null,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            // No lanzar excepción para que el checkout no falle si hay error en la boleta electrónica
+            return null;
+        }
     }
 }

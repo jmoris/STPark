@@ -562,10 +562,15 @@ correctamente.
       await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('IMPRESIÓN EXITOSA', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      // Agregar timbre PDF417
+      const testPdf417Data = '<TED version=\"1.0\"><DD><RE>77192227-9</RE><TD>39</TD><F>478</F><FE>2025-12-15</FE><RR>66666666-6</RR><RSR>66666666-6</RSR><MNT>500</MNT><IT1>Estacionamiento</IT1><CAF version=\"1.0\"><DA><RE>77192227-9</RE><RS>INGENIERIA Y CONSTRUCCION SOLUCIONTOTAL</RS><TD>39</TD><RNG><D>477</D><H>481</H></RNG><FA>2025-12-15</FA><RSAPK><M>t+xZCSFbOp/5Na6dLuqwTCbkFs++CroilzEYhg+GppwkP9NO5c6Ah41u65ymaiDy08HAQgm+KyQDHNmlt7e9sw==</M><E>Aw==</E></RSAPK><IDK>100</IDK></DA><FRMA algoritmo=\"SHA1withRSA\">CaoNU3QLABD1bvH+t7QhSnk8tCViMUhpqHQCWYAMe0zvME1/eydhoxAt/zFxsybL90hc0LmI0fBYwHQPobRs/g==</FRMA></CAF><TSTED>2025-12-15T01:41:35</TSTED></DD><FRMT algoritmo=\"SHA1withRSA\">BGOs+0HIjx43qKlxTPZC6+JI1V6BFzGtgF+jtXnElEIjSrBjoa/U3l1usRswkgRFq2w+yZPypT6g1IqrjU+lVg==</FRMT></TED>';
+      await TuuPrinter.addPdf417(testPdf417Data, { align: 1, width: 384, height: 192 });
       await TuuPrinter.addBlankLines(5);
       await TuuPrinter.beginPrint();
     } catch (error) {
       console.error('Error al probar la impresora:', error);
+      Alert.alert('Error', `Error al probar la impresora: ${error instanceof Error ? error.message : String(error)}`);
     }
     
   };

@@ -11,6 +11,7 @@ export interface SystemConfig {
   timezone: string;
   language: string;
   pos_tuu: boolean; // Configuración de POS TUU (solo lectura para usuarios, solo administradores pueden cambiar)
+  boleta_electronica: boolean; // Configuración de Boleta Electrónica (solo lectura para usuarios, solo administradores pueden cambiar)
   max_capacity?: number; // Capacidad máxima de vehículos en el estacionamiento
 }
 
@@ -23,6 +24,7 @@ export class ConfigService {
     timezone: 'America/Santiago',
     language: 'es',
     pos_tuu: false,
+    boleta_electronica: false,
     max_capacity: 0
   });
   private _configLoaded = false;
@@ -38,6 +40,7 @@ export class ConfigService {
       timezone: 'America/Santiago',
       language: 'es',
       pos_tuu: false,
+      boleta_electronica: false,
       max_capacity: 0
     };
 

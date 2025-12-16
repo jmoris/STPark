@@ -46,7 +46,10 @@ class TenantController extends Controller
         // Aplicar filtros
         if ($request->filled('name')) {
             $query->where(function($q) use ($request) {
-                $q->where('name', 'like', '%' . $request->name . '%')
+                // BaseTenant maneja automáticamente el acceso a campos en JSON data
+                // Podemos usar where directamente ya que el modelo tiene accessors/mutators
+                // Para PostgreSQL, usamos la sintaxis JSON de Eloquent
+                $q->whereRaw("data->>'name' ILIKE ?", ['%' . $request->name . '%'])
                   ->orWhere('id', 'like', '%' . $request->name . '%');
             });
         }
@@ -120,7 +123,9 @@ class TenantController extends Controller
                 'direccion' => $tenant->direccion,
                 'comuna' => $tenant->comuna,
                 'dias_credito' => $tenant->dias_credito,
-                'correo_intercambio' => $tenant->correo_intercambio,
+                'correo_intercambio' => $tenant->correo_dte,
+                'facturapi_environment' => $tenant->facturapi_environment,
+                'facturapi_token' => $tenant->facturapi_token ? '***' : null, // Ocultar token por seguridad
                 'created_at' => $tenant->created_at ? $tenant->created_at->toISOString() : null,
                 'updated_at' => $tenant->updated_at ? $tenant->updated_at->toISOString() : null,
                 'users_count' => $tenant->users_count ?? 0,
@@ -171,6 +176,8 @@ class TenantController extends Controller
             'comuna' => 'nullable|string|max:100',
             'dias_credito' => 'nullable|integer|min:0',
             'correo_intercambio' => 'nullable|email|max:255',
+            'facturapi_environment' => 'nullable|in:dev,prod',
+            'facturapi_token' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -205,7 +212,9 @@ class TenantController extends Controller
                 'direccion' => $request->filled('direccion') ? trim($request->direccion) : null,
                 'comuna' => $request->filled('comuna') ? trim($request->comuna) : null,
                 'dias_credito' => $request->filled('dias_credito') ? (int) $request->dias_credito : 0,
-                'correo_intercambio' => $request->filled('correo_intercambio') ? trim($request->correo_intercambio) : null,
+                'correo_dte' => $request->filled('correo_intercambio') ? trim($request->correo_intercambio) : null,
+                'facturapi_environment' => $request->filled('facturapi_environment') ? trim($request->facturapi_environment) : null,
+                'facturapi_token' => $request->filled('facturapi_token') ? trim($request->facturapi_token) : null,
             ]);
 
             // El evento TenantCreated ya ejecutó CreateDatabase, MigrateDatabase y SeedDatabase
@@ -267,12 +276,14 @@ class TenantController extends Controller
                         'giro' => $tenant->giro,
                         'direccion' => $tenant->direccion,
                         'comuna' => $tenant->comuna,
-                        'dias_credito' => $tenant->dias_credito,
-                        'correo_intercambio' => $tenant->correo_intercambio,
-                        'created_at' => $tenant->created_at->toISOString(),
-                        'users_count' => $usersCount
-                    ]
-                ], 201);
+                'dias_credito' => $tenant->dias_credito,
+                'correo_intercambio' => $tenant->correo_dte,
+                'facturapi_environment' => $tenant->facturapi_environment,
+                'facturapi_token' => $tenant->facturapi_token ? '***' : null, // Ocultar token por seguridad
+                'created_at' => $tenant->created_at->toISOString(),
+                'users_count' => $usersCount
+            ]
+        ], 201);
 
             } catch (\Exception $e) {
                 tenancy()->end();
@@ -334,6 +345,7 @@ class TenantController extends Controller
         $settings = [
             'name' => 'STPark - Sistema de Estacionamientos',
             'pos_tuu' => false,
+            'boleta_electronica' => false,
             'max_capacity' => 0
         ];
         
@@ -396,7 +408,9 @@ class TenantController extends Controller
                 'direccion' => $tenant->direccion,
                 'comuna' => $tenant->comuna,
                 'dias_credito' => $tenant->dias_credito,
-                'correo_intercambio' => $tenant->correo_intercambio,
+                'correo_intercambio' => $tenant->correo_dte,
+                'facturapi_environment' => $tenant->facturapi_environment,
+                'facturapi_token' => $tenant->facturapi_token, // En show se puede mostrar el token completo para edición
                 'created_at' => $tenant->created_at ? $tenant->created_at->toISOString() : null,
                 'updated_at' => $tenant->updated_at ? $tenant->updated_at->toISOString() : null,
                 'users_count' => $tenant->users_count ?? 0,
@@ -433,6 +447,7 @@ class TenantController extends Controller
             'settings' => 'sometimes|array',
             'settings.name' => 'sometimes|string|max:255',
             'settings.pos_tuu' => 'sometimes|boolean',
+            'settings.boleta_electronica' => 'sometimes|boolean',
             'settings.max_capacity' => 'sometimes|integer|min:0',
             'rut' => 'nullable|string|max:20',
             'razon_social' => 'nullable|string|max:255',
@@ -441,6 +456,8 @@ class TenantController extends Controller
             'comuna' => 'nullable|string|max:100',
             'dias_credito' => 'nullable|integer|min:0',
             'correo_intercambio' => 'nullable|email|max:255',
+            'facturapi_environment' => 'nullable|in:dev,prod',
+            'facturapi_token' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -453,46 +470,106 @@ class TenantController extends Controller
         try {
             DB::beginTransaction();
 
+            $hasChanges = false;
+
+            // Actualizar name solo si cambió
             if ($request->filled('name')) {
-                $tenant->name = trim($request->name);
-            }
-
-            if ($request->filled('plan_id')) {
-                $plan = Plan::findOrFail($request->plan_id);
-                if ($plan->status !== 'ACTIVE') {
-                    DB::rollBack();
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'El plan seleccionado no está activo'
-                    ], 422);
+                $newName = trim($request->name);
+                if ($tenant->name !== $newName) {
+                    $tenant->name = $newName;
+                    $hasChanges = true;
                 }
-                $tenant->plan_id = $request->plan_id;
             }
 
-            // Actualizar campos de facturación
+            // Actualizar plan_id solo si cambió
+            if ($request->filled('plan_id')) {
+                $newPlanId = (int) $request->plan_id;
+                if ($tenant->plan_id !== $newPlanId) {
+                    $plan = Plan::findOrFail($newPlanId);
+                    if ($plan->status !== 'ACTIVE') {
+                        DB::rollBack();
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'El plan seleccionado no está activo'
+                        ], 422);
+                    }
+                    $tenant->plan_id = $newPlanId;
+                    $hasChanges = true;
+                }
+            }
+
+            // Actualizar campos de facturación solo si cambiaron
             if ($request->has('rut')) {
-                $tenant->rut = $request->filled('rut') ? trim($request->rut) : null;
+                $newRut = $request->filled('rut') ? trim($request->rut) : null;
+                if ($tenant->rut !== $newRut) {
+                    $tenant->rut = $newRut;
+                    $hasChanges = true;
+                }
             }
             if ($request->has('razon_social')) {
-                $tenant->razon_social = $request->filled('razon_social') ? trim($request->razon_social) : null;
+                $newRazonSocial = $request->filled('razon_social') ? trim($request->razon_social) : null;
+                if ($tenant->razon_social !== $newRazonSocial) {
+                    $tenant->razon_social = $newRazonSocial;
+                    $hasChanges = true;
+                }
             }
             if ($request->has('giro')) {
-                $tenant->giro = $request->filled('giro') ? trim($request->giro) : null;
+                $newGiro = $request->filled('giro') ? trim($request->giro) : null;
+                if ($tenant->giro !== $newGiro) {
+                    $tenant->giro = $newGiro;
+                    $hasChanges = true;
+                }
             }
             if ($request->has('direccion')) {
-                $tenant->direccion = $request->filled('direccion') ? trim($request->direccion) : null;
+                $newDireccion = $request->filled('direccion') ? trim($request->direccion) : null;
+                if ($tenant->direccion !== $newDireccion) {
+                    $tenant->direccion = $newDireccion;
+                    $hasChanges = true;
+                }
             }
             if ($request->has('comuna')) {
-                $tenant->comuna = $request->filled('comuna') ? trim($request->comuna) : null;
+                $newComuna = $request->filled('comuna') ? trim($request->comuna) : null;
+                if ($tenant->comuna !== $newComuna) {
+                    $tenant->comuna = $newComuna;
+                    $hasChanges = true;
+                }
             }
             if ($request->has('dias_credito')) {
-                $tenant->dias_credito = $request->filled('dias_credito') ? (int) $request->dias_credito : 0;
+                $newDiasCredito = $request->filled('dias_credito') ? (int) $request->dias_credito : 0;
+                if ($tenant->dias_credito !== $newDiasCredito) {
+                    $tenant->dias_credito = $newDiasCredito;
+                    $hasChanges = true;
+                }
             }
             if ($request->has('correo_intercambio')) {
-                $tenant->correo_intercambio = $request->filled('correo_intercambio') ? trim($request->correo_intercambio) : null;
+                $newCorreoDte = $request->filled('correo_intercambio') ? trim($request->correo_intercambio) : null;
+                if ($tenant->correo_dte !== $newCorreoDte) {
+                    $tenant->correo_dte = $newCorreoDte;
+                    $hasChanges = true;
+                }
+            }
+            if ($request->has('facturapi_environment')) {
+                $newFacturapiEnvironment = $request->filled('facturapi_environment') ? trim($request->facturapi_environment) : null;
+                if ($tenant->facturapi_environment !== $newFacturapiEnvironment) {
+                    $tenant->facturapi_environment = $newFacturapiEnvironment;
+                    $hasChanges = true;
+                }
+            }
+            if ($request->has('facturapi_token')) {
+                $newFacturapiToken = $request->filled('facturapi_token') ? trim($request->facturapi_token) : null;
+                // Solo actualizar si se proporciona un nuevo token (no vacío)
+                if ($newFacturapiToken !== null && $newFacturapiToken !== '') {
+                    if ($tenant->facturapi_token !== $newFacturapiToken) {
+                        $tenant->facturapi_token = $newFacturapiToken;
+                        $hasChanges = true;
+                    }
+                }
             }
 
-            $tenant->save();
+            // Solo guardar si hubo cambios
+            if ($hasChanges) {
+                $tenant->save();
+            }
 
             // Actualizar settings del tenant si se proporcionan
             if ($request->filled('settings')) {
@@ -506,6 +583,7 @@ class TenantController extends Controller
                     $updatedConfig = array_merge($currentConfig, [
                         'name' => $request->input('settings.name', $currentConfig['name'] ?? 'STPark - Sistema de Estacionamientos'),
                         'pos_tuu' => $request->has('settings.pos_tuu') ? (bool) $request->input('settings.pos_tuu') : ($currentConfig['pos_tuu'] ?? false),
+                        'boleta_electronica' => $request->has('settings.boleta_electronica') ? (bool) $request->input('settings.boleta_electronica') : ($currentConfig['boleta_electronica'] ?? false),
                         'max_capacity' => $request->has('settings.max_capacity') ? (int) $request->input('settings.max_capacity') : ($currentConfig['max_capacity'] ?? 0),
                     ]);
                     
@@ -552,7 +630,9 @@ class TenantController extends Controller
                     'direccion' => $tenant->direccion,
                     'comuna' => $tenant->comuna,
                     'dias_credito' => $tenant->dias_credito,
-                    'correo_intercambio' => $tenant->correo_intercambio,
+                    'correo_intercambio' => $tenant->correo_dte,
+                    'facturapi_environment' => $tenant->facturapi_environment,
+                    'facturapi_token' => $tenant->facturapi_token ? '***' : null, // Ocultar token por seguridad
                     'created_at' => $tenant->created_at ? $tenant->created_at->toISOString() : null,
                     'updated_at' => $tenant->updated_at ? $tenant->updated_at->toISOString() : null,
                     'users_count' => $tenant->users_count ?? 0

@@ -694,7 +694,7 @@ class InvoiceController extends Controller
                     ];
                 })->toArray(),
                 'referencias' => [],
-                'correo_dte' => $tenant->correo_intercambio ?? '',
+                'correo_dte' => $tenant->correo_dte ?? '',
             ];
 
             // Realizar llamada a FacturAPI usando el cliente HTTP de Laravel
