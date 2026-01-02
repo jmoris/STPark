@@ -97,37 +97,51 @@ class ShiftService
                 ->toArray();
         }
 
-        // Cobros por método - solo de ventas cerradas (completamente pagadas) en este turno
-        // Solo contamos los pagos de este turno específico
+        // Cobros por método - todos los pagos completados de este turno
+        // Incluir pagos de ventas (sale_id) y pagos de sesiones de estacionamiento (session_id)
         $paymentsByMethod = DB::table('payments')
             ->where('shift_id', $shift->id)
             ->where('status', 'COMPLETED')
-            ->whereNotNull('sale_id');
-        
-        if (!empty($closedSalesIds)) {
-            $paymentsByMethod->whereIn('sale_id', $closedSalesIds);
-        } else {
-            // Si no hay ventas cerradas, retornar array vacío
-            $paymentsByMethod->whereRaw('1 = 0');
-        }
-        
-        $paymentsByMethod = $paymentsByMethod
+            ->where(function($query) use ($closedSalesIds) {
+                // Incluir pagos de sesiones de estacionamiento
+                $query->whereNotNull('session_id')
+                      // O pagos de ventas cerradas (completamente pagadas)
+                      ->orWhere(function($subQuery) use ($closedSalesIds) {
+                          $subQuery->whereNotNull('sale_id');
+                          if (!empty($closedSalesIds)) {
+                              $subQuery->whereIn('sale_id', $closedSalesIds);
+                          } else {
+                              // Si no hay ventas cerradas, excluir pagos de ventas
+                              $subQuery->whereRaw('1 = 0');
+                          }
+                      });
+            })
             ->select('method', DB::raw('SUM(amount) as collected'), DB::raw('COUNT(*) as count'))
             ->groupBy('method')
             ->get()
             ->keyBy('method');
 
-        // Efectivo cobrado - solo de ventas cerradas (completamente pagadas) en este turno
-        $cashCollected = 0;
-        if (!empty($closedSalesIds)) {
-            $cashCollected = (float) DB::table('payments')
-                ->where('shift_id', $shift->id)
-                ->where('method', 'CASH')
-                ->where('status', 'COMPLETED')
-                ->whereNotNull('sale_id')
-                ->whereIn('sale_id', $closedSalesIds)
-                ->sum('amount');
-        }
+        // Efectivo cobrado - todos los pagos en efectivo completados de este turno
+        // Incluir pagos de sesiones de estacionamiento y pagos de ventas cerradas
+        $cashCollected = (float) DB::table('payments')
+            ->where('shift_id', $shift->id)
+            ->where('method', 'CASH')
+            ->where('status', 'COMPLETED')
+            ->where(function($query) use ($closedSalesIds) {
+                // Incluir pagos de sesiones de estacionamiento
+                $query->whereNotNull('session_id')
+                      // O pagos de ventas cerradas (completamente pagadas)
+                      ->orWhere(function($subQuery) use ($closedSalesIds) {
+                          $subQuery->whereNotNull('sale_id');
+                          if (!empty($closedSalesIds)) {
+                              $subQuery->whereIn('sale_id', $closedSalesIds);
+                          } else {
+                              // Si no hay ventas cerradas, excluir pagos de ventas
+                              $subQuery->whereRaw('1 = 0');
+                          }
+                      });
+            })
+            ->sum('amount');
 
         // Retiros
         $withdrawals = (float) DB::table('cash_adjustments')
