@@ -212,21 +212,12 @@
             <tr mat-row *matRowDef="let row; columns: displayedColumns" class="border-b border-gray-100"></tr>
           </table>
         </div>
-      </mat-card-content>
-    </mat-card>
-
-    <!-- Total Sales Summary -->
-    <mat-card class="rounded-lg" *ngIf="totals && totals.sales_total !== null && totals.sales_total !== undefined">
-      <mat-card-header class="pb-4">
-        <mat-card-title class="flex items-center gap-2">
-          <mat-icon>attach_money</mat-icon>
-          Resumen de Ventas
-        </mat-card-title>
-      </mat-card-header>
-      <mat-card-content>
-        <div class="flex items-center justify-between py-4">
-          <span class="text-lg font-medium text-gray-700">Total Vendido en el Turno</span>
-          <span class="text-2xl font-bold text-gray-900">{{ formatAmount(totals.sales_total) }}</span>
+        <!-- Total Vendido -->
+        <div class="flex justify-end items-center mt-4 pt-4 border-t border-gray-200" *ngIf="totals && totals.sales_total !== null && totals.sales_total !== undefined">
+          <div class="flex items-center gap-3">
+            <span class="text-lg font-medium text-gray-700">Total Vendido:</span>
+            <span class="text-2xl font-bold text-gray-900">{{ formatAmount(totals.sales_total) }}</span>
+          </div>
         </div>
       </mat-card-content>
     </mat-card>

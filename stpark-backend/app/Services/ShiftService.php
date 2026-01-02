@@ -171,18 +171,26 @@ class ShiftService
                 ->count('sales.id');
         }
 
-        // Total de ventas cerradas - sumar los montos de los pagos de este turno que pertenecen a ventas cerradas
-        // Esto representa el monto total cobrado en este turno de ventas cerradas
-        // Al sumar entre turnos, cada pago se cuenta solo una vez (en su turno), evitando duplicados
-        $salesTotal = 0;
-        if (!empty($closedSalesIds)) {
-            $salesTotal = (float) DB::table('payments')
-                ->where('shift_id', $shift->id)
-                ->where('status', 'COMPLETED')
-                ->whereNotNull('sale_id')
-                ->whereIn('sale_id', $closedSalesIds)
-                ->sum('amount');
-        }
+        // Total vendido - todos los pagos completados de este turno
+        // Incluir pagos de sesiones de estacionamiento y pagos de ventas cerradas
+        $salesTotal = (float) DB::table('payments')
+            ->where('shift_id', $shift->id)
+            ->where('status', 'COMPLETED')
+            ->where(function($query) use ($closedSalesIds) {
+                // Incluir pagos de sesiones de estacionamiento
+                $query->whereNotNull('session_id')
+                      // O pagos de ventas cerradas (completamente pagadas)
+                      ->orWhere(function($subQuery) use ($closedSalesIds) {
+                          $subQuery->whereNotNull('sale_id');
+                          if (!empty($closedSalesIds)) {
+                              $subQuery->whereIn('sale_id', $closedSalesIds);
+                          } else {
+                              // Si no hay ventas cerradas, excluir pagos de ventas
+                              $subQuery->whereRaw('1 = 0');
+                          }
+                      });
+            })
+            ->sum('amount');
 
         return [
             'opening_float' => (float) $shift->opening_float,
