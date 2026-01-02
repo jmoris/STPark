@@ -790,11 +790,16 @@ class ReportController extends Controller
             }
         }
 
-        // Pagos dentro del período de trabajo
-        $todayPayments = Payment::where('created_at', '>=', $periodStart)
-                               ->where('created_at', '<=', $periodEnd)
-                               ->where('status', 'COMPLETED')
-                               ->get();
+        // Pagos de sesiones creadas dentro del período de trabajo (turnos de hoy)
+        // Solo incluir pagos de turnos que fueron creados hoy, no pagos creados hoy de turnos anteriores
+        $todayPayments = collect();
+        foreach ($todaySessions as $session) {
+            foreach ($session->payments as $payment) {
+                if ($payment->status === 'COMPLETED') {
+                    $todayPayments->push($payment);
+                }
+            }
+        }
 
         // Deudas pendientes (mantener todas, no filtrar por período)
         $pendingDebts = Debt::pending()->get();

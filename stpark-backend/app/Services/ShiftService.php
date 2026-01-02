@@ -73,56 +73,61 @@ class ShiftService
      */
     public function calculateTotals(Shift $shift): array
     {
-        // Obtener IDs de ventas cerradas (completamente pagadas) que tienen pagos en este turno
-        // Una venta está completamente pagada cuando la suma de TODOS sus pagos completados >= total de la venta
-        $closedSalesIds = DB::table('sales')
-            ->select('sales.id')
-            ->join('payments as shift_payments', function($join) use ($shift) {
-                $join->on('sales.id', '=', 'shift_payments.sale_id')
-                     ->where('shift_payments.shift_id', '=', $shift->id)
-                     ->where('shift_payments.status', '=', 'COMPLETED');
-            })
-            ->join('payments as all_payments', 'sales.id', '=', 'all_payments.sale_id')
-            ->where('all_payments.status', 'COMPLETED')
-            ->groupBy('sales.id', 'sales.total')
-            ->havingRaw('SUM(all_payments.amount) >= sales.total')
-            ->pluck('sales.id')
+        // Primero, obtener todas las ventas que tienen pagos en este turno
+        $salesWithPaymentsInShift = DB::table('payments')
+            ->where('shift_id', $shift->id)
+            ->where('status', 'COMPLETED')
+            ->whereNotNull('sale_id')
+            ->distinct()
+            ->pluck('sale_id')
             ->toArray();
 
+        // De esas ventas, identificar cuáles están completamente pagadas
+        // Una venta está completamente pagada cuando la suma de TODOS sus pagos completados >= total de la venta
+        $closedSalesIds = [];
+        if (!empty($salesWithPaymentsInShift)) {
+            $closedSalesIds = DB::table('sales')
+                ->select('sales.id')
+                ->whereIn('sales.id', $salesWithPaymentsInShift)
+                ->join('payments', 'sales.id', '=', 'payments.sale_id')
+                ->where('payments.status', 'COMPLETED')
+                ->groupBy('sales.id', 'sales.total')
+                ->havingRaw('SUM(payments.amount) >= sales.total')
+                ->pluck('sales.id')
+                ->toArray();
+        }
+
         // Cobros por método - solo de ventas cerradas (completamente pagadas) en este turno
+        // Solo contamos los pagos de este turno específico
         $paymentsByMethod = DB::table('payments')
-            ->where('payments.shift_id', $shift->id)
-            ->where('payments.status', 'COMPLETED')
-            ->whereNotNull('payments.sale_id');
+            ->where('shift_id', $shift->id)
+            ->where('status', 'COMPLETED')
+            ->whereNotNull('sale_id');
         
         if (!empty($closedSalesIds)) {
-            $paymentsByMethod->whereIn('payments.sale_id', $closedSalesIds);
+            $paymentsByMethod->whereIn('sale_id', $closedSalesIds);
         } else {
-            // Si no hay ventas cerradas, no mostrar ningún pago
+            // Si no hay ventas cerradas, retornar array vacío
             $paymentsByMethod->whereRaw('1 = 0');
         }
         
         $paymentsByMethod = $paymentsByMethod
-            ->select('payments.method', DB::raw('SUM(payments.amount) as collected'), DB::raw('COUNT(*) as count'))
-            ->groupBy('payments.method')
+            ->select('method', DB::raw('SUM(amount) as collected'), DB::raw('COUNT(*) as count'))
+            ->groupBy('method')
             ->get()
             ->keyBy('method');
 
         // Efectivo cobrado - solo de ventas cerradas (completamente pagadas) en este turno
-        $cashCollectedQuery = DB::table('payments')
-            ->where('payments.shift_id', $shift->id)
-            ->where('payments.method', 'CASH')
-            ->where('payments.status', 'COMPLETED')
-            ->whereNotNull('payments.sale_id');
-        
+        $cashCollected = 0;
         if (!empty($closedSalesIds)) {
-            $cashCollectedQuery->whereIn('payments.sale_id', $closedSalesIds);
-        } else {
-            // Si no hay ventas cerradas, no contar efectivo
-            $cashCollectedQuery->whereRaw('1 = 0');
+            $cashCollected = (float) DB::table('payments')
+                ->where('shift_id', $shift->id)
+                ->where('method', 'CASH')
+                ->where('status', 'COMPLETED')
+                ->whereNotNull('sale_id')
+                ->whereIn('sale_id', $closedSalesIds)
+                ->sum('amount');
         }
-        
-        $cashCollected = (float) $cashCollectedQuery->sum('payments.amount');
 
         // Retiros
         $withdrawals = (float) DB::table('cash_adjustments')
@@ -139,33 +144,31 @@ class ShiftService
         // Efectivo esperado
         $cashExpected = $shift->opening_float + $cashCollected - $withdrawals + $deposits;
 
-        // Cantidad de tickets (ventas cerradas - completamente pagadas) en este turno
-        $ticketsCountQuery = DB::table('sales')
-            ->join('payments', 'sales.id', '=', 'payments.sale_id')
-            ->where('payments.shift_id', $shift->id)
-            ->where('payments.status', 'COMPLETED');
-        
+        // Cantidad de tickets (ventas cerradas) - solo contar ventas que tienen pagos en este turno
+        // Usar DISTINCT para evitar duplicados si una venta tiene múltiples pagos en el mismo turno
+        $ticketsCount = 0;
         if (!empty($closedSalesIds)) {
-            $ticketsCountQuery->whereIn('sales.id', $closedSalesIds);
+            $ticketsCount = DB::table('sales')
+                ->join('payments', 'sales.id', '=', 'payments.sale_id')
+                ->where('payments.shift_id', $shift->id)
+                ->where('payments.status', 'COMPLETED')
+                ->whereIn('sales.id', $closedSalesIds)
+                ->distinct('sales.id')
+                ->count('sales.id');
         }
-        
-        $ticketsCount = $ticketsCountQuery
-            ->distinct('sales.id')
-            ->count('sales.id');
 
-        // Total de ventas cerradas (completamente pagadas) en este turno
-        $salesTotalQuery = DB::table('sales')
-            ->join('payments', 'sales.id', '=', 'payments.sale_id')
-            ->where('payments.shift_id', $shift->id)
-            ->where('payments.status', 'COMPLETED');
-        
+        // Total de ventas cerradas - sumar los montos de los pagos de este turno que pertenecen a ventas cerradas
+        // Esto representa el monto total cobrado en este turno de ventas cerradas
+        // Al sumar entre turnos, cada pago se cuenta solo una vez (en su turno), evitando duplicados
+        $salesTotal = 0;
         if (!empty($closedSalesIds)) {
-            $salesTotalQuery->whereIn('sales.id', $closedSalesIds);
+            $salesTotal = (float) DB::table('payments')
+                ->where('shift_id', $shift->id)
+                ->where('status', 'COMPLETED')
+                ->whereNotNull('sale_id')
+                ->whereIn('sale_id', $closedSalesIds)
+                ->sum('amount');
         }
-        
-        $salesTotal = (float) $salesTotalQuery
-            ->distinct('sales.id')
-            ->sum('sales.total');
 
         return [
             'opening_float' => (float) $shift->opening_float,
