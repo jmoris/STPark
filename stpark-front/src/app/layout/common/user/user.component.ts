@@ -166,6 +166,9 @@ export class UserComponent implements OnInit, OnDestroy {
      * Change tenant
      */
     changeTenant(tenant: Tenant): void {
+        // Limpiar sessionStorage antes de cambiar de tenant para evitar datos del tenant anterior
+        sessionStorage.removeItem('system_config');
+        console.log('Cambiando de tenant a:', tenant.id);
         this._authService.setCurrentTenant(tenant);
         // Redirigir al dashboard después de cambiar el tenant
         this._router.navigate(['/parking/dashboard']).then(() => {

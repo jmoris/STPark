@@ -36,7 +36,7 @@ class ShiftReportService
             ->orderBy('at', 'desc')
             ->get();
 
-        // Calcular resumen de ventas
+        // Calcular resumen de ventas de sesiones de estacionamiento
         $salesSummary = DB::table('sales')
             ->join('payments', 'sales.id', '=', 'payments.sale_id')
             ->where('payments.shift_id', $shift->id)
@@ -48,6 +48,13 @@ class ShiftReportService
                 DB::raw('SUM(sales.total) as total')
             )
             ->first();
+
+        // Obtener detalles de lavados de autos del turno
+        $carWashes = $shift->carWashes()
+            ->where('status', 'PAID')
+            ->with(['carWashType', 'cashierOperator'])
+            ->orderBy('paid_at', 'desc')
+            ->get();
 
         $reportData = [
             'shift' => [
@@ -81,6 +88,16 @@ class ShiftReportService
                 'discount_total' => (float) ($salesSummary->discount_total ?? 0),
                 'total' => (float) ($salesSummary->total ?? 0),
             ],
+            'parking_sales_summary' => [
+                'total' => $totals['parking_sales_total'],
+                'tickets_count' => $totals['tickets_count'],
+            ],
+            'car_washes_summary' => [
+                'count' => $totals['car_washes_count'],
+                'total' => $totals['car_washes_total'],
+                'cash_total' => $totals['car_washes_cash_total'],
+                'card_total' => $totals['car_washes_card_total'],
+            ],
             'payments_by_method' => $totals['payments_by_method']->map(function ($item) {
                 return [
                     'method' => $item['method'],
@@ -104,6 +121,25 @@ class ShiftReportService
                     'paid_at' => $payment->paid_at?->setTimezone('America/Santiago')->format('Y-m-d H:i:s'),
                     'sale_id' => $payment->sale_id,
                     'session_id' => $payment->session_id,
+                ];
+            }),
+            'car_washes' => $carWashes->map(function ($carWash) {
+                return [
+                    'id' => $carWash->id,
+                    'plate' => $carWash->plate,
+                    'wash_type' => $carWash->carWashType ? [
+                        'id' => $carWash->carWashType->id,
+                        'name' => $carWash->carWashType->name,
+                    ] : null,
+                    'amount' => (float) $carWash->amount,
+                    'payment_method' => $carWash->approval_code ? 'CARD' : 'CASH',
+                    'approval_code' => $carWash->approval_code,
+                    'paid_at' => $carWash->paid_at?->setTimezone('America/Santiago')->format('Y-m-d H:i:s'),
+                    'performed_at' => $carWash->performed_at?->setTimezone('America/Santiago')->format('Y-m-d H:i:s'),
+                    'cashier_operator' => $carWash->cashierOperator ? [
+                        'id' => $carWash->cashierOperator->id,
+                        'name' => $carWash->cashierOperator->name,
+                    ] : null,
                 ];
             }),
             'cash_adjustments' => $adjustments->map(function ($adjustment) {

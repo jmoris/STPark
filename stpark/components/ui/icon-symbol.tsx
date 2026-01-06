@@ -35,6 +35,11 @@ const MAPPING = {
   'arrow.clockwise': 'refresh',
   'power': 'power-settings-new',
   'gear': 'settings',
+  'drop.fill': 'water-drop',
+  'chevron.down': 'keyboard-arrow-down',
+  'xmark': 'close',
+  'checkmark': 'check',
+  'calendar': 'calendar-today',
 } as IconMapping;
 
 /**

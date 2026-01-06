@@ -13,6 +13,7 @@ export interface SystemConfig {
   pos_tuu: boolean; // Configuración de POS TUU (solo lectura para usuarios, solo administradores pueden cambiar)
   boleta_electronica: boolean; // Configuración de Boleta Electrónica (solo lectura para usuarios, solo administradores pueden cambiar)
   max_capacity?: number; // Capacidad máxima de vehículos en el estacionamiento
+  car_wash_enabled?: boolean; // Configuración de módulo de lavado de autos (solo lectura para usuarios, solo administradores pueden cambiar)
 }
 
 @Injectable({ providedIn: 'root' })
@@ -25,7 +26,8 @@ export class ConfigService {
     language: 'es',
     pos_tuu: false,
     boleta_electronica: false,
-    max_capacity: 0
+    max_capacity: 0,
+    car_wash_enabled: false
   });
   private _configLoaded = false;
 
@@ -41,42 +43,61 @@ export class ConfigService {
       language: 'es',
       pos_tuu: false,
       boleta_electronica: false,
-      max_capacity: 0
+      max_capacity: 0,
+      car_wash_enabled: false
     };
 
     return this._httpClient.get<{ success: boolean; data: SystemConfig }>(`${environment.apiUrl}/settings/general`)
       .pipe(
         map(response => {
           // El backend devuelve { success: true, data: {...} }
+          let config: SystemConfig;
+          
           if (response && response.success && response.data) {
             // Validar que todos los campos estén presentes
-            const config: SystemConfig = {
+            config = {
               ...defaultConfig,
               ...response.data
             };
             
             // Validar que el nombre no esté vacío
             if (!config.name || config.name.trim() === '') {
-              console.warn('ConfigService: El nombre del sistema está vacío, usando valor por defecto');
               config.name = defaultConfig.name;
             }
-            
-            return config;
+          } else {
+            // Si la respuesta no tiene el formato esperado, usar valores por defecto
+            config = defaultConfig;
           }
           
-          // Si la respuesta no tiene el formato esperado, usar valores por defecto
-          console.warn('ConfigService: La respuesta no tiene el formato esperado:', response);
-          return defaultConfig;
-        }),
-        tap(config => {
+          // Actualizar BehaviorSubject
           this._systemConfig.next(config);
           this._configLoaded = true;
-          console.log('Configuración del sistema cargada:', config);
+          
+          // Guardar en sessionStorage de forma SÍNCRONA antes de retornar
+          // Esto asegura que esté disponible cuando se evalúen las funciones hidden()
+          try {
+            sessionStorage.setItem('system_config', JSON.stringify(config));
+            console.log('ConfigService: Configuración guardada en sessionStorage:', {
+              name: config.name,
+              car_wash_enabled: config.car_wash_enabled
+            });
+          } catch (e) {
+            console.warn('ConfigService: No se pudo guardar en sessionStorage:', e);
+          }
+          
+          return config;
         }),
         catchError(error => {
-          console.error('Error al cargar configuración del sistema:', error);
+          console.error('ConfigService: Error al cargar configuración:', error);
           // Return default config if error
           this._systemConfig.next(defaultConfig);
+          this._configLoaded = true;
+          // Guardar también el default en sessionStorage
+          try {
+            sessionStorage.setItem('system_config', JSON.stringify(defaultConfig));
+          } catch (e) {
+            // Ignorar
+          }
           return of(defaultConfig);
         })
       );

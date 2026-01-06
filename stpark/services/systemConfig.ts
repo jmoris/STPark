@@ -9,6 +9,7 @@ export interface SystemConfig {
   timezone: string;
   language: string;
   pos_tuu: boolean; // Configuración de POS TUU (solo lectura para usuarios)
+  car_wash_enabled?: boolean; // Configuración de módulo de lavado de autos
 }
 
 class SystemConfigService {
@@ -63,7 +64,8 @@ class SystemConfigService {
       currency: 'CLP',
       timezone: 'America/Santiago',
       language: 'es',
-      pos_tuu: false
+      pos_tuu: false,
+      car_wash_enabled: false
     };
     
     return defaultConfig;
@@ -112,6 +114,14 @@ class SystemConfigService {
   async getLanguage(): Promise<string> {
     const config = await this.getConfig();
     return config.language;
+  }
+
+  /**
+   * Verificar si el módulo de lavado de autos está habilitado
+   */
+  async isCarWashEnabled(): Promise<boolean> {
+    const config = await this.getConfig();
+    return config.car_wash_enabled === true;
   }
 
   /**

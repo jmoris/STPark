@@ -6,13 +6,17 @@ import {
     OnInit,
     Renderer2,
     ViewEncapsulation,
+    inject,
 } from '@angular/core';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 import { FuseConfig, FuseConfigService } from '@fuse/services/config';
 import { FuseMediaWatcherService } from '@fuse/services/media-watcher';
 import { FusePlatformService } from '@fuse/services/platform';
 import { FUSE_VERSION } from '@fuse/version';
-import { Subject, combineLatest, filter, map, takeUntil } from 'rxjs';
+import { NavigationService } from 'app/core/navigation/navigation.service';
+import { ConfigService } from 'app/core/services/config.service';
+import { Subject, combineLatest, filter, map, takeUntil, skip } from 'rxjs';
+import { delay } from 'rxjs/operators';
 import { SettingsComponent } from './common/settings/settings.component';
 import { EmptyLayoutComponent } from './layouts/empty/empty.component';
 import { CenteredLayoutComponent } from './layouts/horizontal/centered/centered.component';
@@ -51,6 +55,8 @@ export class LayoutComponent implements OnInit, OnDestroy {
     scheme: 'dark' | 'light';
     theme: string;
     private _unsubscribeAll: Subject<any> = new Subject<any>();
+    private _configService: ConfigService;
+    private _navigationService: NavigationService;
 
     /**
      * Constructor
@@ -62,8 +68,13 @@ export class LayoutComponent implements OnInit, OnDestroy {
         private _router: Router,
         private _fuseConfigService: FuseConfigService,
         private _fuseMediaWatcherService: FuseMediaWatcherService,
-        private _fusePlatformService: FusePlatformService
-    ) {}
+        private _fusePlatformService: FusePlatformService,
+        configService: ConfigService,
+        navigationService: NavigationService
+    ) {
+        this._configService = configService;
+        this._navigationService = navigationService;
+    }
 
     // -----------------------------------------------------------------------------------------------------
     // @ Lifecycle hooks
@@ -146,6 +157,33 @@ export class LayoutComponent implements OnInit, OnDestroy {
             this._document.body,
             this._fusePlatformService.osName
         );
+
+        // Subscribe to config changes to reload navigation when config updates
+        // This ensures the sidebar updates immediately when config changes (e.g., after tenant switch)
+        this._configService.systemConfig$
+            .pipe(
+                takeUntil(this._unsubscribeAll),
+                // Skip the initial value (default config loaded on app init)
+                skip(1),
+                // Pequeño delay para asegurar que sessionStorage se actualizó
+                delay(50)
+            )
+            .subscribe(() => {
+                // Reload navigation when config changes to update sidebar visibility
+                console.log('LayoutComponent: Configuración cambió, recargando navegación...');
+                const configStr = sessionStorage.getItem('system_config');
+                if (configStr) {
+                    try {
+                        const config = JSON.parse(configStr);
+                        console.log('LayoutComponent: Recargando navegación con configuración:', {
+                            car_wash_enabled: config.car_wash_enabled
+                        });
+                    } catch (e) {
+                        console.error('LayoutComponent: Error parseando configuración:', e);
+                    }
+                }
+                this._navigationService.get().subscribe();
+            });
     }
 
     /**

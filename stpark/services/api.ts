@@ -624,6 +624,7 @@ class ApiService {
     timezone: string;
     language: string;
     pos_tuu: boolean;
+    car_wash_enabled?: boolean;
   }>> {
     try {
       const response = await makeRequest('/settings/general', {
@@ -642,7 +643,8 @@ class ApiService {
           currency: 'CLP',
           timezone: 'America/Santiago',
           language: 'es',
-          pos_tuu: false
+          pos_tuu: false,
+          car_wash_enabled: false
         };
         
         // Asegurar que todos los campos estén presentes
@@ -672,7 +674,8 @@ class ApiService {
           currency: 'CLP',
           timezone: 'America/Santiago',
           language: 'es',
-          pos_tuu: false
+          pos_tuu: false,
+          car_wash_enabled: false
         }
       };
     } catch (error) {
@@ -934,6 +937,134 @@ class ApiService {
       return result;
     } catch (error) {
       console.error('API: Error listando turnos:', error);
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+      };
+    }
+  }
+
+  // Métodos de Lavado de Autos
+  
+  /**
+   * Obtener todos los tipos de lavado
+   */
+  async getCarWashTypes(): Promise<ApiResponse<any[]>> {
+    try {
+      const response = await makeRequest('/car-wash-types', {
+        method: 'GET',
+        headers: await this.getHeaders(),
+      });
+
+      return await response.json();
+    } catch (error) {
+      console.error('API: Error obteniendo tipos de lavado:', error);
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+      };
+    }
+  }
+
+  /**
+   * Crear un nuevo lavado de auto
+   */
+  async createCarWash(data: {
+    plate: string;
+    car_wash_type_id: number;
+    status?: 'PENDING' | 'PAID';
+    operator_id?: number;
+    performed_at?: string;
+  }): Promise<ApiResponse<any>> {
+    try {
+      console.log('API: Creando lavado de auto:', data);
+      
+      const response = await makeRequest('/car-washes', {
+        method: 'POST',
+        headers: await this.getHeaders(),
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      console.log('API: Respuesta de crear lavado:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('API: Error creando lavado de auto:', error);
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+      };
+    }
+  }
+
+  /**
+   * Actualizar el estado de un lavado de auto
+   */
+  async updateCarWash(
+    id: number, 
+    data: {
+      status: 'PENDING' | 'PAID';
+      amount?: number;
+      cashier_operator_id?: number;
+      shift_id?: string;
+      approval_code?: string;
+    }
+  ): Promise<ApiResponse<any>> {
+    try {
+      console.log('API: Actualizando lavado de auto:', id, 'datos:', data);
+      
+      const response = await makeRequest(`/car-washes/${id}`, {
+        method: 'PUT',
+        headers: await this.getHeaders(),
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+      console.log('API: Respuesta de actualizar lavado:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('API: Error actualizando lavado de auto:', error);
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+      };
+    }
+  }
+
+  /**
+   * Obtener lavados de autos con filtros
+   */
+  async getCarWashes(filters?: {
+    status?: 'PENDING' | 'PAID';
+    plate?: string;
+    per_page?: number;
+  }): Promise<ApiResponse<any[]>> {
+    try {
+      const params = new URLSearchParams();
+      if (filters?.status) {
+        params.append('status', filters.status);
+      }
+      if (filters?.plate) {
+        params.append('plate', filters.plate);
+      }
+      if (filters?.per_page) {
+        params.append('per_page', filters.per_page.toString());
+      }
+
+      const queryString = params.toString();
+      const endpoint = `/car-washes${queryString ? `?${queryString}` : ''}`;
+      
+      const response = await makeRequest(endpoint, {
+        method: 'GET',
+        headers: await this.getHeaders(),
+      });
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('API: Error obteniendo lavados de autos:', error);
       return {
         success: false,
         message: 'Error de conexión con el servidor',

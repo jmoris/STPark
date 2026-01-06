@@ -6,6 +6,7 @@ use App\Models\Shift;
 use App\Models\ShiftOperation;
 use App\Models\Operator;
 use App\Models\User;
+use App\Models\Settings;
 use Illuminate\Support\Facades\DB;
 
 class ShiftService
@@ -121,9 +122,9 @@ class ShiftService
             ->get()
             ->keyBy('method');
 
-        // Efectivo cobrado - todos los pagos en efectivo completados de este turno
+        // Efectivo cobrado de sesiones de estacionamiento - todos los pagos en efectivo completados de este turno
         // Incluir pagos de sesiones de estacionamiento y pagos de ventas cerradas
-        $cashCollected = (float) DB::table('payments')
+        $parkingCashCollected = (float) DB::table('payments')
             ->where('shift_id', $shift->id)
             ->where('method', 'CASH')
             ->where('status', 'COMPLETED')
@@ -143,6 +144,89 @@ class ShiftService
             })
             ->sum('amount');
 
+        // Verificar si el módulo de lavado de autos está habilitado
+        $carWashEnabled = false;
+        $settings = Settings::where('key', 'general')->first();
+        if ($settings && isset($settings->value['car_wash_enabled'])) {
+            $carWashEnabled = (bool) $settings->value['car_wash_enabled'];
+        }
+
+        // Total de lavados de autos pagados en este turno (solo si el módulo está habilitado)
+        $carWashesTotal = 0;
+        $carWashesCount = 0;
+        $carWashesCashTotal = 0;
+        $carWashesCardTotal = 0;
+
+        if ($carWashEnabled) {
+            $carWashesTotal = (float) DB::table('car_washes')
+                ->where('shift_id', $shift->id)
+                ->where('status', 'PAID')
+                ->sum('amount');
+
+            $carWashesCount = (int) DB::table('car_washes')
+                ->where('shift_id', $shift->id)
+                ->where('status', 'PAID')
+                ->count();
+
+            // Efectivo cobrado de lavados de autos (lavados sin approval_code se consideran efectivo)
+            // Si tiene approval_code, es tarjeta; si no, es efectivo
+            $carWashesCashTotal = (float) DB::table('car_washes')
+                ->where('shift_id', $shift->id)
+                ->where('status', 'PAID')
+                ->whereNull('approval_code')
+                ->sum('amount');
+
+            $carWashesCardTotal = (float) DB::table('car_washes')
+                ->where('shift_id', $shift->id)
+                ->where('status', 'PAID')
+                ->whereNotNull('approval_code')
+                ->sum('amount');
+
+            // Agregar lavados de autos a payments_by_method
+            // Lavados en efectivo (sin approval_code)
+            if ($carWashesCashTotal > 0) {
+                $carWashesCashCount = (int) DB::table('car_washes')
+                    ->where('shift_id', $shift->id)
+                    ->where('status', 'PAID')
+                    ->whereNull('approval_code')
+                    ->count();
+                
+                if (isset($paymentsByMethod['CASH'])) {
+                    $paymentsByMethod['CASH']->collected += $carWashesCashTotal;
+                    $paymentsByMethod['CASH']->count += $carWashesCashCount;
+                } else {
+                    $paymentsByMethod['CASH'] = (object) [
+                        'method' => 'CASH',
+                        'collected' => $carWashesCashTotal,
+                        'count' => $carWashesCashCount,
+                    ];
+                }
+            }
+
+            // Lavados con tarjeta (con approval_code)
+            if ($carWashesCardTotal > 0) {
+                $carWashesCardCount = (int) DB::table('car_washes')
+                    ->where('shift_id', $shift->id)
+                    ->where('status', 'PAID')
+                    ->whereNotNull('approval_code')
+                    ->count();
+                
+                if (isset($paymentsByMethod['CARD'])) {
+                    $paymentsByMethod['CARD']->collected += $carWashesCardTotal;
+                    $paymentsByMethod['CARD']->count += $carWashesCardCount;
+                } else {
+                    $paymentsByMethod['CARD'] = (object) [
+                        'method' => 'CARD',
+                        'collected' => $carWashesCardTotal,
+                        'count' => $carWashesCardCount,
+                    ];
+                }
+            }
+        }
+
+        // Efectivo cobrado total (sesiones + lavados si está habilitado)
+        $cashCollected = $parkingCashCollected + $carWashesCashTotal;
+
         // Retiros
         $withdrawals = (float) DB::table('cash_adjustments')
             ->where('shift_id', $shift->id)
@@ -158,22 +242,18 @@ class ShiftService
         // Efectivo esperado
         $cashExpected = $shift->opening_float + $cashCollected - $withdrawals + $deposits;
 
-        // Cantidad de tickets (ventas cerradas) - solo contar ventas que tienen pagos en este turno
-        // Usar DISTINCT para evitar duplicados si una venta tiene múltiples pagos en el mismo turno
-        $ticketsCount = 0;
-        if (!empty($closedSalesIds)) {
-            $ticketsCount = DB::table('sales')
-                ->join('payments', 'sales.id', '=', 'payments.sale_id')
-                ->where('payments.shift_id', $shift->id)
-                ->where('payments.status', 'COMPLETED')
-                ->whereIn('sales.id', $closedSalesIds)
-                ->distinct('sales.id')
-                ->count('sales.id');
-        }
+        // Cantidad de tickets - contar sesiones de estacionamiento únicas con pagos completados en este turno
+        $ticketsCount = (int) DB::table('payments')
+            ->where('shift_id', $shift->id)
+            ->where('status', 'COMPLETED')
+            ->whereNotNull('session_id')
+            ->selectRaw('COUNT(DISTINCT session_id) as count')
+            ->first()
+            ->count ?? 0;
 
-        // Total vendido - todos los pagos completados de este turno
+        // Total vendido de sesiones de estacionamiento - todos los pagos completados de este turno
         // Incluir pagos de sesiones de estacionamiento y pagos de ventas cerradas
-        $salesTotal = (float) DB::table('payments')
+        $parkingSalesTotal = (float) DB::table('payments')
             ->where('shift_id', $shift->id)
             ->where('status', 'COMPLETED')
             ->where(function($query) use ($closedSalesIds) {
@@ -192,6 +272,9 @@ class ShiftService
             })
             ->sum('amount');
 
+        // Total vendido (sesiones + lavados si está habilitado)
+        $salesTotal = $parkingSalesTotal + $carWashesTotal;
+
         return [
             'opening_float' => (float) $shift->opening_float,
             'cash_collected' => $cashCollected,
@@ -202,6 +285,11 @@ class ShiftService
             'cash_over_short' => $shift->cash_over_short,
             'tickets_count' => $ticketsCount,
             'sales_total' => $salesTotal,
+            'parking_sales_total' => $parkingSalesTotal,
+            'car_washes_total' => $carWashesTotal,
+            'car_washes_count' => $carWashesCount,
+            'car_washes_cash_total' => $carWashesCashTotal,
+            'car_washes_card_total' => $carWashesCardTotal,
             'payments_by_method' => $paymentsByMethod->map(function ($item) {
                 return [
                     'method' => $item->method,

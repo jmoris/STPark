@@ -34,17 +34,19 @@ export const ApiInterceptor: HttpInterceptorFn = (req: HttpRequest<unknown>, nex
   
   // Get current tenant and add X-Tenant header
   // NO agregar si: está en modo central admin Y es ruta central admin pura
-  // SÍ agregar si: es ruta de parking (tenant) o es facturas desde parking
-  if (!isCentralAdminMode || (isParkingRoute && isInvoicesRoute)) {
+  // SÍ agregar si: es ruta de parking (tenant), es facturas desde parking, o es settings/general
+  const isSettingsRoute = req.url.includes('/settings/general');
+  
+  if (!isCentralAdminMode || (isParkingRoute && isInvoicesRoute) || isSettingsRoute) {
     const currentTenant = authService.getCurrentTenant();
     console.log('ApiInterceptor: Current tenant:', currentTenant);
     if (currentTenant) {
-      console.log('ApiInterceptor: Adding X-Tenant header:', currentTenant.id);
+      console.log('ApiInterceptor: Adding X-Tenant header:', currentTenant.id, 'for:', req.url);
       newReq = newReq.clone({
         headers: newReq.headers.set('X-Tenant', currentTenant.id),
       });
     } else {
-      console.warn('ApiInterceptor: No current tenant selected');
+      console.warn('ApiInterceptor: No current tenant selected for:', req.url);
     }
   } else if (isCentralAdminRoute) {
     console.log('ApiInterceptor: Central admin route, skipping X-Tenant header for:', req.url);

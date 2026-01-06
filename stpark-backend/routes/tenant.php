@@ -17,6 +17,8 @@ use App\Http\Controllers\StatsController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\ShiftController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\CarWashTypeController;
+use App\Http\Controllers\CarWashController;
 use Stancl\Tenancy\Middleware\InitializeTenancyByRequestData;
 
 /*
@@ -57,6 +59,20 @@ Route::middleware([
         Route::post('/{id}/checkout', [ParkingSessionController::class, 'checkout']); // Checkout
         Route::post('/{id}/force-checkout', [ParkingSessionController::class, 'forceCheckoutWithoutPayment']); // Forzar checkout sin pago
         Route::post('/{id}/cancel', [ParkingSessionController::class, 'cancel']); // Cancelar sesión
+    });
+
+    // Rutas de lavados de autos
+    Route::prefix('car-wash-types')->group(function () {
+        Route::get('/', [CarWashTypeController::class, 'index']); // Listar tipos
+        Route::post('/', [CarWashTypeController::class, 'store']); // Crear tipo
+        Route::put('/{id}', [CarWashTypeController::class, 'update']); // Actualizar tipo
+        Route::delete('/{id}', [CarWashTypeController::class, 'destroy']); // Eliminar tipo
+    });
+
+    Route::prefix('car-washes')->group(function () {
+        Route::get('/', [CarWashController::class, 'index']); // Listar lavados
+        Route::post('/', [CarWashController::class, 'store']); // Crear lavado
+        Route::put('/{id}', [CarWashController::class, 'update']); // Actualizar lavado (estado)
     });
 
     // Rutas de pagos

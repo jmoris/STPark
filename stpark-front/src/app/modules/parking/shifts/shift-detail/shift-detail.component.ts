@@ -11,6 +11,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { Subject, takeUntil } from 'rxjs';
 import { ShiftService } from '../../../../core/services/shift.service';
 import { Shift, ShiftTotals, ShiftReport } from '../../../../interfaces/parking.interface';
+import { ConfigService } from '../../../../core/services/config.service';
 
 @Component({
   selector: 'app-shift-detail',
@@ -36,6 +37,7 @@ export class ShiftDetailComponent implements OnInit, OnDestroy {
   report: ShiftReport | null = null;
   loading = false;
   shiftId: string = '';
+  carWashEnabled = false;
 
   displayedColumns: string[] = ['method', 'collected', 'count'];
 
@@ -43,14 +45,23 @@ export class ShiftDetailComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private router: Router,
     private shiftService: ShiftService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private configService: ConfigService
   ) {}
 
   ngOnInit(): void {
     this.shiftId = this.route.snapshot.paramMap.get('id') || '';
+    this.loadConfig();
     if (this.shiftId) {
       this.loadShift();
     }
+  }
+
+  private loadConfig(): void {
+    this.configService.systemConfig$.pipe(takeUntil(this._unsubscribeAll)).subscribe(config => {
+      this.carWashEnabled = config?.car_wash_enabled === true;
+    });
+    this.configService.loadConfig();
   }
 
   ngOnDestroy(): void {

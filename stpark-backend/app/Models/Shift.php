@@ -156,6 +156,14 @@ class Shift extends Model
     }
 
     /**
+     * Relación con los lavados de autos del turno
+     */
+    public function carWashes(): HasMany
+    {
+        return $this->hasMany(CarWash::class);
+    }
+
+    /**
      * Verificar si el turno está abierto
      */
     public function isOpen(): bool

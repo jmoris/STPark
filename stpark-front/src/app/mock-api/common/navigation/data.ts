@@ -2,6 +2,51 @@
 import { FuseNavigationItem } from '@fuse/components/navigation';
 import { AuthService } from 'app/core/services/auth.service';
 
+// Función helper para verificar si el módulo de lavado de autos está habilitado
+// La configuración se guarda en sessionStorage cuando se carga mediante ConfigService
+// Esta función se evalúa cada vez que se accede a la propiedad hidden, por lo que siempre lee el valor actualizado
+const isCarWashEnabled = (): boolean => {
+    try {
+        // Obtener el tenant actual para verificar que estamos leyendo la configuración correcta
+        let currentTenantId = null;
+        try {
+            const tenantStr = localStorage.getItem('current_tenant');
+            if (tenantStr) {
+                const tenant = JSON.parse(tenantStr);
+                currentTenantId = tenant?.id;
+            }
+        } catch (e) {
+            // Ignorar errores al leer el tenant
+        }
+
+        const configStr = sessionStorage.getItem('system_config');
+        if (configStr) {
+            try {
+                const config = JSON.parse(configStr);
+                const enabled = config.car_wash_enabled === true;
+                // Log para debugging - mostrar tenant actual y configuración
+                console.log('isCarWashEnabled check:', { 
+                    tenant: currentTenantId, 
+                    configName: config.name, 
+                    car_wash_enabled: config.car_wash_enabled,
+                    enabled 
+                });
+                return enabled;
+            } catch (e) {
+                console.warn('Error parsing system_config from sessionStorage:', e);
+            }
+        } else {
+            // Si no hay configuración en sessionStorage, retornar false
+            console.log('isCarWashEnabled: No hay configuración en sessionStorage para tenant:', currentTenantId);
+        }
+        // Por defecto, asumir que no está habilitado si no se puede verificar
+        return false;
+    } catch (error) {
+        console.warn('Error checking car_wash_enabled:', error);
+        return false;
+    }
+};
+
 // Función helper para verificar si el usuario es administrador central
 const isCentralAdmin = (): boolean => {
     try {
@@ -160,6 +205,14 @@ export const defaultNavigation: FuseNavigationItem[] = [
         hidden: () => isCentralAdminMode()
     },
     {
+        id   : 'parking.car-washes',
+        title: 'Lavado de Autos',
+        type : 'basic',
+        icon : 'heroicons_outline:truck',
+        link : '/parking/car-washes',
+        hidden: () => isCentralAdminMode() || !isCarWashEnabled()
+    },
+    {
         id   : 'parking.payments',
         title: 'Pagos',
         type : 'basic',
@@ -306,6 +359,14 @@ export const compactNavigation: FuseNavigationItem[] = [
         icon : 'heroicons_outline:clock',
         link : '/parking/sessions',
         hidden: () => isCentralAdminMode()
+    },
+    {
+        id   : 'parking.car-washes',
+        title: 'Lavado de Autos',
+        type : 'basic',
+        icon : 'heroicons_outline:truck',
+        link : '/parking/car-washes',
+        hidden: () => isCentralAdminMode() || !isCarWashEnabled()
     },
     {
         id   : 'parking.payments',
@@ -455,6 +516,14 @@ export const futuristicNavigation: FuseNavigationItem[] = [
         hidden: () => isCentralAdminMode()
     },
     {
+        id   : 'parking.car-washes',
+        title: 'Lavado de Autos',
+        type : 'basic',
+        icon : 'heroicons_outline:truck',
+        link : '/parking/car-washes',
+        hidden: () => isCentralAdminMode() || !isCarWashEnabled()
+    },
+    {
         id   : 'parking.payments',
         title: 'Pagos',
         type : 'basic',
@@ -600,6 +669,14 @@ export const horizontalNavigation: FuseNavigationItem[] = [
         icon : 'heroicons_outline:clock',
         link : '/parking/sessions',
         hidden: () => isCentralAdminMode()
+    },
+    {
+        id   : 'parking.car-washes',
+        title: 'Lavado de Autos',
+        type : 'basic',
+        icon : 'heroicons_outline:truck',
+        link : '/parking/car-washes',
+        hidden: () => isCentralAdminMode() || !isCarWashEnabled()
     },
     {
         id   : 'parking.payments',

@@ -74,7 +74,8 @@ class SettingsController extends Controller
             'language' => 'es',
             'pos_tuu' => false, // Configuración de POS TUU (solo lectura para usuarios, solo administradores pueden cambiar)
             'boleta_electronica' => false, // Configuración de Boleta Electrónica (solo lectura para usuarios, solo administradores pueden cambiar)
-            'max_capacity' => 0 // Capacidad máxima de vehículos en el estacionamiento
+            'max_capacity' => 0, // Capacidad máxima de vehículos en el estacionamiento
+            'car_wash_enabled' => false // Configuración de módulo de lavado de autos (solo lectura para usuarios, solo administradores pueden cambiar)
         ];
         
         // Obtener información del plan del tenant desde la conexión central
@@ -138,6 +139,7 @@ class SettingsController extends Controller
             'pos_tuu' => isset($config['pos_tuu']) ? (bool) $config['pos_tuu'] : $defaultConfig['pos_tuu'],
             'boleta_electronica' => isset($config['boleta_electronica']) ? (bool) $config['boleta_electronica'] : $defaultConfig['boleta_electronica'],
             'max_capacity' => isset($config['max_capacity']) ? (int) $config['max_capacity'] : $defaultConfig['max_capacity'],
+            'car_wash_enabled' => isset($config['car_wash_enabled']) ? (bool) $config['car_wash_enabled'] : $defaultConfig['car_wash_enabled'],
             'plan_name' => $planName
         ];
         

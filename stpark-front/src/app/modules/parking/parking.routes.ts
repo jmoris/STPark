@@ -16,6 +16,11 @@ export const parkingRoutes: Route[] = [
     path: 'sessions',
     loadComponent: () => import('./sessions/sessions.component').then(m => m.SessionsComponent)
   },
+  // Car washes
+  {
+    path: 'car-washes',
+    loadComponent: () => import('./car-washes/car-washes.component').then(m => m.CarWashesComponent)
+  },
   {
     path: 'sessions/new',
     loadComponent: () => import('./sessions/new-session/new-session.component').then(m => m.NewSessionComponent)

@@ -1,0 +1,42 @@
+/* Estilos para chips de estado personalizados */
+.chip-success {
+  background-color: #d1fae5 !important;
+  color: #059669 !important;
+}
+
+.chip-warn {
+  background-color: #fef3c7 !important;
+  color: #d97706 !important;
+}
+
+// Estilos de tabla para mantener consistencia con sesiones y pagos
+.mat-table {
+  font-size: 0.875rem; // 14px - mismo tamaño que sesiones y pagos
+}
+
+.mat-header-cell {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.mat-cell {
+  font-size: 0.875rem;
+}
+
+// Responsive table adjustments
+@media (max-width: 768px) {
+  .mat-table {
+    font-size: 14px;
+  }
+
+  // Reducir tamaño de fuente de los headers en móvil
+  .mat-header-cell {
+    font-size: 11px !important;
+    font-weight: 500;
+  }
+  
+  .mat-cell {
+    font-size: 14px;
+  }
+}

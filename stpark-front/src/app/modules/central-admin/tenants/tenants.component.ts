@@ -21,6 +21,9 @@ import { PlanService, Plan } from 'app/core/services/plan.service';
 import { TenantFormComponent, TenantFormData } from './tenant-form/tenant-form.component';
 import { ViewModalComponent, ViewModalData, ViewModalField } from 'app/shared/components/view-modal/view-modal.component';
 import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-intl';
+import { ConfigService } from 'app/core/services/config.service';
+import { NavigationService } from 'app/core/navigation/navigation.service';
+import { AuthService } from 'app/core/services/auth.service';
 
 @Component({
   selector: 'app-tenants',
@@ -80,7 +83,10 @@ export class TenantsComponent implements OnInit, OnDestroy, AfterViewInit {
     private tenantService: TenantService,
     private planService: PlanService,
     private dialog: MatDialog,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private configService: ConfigService,
+    private navigationService: NavigationService,
+    private authService: AuthService
   ) {}
 
   ngOnInit(): void {
@@ -357,6 +363,10 @@ export class TenantsComponent implements OnInit, OnDestroy, AfterViewInit {
         dialogRef.afterClosed().subscribe(result => {
           if (result) {
             this.loadTenants();
+            // Recargar la navegación para actualizar el sidebar
+            this.navigationService.get().subscribe();
+            // Si el tenant actual es el que se editó, recargar la configuración
+            this.refreshConfigIfCurrentTenant(fullTenant.id);
           }
         });
       },
@@ -365,6 +375,39 @@ export class TenantsComponent implements OnInit, OnDestroy, AfterViewInit {
         this.snackBar.open('Error al cargar los datos del estacionamiento', 'Cerrar', { duration: 3000 });
       }
     });
+  }
+
+  /**
+   * Recargar configuración si el tenant editado es el tenant actual
+   */
+  private refreshConfigIfCurrentTenant(tenantId: string): void {
+    const currentTenant = this.authService.getCurrentTenant();
+    // Verificar si el tenant editado es el que está siendo usado actualmente
+    // Esto se puede determinar por el tenant almacenado en localStorage
+    const storedTenantId = localStorage.getItem('current_tenant');
+    
+    if (storedTenantId === tenantId) {
+      // Si estamos en modo tenant normal (no administración central), recargar configuración
+      if (!this.authService.isCentralAdminMode()) {
+        console.log('Recargando configuración para el tenant actual:', tenantId);
+        this.configService.loadConfig().subscribe({
+          next: (config) => {
+            console.log('Configuración recargada después de actualizar tenant:', config);
+            // Recargar navegación para que el sidebar se actualice
+            setTimeout(() => {
+              this.navigationService.get().subscribe();
+            }, 100);
+          },
+          error: (error) => {
+            console.error('Error al recargar configuración:', error);
+          }
+        });
+      } else {
+        // Si estamos en modo Admin Central, pero el tenant editado es el que se está usando,
+        // mostrar mensaje al usuario para que cambie de modo o recargue
+        console.log('Tenant actualizado. Cambia a modo tenant o recarga la página para ver los cambios.');
+      }
+    }
   }
 
   deleteTenant(tenant: Tenant): void {

@@ -346,7 +346,8 @@ class TenantController extends Controller
             'name' => 'STPark - Sistema de Estacionamientos',
             'pos_tuu' => false,
             'boleta_electronica' => false,
-            'max_capacity' => 0
+            'max_capacity' => 0,
+            'car_wash_enabled' => false
         ];
         
         try {
@@ -449,6 +450,7 @@ class TenantController extends Controller
             'settings.pos_tuu' => 'sometimes|boolean',
             'settings.boleta_electronica' => 'sometimes|boolean',
             'settings.max_capacity' => 'sometimes|integer|min:0',
+            'settings.car_wash_enabled' => 'sometimes|boolean',
             'rut' => 'nullable|string|max:20',
             'razon_social' => 'nullable|string|max:255',
             'giro' => 'nullable|string|max:255',
@@ -585,6 +587,7 @@ class TenantController extends Controller
                         'pos_tuu' => $request->has('settings.pos_tuu') ? (bool) $request->input('settings.pos_tuu') : ($currentConfig['pos_tuu'] ?? false),
                         'boleta_electronica' => $request->has('settings.boleta_electronica') ? (bool) $request->input('settings.boleta_electronica') : ($currentConfig['boleta_electronica'] ?? false),
                         'max_capacity' => $request->has('settings.max_capacity') ? (int) $request->input('settings.max_capacity') : ($currentConfig['max_capacity'] ?? 0),
+                        'car_wash_enabled' => $request->has('settings.car_wash_enabled') ? (bool) $request->input('settings.car_wash_enabled') : ($currentConfig['car_wash_enabled'] ?? false),
                     ]);
                     
                     // Preservar otros campos que puedan existir

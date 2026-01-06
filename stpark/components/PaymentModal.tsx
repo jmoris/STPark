@@ -39,6 +39,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [showAmountModal, setShowAmountModal] = useState(false);
   const [showApprovalCodeModal, setShowApprovalCodeModal] = useState(false);
   const [showChangeModal, setShowChangeModal] = useState(false);
+  const [showPrintTicketModal, setShowPrintTicketModal] = useState(false);
+  const [pendingTicketData, setPendingTicketData] = useState<CheckoutTicketData | null>(null);
+  const [printTicketCountdown, setPrintTicketCountdown] = useState(10);
   const [paymentSummary, setPaymentSummary] = useState<any>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'CASH' | 'CARD' | null>(null);
   const [amountPaid, setAmountPaid] = useState('');
@@ -65,6 +68,40 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     loadTuuConfig();
   }, []);
 
+  // Contador regresivo para imprimir ticket
+  useEffect(() => {
+    if (!showPrintTicketModal) {
+      return;
+    }
+
+    if (printTicketCountdown <= 0) {
+      // Cuando llega a 0, imprimir automáticamente
+      if (pendingTicketData) {
+        setShowPrintTicketModal(false);
+        setPrintTicketCountdown(10);
+        (async () => {
+          try {
+            const printed = await ticketPrinterService.printCheckoutTicket(pendingTicketData);
+            if (printed) {
+              console.log('Ticket impreso exitosamente');
+            }
+          } catch (printError) {
+            console.error('Error imprimiendo ticket:', printError);
+          }
+          setPendingTicketData(null);
+          showSuccessAndClose();
+        })();
+      }
+      return;
+    }
+    
+    const timer = setTimeout(() => {
+      setPrintTicketCountdown(printTicketCountdown - 1);
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [showPrintTicketModal, printTicketCountdown, pendingTicketData]);
+
   // Resetear estado cuando se cierra el modal
   useEffect(() => {
     if (!visible) {
@@ -72,6 +109,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setShowAmountModal(false);
       setShowApprovalCodeModal(false);
       setShowChangeModal(false);
+      setShowPrintTicketModal(false);
+      setPendingTicketData(null);
+      setPrintTicketCountdown(10);
       setSelectedPaymentMethod(null);
       setAmountPaid('');
       setApprovalCode('');
@@ -374,7 +414,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       if (response.success) {
         setPaymentSummary(response.data);
 
-        // Imprimir ticket
+        // Preparar datos del ticket para mostrar modal de impresión
         try {
           if (type === 'checkout') {
             // Ticket para checkout de sesión
@@ -396,12 +436,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               amount: paymentAmount || 0,
               paymentMethod: 'CARD',
               operatorName: operator?.name,
-              approvalCode: approvalCode,
-              // Datos adicionales de TUU para el ticket
-              authCode: approvalCode || undefined,
-              transactionMethod: transactionMethod,
-              last4: last4,
-              sequenceNumber: sequenceNumber,
+              // No incluir datos de pago porque TUU ya imprime el comprobante
               minAmount: getMinAmountFromBreakdown(),
               isFullDay: isFullDay,
               // Datos de FacturaPi si están disponibles (para pagos en efectivo con boleta electrónica)
@@ -416,10 +451,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               sucsii: response.data?.payment?.sucsii || undefined,
             };
 
-            const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
-            if (printed) {
-              console.log('Ticket de checkout impreso exitosamente');
-            }
+            setPendingTicketData(ticketData);
+            setPrintTicketCountdown(10);
+            setShowPrintTicketModal(true);
           } else {
             // Ticket para liquidación de deuda
             const debt = data.debts && data.debts.length > 0 ? data.debts[0] : data;
@@ -445,29 +479,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 amount: paymentAmount || 0,
                 paymentMethod: 'CARD',
                 operatorName: operator?.name,
-                approvalCode: approvalCode,
-                // Datos adicionales de TUU para el ticket
-                authCode: approvalCode || undefined,
-                transactionMethod: transactionMethod,
-                last4: last4,
-                sequenceNumber: sequenceNumber,
+                // No incluir datos de pago porque TUU ya imprime el comprobante
                 minAmount: getMinAmountFromBreakdown(),
                 isFullDay: isFullDay,
                 // TED de FacturaPi si está disponible (para pagos en efectivo con boleta electrónica)
                 ted: response.data?.payment?.ted || response.data?.ted || undefined,
               };
               
-              const printed = await ticketPrinterService.printCheckoutTicket(ticketData);
-              if (printed) {
-                console.log('Ticket de liquidación de deuda impreso exitosamente');
-              }
+              setPendingTicketData(ticketData);
+              setShowPrintTicketModal(true);
+            } else {
+              showSuccessAndClose();
             }
           }
         } catch (printError) {
-          console.error('Error imprimiendo ticket:', printError);
+          console.error('Error preparando datos del ticket:', printError);
+          showSuccessAndClose();
         }
-
-        showSuccessAndClose();
       } else {
         Alert.alert('Error', response.message || `Error al procesar el ${type === 'checkout' ? 'checkout' : 'pago de deuda'}`);
       }
@@ -925,6 +953,29 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     );
   };
 
+  // Función para manejar la impresión del ticket
+  const handlePrintTicket = async () => {
+    if (!pendingTicketData) {
+      setShowPrintTicketModal(false);
+      setPrintTicketCountdown(10);
+      showSuccessAndClose();
+      return;
+    }
+
+    setShowPrintTicketModal(false);
+    setPrintTicketCountdown(10);
+    try {
+      const printed = await ticketPrinterService.printCheckoutTicket(pendingTicketData);
+      if (printed) {
+        console.log('Ticket impreso exitosamente');
+      }
+    } catch (printError) {
+      console.error('Error imprimiendo ticket:', printError);
+    }
+    setPendingTicketData(null);
+    showSuccessAndClose();
+  };
+
   // Función para calcular tiempo transcurrido
   const calculateElapsedTime = (startedAt: string, endedAt?: string) => {
     const start = new Date(startedAt);
@@ -1260,6 +1311,39 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Impresión de Ticket */}
+      <Modal
+        visible={showPrintTicketModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Imprimir Comprobante</Text>
+            </View>
+            
+            <View style={styles.modalContent}>
+              <Text style={styles.printTicketText}>
+                Se imprimirá el ticket automáticamente en:
+              </Text>
+              
+              <Text style={styles.printTicketCountdown}>
+                {printTicketCountdown}s
+              </Text>
+              
+              <TouchableOpacity
+                style={styles.printTicketButton}
+                onPress={handlePrintTicket}
+              >
+                <Text style={styles.printTicketButtonText}>Imprimir Ahora</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 };
@@ -1439,6 +1523,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   changeConfirmButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  printTicketText: {
+    fontSize: 18,
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  printTicketCountdown: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#043476',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  printTicketButton: {
+    backgroundColor: '#043476',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+  },
+  printTicketButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',

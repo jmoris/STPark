@@ -66,6 +66,25 @@ export interface ShiftCloseTicketData {
   }>;
 }
 
+export interface CarWashTicketData {
+  type: 'CAR_WASH';
+  plate: string;
+  washTypeName: string;
+  performedAt?: string;
+  amount: number;
+  status: 'PENDING' | 'PAID';
+  operatorName?: string;
+  // Campos de pago (solo si status es PAID)
+  paymentMethod?: 'CASH' | 'CARD' | 'TRANSFER';
+  approvalCode?: string;
+  change?: number;
+  // Campos adicionales para pagos con TUU
+  authCode?: string;
+  transactionMethod?: string;
+  last4?: string;
+  sequenceNumber?: string;
+}
+
 class TicketPrinterService {
   private selectedPrinter: ThermalPrinterDevice | null = null;
 
@@ -256,6 +275,79 @@ class TicketPrinterService {
     }
   }
 
+  // Imprimir ticket de lavado de auto con TUU
+  private async printCarWashTicketWithTuu(data: CarWashTicketData): Promise<boolean> {
+    try {
+      await TuuPrinter.init();
+      const performedAt = this.formatDateTime(data.performedAt);
+      const systemName = await this.getSystemName();
+      
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('LAVADO DE AUTO', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine(systemName, {align: 0, size: 24, bold: true, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine(`Patente: ${data.plate}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Tipo: ${data.washTypeName}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine(`Fecha: ${performedAt}`, {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine(`Monto: ${this.formatAmount(data.amount)}`, {align: 0, size: 24, bold: true, italic: false});
+      await TuuPrinter.addBlankLines(1);
+      
+      if (data.status === 'PENDING') {
+        await TuuPrinter.addTextLine('** PENDIENTE DE PAGO **', {align: 1, size: 24, bold: true, italic: false});
+        await TuuPrinter.addTextLine('Se paga al retirar', {align: 1, size: 24, bold: false, italic: false});
+      } else if (data.status === 'PAID') {
+        await TuuPrinter.addTextLine('** PAGADO **', {align: 1, size: 24, bold: true, italic: false});
+        await TuuPrinter.addBlankLines(1);
+        
+        // Mostrar información de pago
+        const paymentMethodText = data.paymentMethod === 'CASH' ? 'Efectivo' : 
+                                 data.paymentMethod === 'CARD' ? 'Tarjeta' : 
+                                 data.paymentMethod === 'TRANSFER' ? 'Transferencia' : 
+                                 'N/A';
+        await TuuPrinter.addTextLine(`Metodo de pago: ${paymentMethodText}`, {align: 0, size: 24, bold: false, italic: false});
+        
+        // Si el pago fue con TUU, mostrar información adicional
+        if (data.authCode || data.transactionMethod || data.last4) {
+          await TuuPrinter.addBlankLines(1);
+          await TuuPrinter.addTextLine('------------------------------------------------------', {align: 1, size: 24, bold: false, italic: false});
+          await TuuPrinter.addTextLine(`Fecha: ${new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}`, {align: 0, size: 18, bold: false, italic: false});
+          if (data.last4 && data.transactionMethod) {
+            await TuuPrinter.addColumns([{text: data.transactionMethod, align: 0, size: 18}, {text: "****" + data.last4, align: 2, size: 18}]);
+          }
+          if (data.authCode && data.sequenceNumber) {
+            await TuuPrinter.addColumns([{text: "ID: " + data.sequenceNumber, align: 0, size: 18}, {text: "Cód. Aut: " + data.authCode, align: 2, size: 18}]);
+          }
+        } else if (data.approvalCode) {
+          await TuuPrinter.addTextLine(`Cod. Autorizacion: ${data.approvalCode}`, {align: 0, size: 24, bold: false, italic: false});
+        }
+        
+      }
+      
+      await TuuPrinter.addBlankLines(1);
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('   Gracias por su preferencia', {align: 1, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
+      
+      // Si el pago fue con TUU, mostrar "Valido como Boleta", sino "No valido como documento fiscal"
+      if (data.status === 'PAID') {
+        const fiscalText = (data.authCode || data.transactionMethod || data.last4) 
+          ? 'Valido como Boleta' 
+          : 'No valido como documento fiscal';
+        await TuuPrinter.addTextLine(fiscalText, {align: 1, size: 20, bold: false, italic: false});
+      }
+      
+      await TuuPrinter.addBlankLines(5);
+      await TuuPrinter.beginPrint();
+      return true;
+    } catch (error) {
+      console.error('Error imprimiendo ticket de lavado con TUU:', error);
+      return false;
+    }
+  }
+
   // Imprimir ticket de cierre de turno con TUU
   private async printShiftCloseTicketWithTuu(data: ShiftCloseTicketData): Promise<boolean> {
     try {
@@ -270,7 +362,6 @@ class TicketPrinterService {
       await TuuPrinter.addBlankLines(1);
       await TuuPrinter.addTextLine(systemName, {align: 0, size: 24, bold: true, italic: false});
       await TuuPrinter.addBlankLines(1);
-      await TuuPrinter.addTextLine(`Operador: ${data.operatorName || 'N/A'}`, {align: 0, size: 24, bold: false, italic: false});
       if (data.sectorName) {
         await TuuPrinter.addTextLine(`Sector: ${data.sectorName}`, {align: 0, size: 24, bold: false, italic: false});
       }
@@ -723,6 +814,107 @@ Total Transacciones: ${totalTransactions}
       return true;
     } catch (error) {
       console.error('Error imprimiendo ticket de checkout:', error);
+      return false;
+    }
+  }
+
+  // Generar ticket de lavado de auto (para Bluetooth)
+  private async generateCarWashTicket(data: CarWashTicketData): Promise<string> {
+    const performedAt = this.formatDateTime(data.performedAt);
+    const systemName = await this.getSystemName();
+    
+    let ticket = `
+================================
+       LAVADO DE AUTO              
+================================
+
+${systemName}
+
+Patente: ${data.plate}
+Tipo: ${data.washTypeName}
+Fecha: ${performedAt}
+Monto: ${this.formatAmount(data.amount)}
+
+`;
+
+    if (data.status === 'PENDING') {
+      ticket += `** PENDIENTE DE PAGO **
+Se paga al retirar
+
+`;
+    } else if (data.status === 'PAID') {
+      ticket += `** PAGADO **
+`;
+      const paymentMethodText = data.paymentMethod === 'CASH' ? 'Efectivo' : 
+                               data.paymentMethod === 'CARD' ? 'Tarjeta' : 
+                               data.paymentMethod === 'TRANSFER' ? 'Transferencia' : 
+                               'N/A';
+      ticket += `Metodo de pago: ${paymentMethodText}
+`;
+      
+      if (data.authCode || data.transactionMethod || data.last4) {
+        ticket += `--- Pago con TUU ---
+${data.authCode ? `Cod. Autorizacion: ${data.authCode}\n` : ''}
+${data.transactionMethod ? `Metodo: ${data.transactionMethod}\n` : ''}
+${data.last4 ? `Tarjeta: ****${data.last4}\n` : ''}
+`;
+      } else if (data.approvalCode) {
+        ticket += `Cod. Autorizacion: ${data.approvalCode}
+`;
+      }
+    }
+    
+    ticket += `================================
+   Gracias por su preferencia
+================================
+`;
+    
+    if (data.status === 'PAID') {
+      const fiscalText = (data.authCode || data.transactionMethod || data.last4) 
+        ? 'Valido como Boleta' 
+        : 'No valido como documento fiscal';
+      ticket += `${fiscalText}
+`;
+    }
+    
+    return ticket;
+  }
+
+  // Imprimir ticket de lavado de auto
+  async printCarWashTicket(data: CarWashTicketData): Promise<boolean> {
+    try {
+      console.log('Iniciando impresión de ticket de lavado de auto...');
+      
+      // Intentar primero con TUU
+      const tuuConnected = await this.isTuuPrinterConnected();
+      if (tuuConnected) {
+        console.log('Usando impresora TUU para ticket de lavado de auto');
+        const printed = await this.printCarWashTicketWithTuu(data);
+        if (printed) {
+          console.log('Ticket de lavado de auto impreso exitosamente con TUU');
+          return true;
+        }
+        console.log('Error imprimiendo con TUU, intentando Bluetooth...');
+      }
+      
+      // Si TUU no está disponible o falló, usar Bluetooth
+      const connected = await this.ensureConnected();
+      if (!connected) {
+        console.log('No hay impresora Bluetooth conectada');
+        return false;
+      }
+
+      console.log('Usando impresora Bluetooth para ticket de lavado de auto');
+      const ticketText = await this.generateCarWashTicket(data);
+      console.log('Ticket generado:', ticketText);
+      
+      // Imprimir ticket
+      await this.selectedPrinter!.printText(ticketText);
+      
+      console.log('Ticket de lavado de auto impreso exitosamente con Bluetooth');
+      return true;
+    } catch (error) {
+      console.error('Error imprimiendo ticket de lavado de auto:', error);
       return false;
     }
   }

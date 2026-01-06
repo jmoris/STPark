@@ -99,7 +99,8 @@ export class TenantFormComponent implements OnInit {
         name: ['', Validators.required],
         pos_tuu: [false],
         boleta_electronica: [false],
-        max_capacity: [0, [Validators.min(0)]]
+        max_capacity: [0, [Validators.min(0)]],
+        car_wash_enabled: [false]
       });
     }
 
@@ -135,7 +136,8 @@ export class TenantFormComponent implements OnInit {
           name: settings.name || 'STPark - Sistema de Estacionamientos',
           pos_tuu: settings.pos_tuu !== undefined ? Boolean(settings.pos_tuu) : false,
           boleta_electronica: settings.boleta_electronica !== undefined ? Boolean(settings.boleta_electronica) : false,
-          max_capacity: settings.max_capacity !== undefined ? Number(settings.max_capacity) : 0
+          max_capacity: settings.max_capacity !== undefined ? Number(settings.max_capacity) : 0,
+          car_wash_enabled: settings.car_wash_enabled !== undefined ? Boolean(settings.car_wash_enabled) : false
         };
         
         console.log('Settings to load:', formValue.settings);
@@ -211,14 +213,15 @@ export class TenantFormComponent implements OnInit {
             name: formValue.settings.name?.trim() || 'STPark - Sistema de Estacionamientos',
             pos_tuu: formValue.settings.pos_tuu !== undefined ? formValue.settings.pos_tuu : false,
             boleta_electronica: formValue.settings.boleta_electronica !== undefined ? formValue.settings.boleta_electronica : false,
-            max_capacity: formValue.settings.max_capacity !== undefined ? parseInt(formValue.settings.max_capacity) : 0
+            max_capacity: formValue.settings.max_capacity !== undefined ? parseInt(formValue.settings.max_capacity) : 0,
+            car_wash_enabled: formValue.settings.car_wash_enabled !== undefined ? formValue.settings.car_wash_enabled : false
           };
         }
 
         this.tenantService.updateTenant(this.data.tenant.id, updateData).subscribe({
           next: (response) => {
             this.loading = false;
-            this.snackBar.open('Estacionamiento actualizado exitosamente', 'Cerrar', { duration: 3000 });
+            this.snackBar.open('Estacionamiento actualizado exitosamente. Si estás viendo este tenant, recarga la página para ver los cambios.', 'Cerrar', { duration: 5000 });
             this.dialogRef.close(true);
           },
           error: (error) => {

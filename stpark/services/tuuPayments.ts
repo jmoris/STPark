@@ -12,7 +12,7 @@ import { CONFIG } from '@/config/app';
  * 
  * IMPORTANTE: Cambiar a false antes de hacer builds de producción
  */
-const TUU_DEVELOPMENT_MODE = true;
+const TUU_DEVELOPMENT_MODE = false;
 // ============================================================================
 
 // Re-exportar el tipo PaymentData para compatibilidad

@@ -1,0 +1,11 @@
+.car-wash-payment-modal {
+  min-width: 500px;
+}
+
+@media (max-width: 768px) {
+  .car-wash-payment-modal {
+    min-width: auto;
+    width: 100%;
+  }
+}
+

@@ -1,0 +1,111 @@
+<div class="car-wash-payment-modal">
+  <!-- Modal Header -->
+  <div class="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50 rounded-t-lg">
+    <div class="flex items-center gap-3">
+      <mat-icon class="text-blue-600">payment</mat-icon>
+      <div>
+        <h2 class="text-xl font-semibold text-gray-900">
+          Pagar Lavado
+        </h2>
+        <p class="text-sm text-gray-600">Placa: {{ carWash.plate }}</p>
+      </div>
+    </div>
+    <button mat-icon-button class="text-gray-500 hover:text-gray-700" (click)="onClose()">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <!-- Modal Content -->
+  <div class="p-6">
+    
+    <!-- Total a Pagar -->
+    <div class="bg-primary-50 border border-primary-200 rounded-lg p-6 mb-6 text-center">
+      <h3 class="text-lg font-semibold text-primary-700 mb-2">Total a Pagar</h3>
+      <p class="text-4xl font-bold text-primary-900">{{ formatAmount(carWash.amount || 0) }}</p>
+    </div>
+
+    <!-- Formulario de Pago -->
+    <form [formGroup]="paymentForm" (ngSubmit)="onSubmit()" class="space-y-6">
+      
+      <!-- Método de Pago -->
+      <mat-form-field appearance="outline" class="w-full">
+        <mat-label>Método de Pago</mat-label>
+        <mat-select formControlName="payment_method" (selectionChange)="onPaymentMethodChange()">
+          <mat-option value="CASH">Efectivo</mat-option>
+          <mat-option value="CARD">Tarjeta</mat-option>
+          <mat-option value="TRANSFER">Transferencia</mat-option>
+        </mat-select>
+        <mat-error *ngIf="paymentForm.get('payment_method')?.hasError('required')">
+          El método de pago es requerido
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Monto Pagado -->
+      <mat-form-field appearance="outline" class="w-full">
+        <mat-label>Monto Pagado</mat-label>
+        <input 
+          matInput 
+          type="number" 
+          formControlName="amount"
+          [readonly]="isAmountFieldDisabled()"
+          placeholder="0"
+          step="1"
+          min="0">
+        <span matPrefix>$&nbsp;</span>
+        <mat-error *ngIf="paymentForm.get('amount')?.hasError('required')">
+          El monto es requerido
+        </mat-error>
+        <mat-error *ngIf="paymentForm.get('amount')?.hasError('min')">
+          El monto debe ser mayor a 0
+        </mat-error>
+      </mat-form-field>
+
+      <!-- Código de Autorización (solo para tarjeta) -->
+      <mat-form-field appearance="outline" class="w-full" *ngIf="paymentForm.get('payment_method')?.value === 'CARD'">
+        <mat-label>Código de Autorización (opcional)</mat-label>
+        <input 
+          matInput 
+          formControlName="approval_code"
+          placeholder="Ingrese el código de autorización"
+          maxlength="50">
+        <mat-icon matPrefix>credit_card</mat-icon>
+      </mat-form-field>
+
+      <!-- Vuelto (solo para efectivo) -->
+      <div *ngIf="paymentForm.get('payment_method')?.value === 'CASH' && shouldShowChange()" 
+           class="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <mat-icon class="text-green-600">monetization_on</mat-icon>
+            <span class="text-green-800 font-semibold">Vuelto a entregar:</span>
+          </div>
+          <span class="text-xl font-bold text-green-700">{{ formatAmount(calculateChange()) }}</span>
+        </div>
+      </div>
+
+      <!-- Botones -->
+      <div class="flex flex-col sm:flex-row gap-3 justify-end pt-4">
+        <button 
+          type="button"
+          mat-stroked-button 
+          class="rounded-sm"
+          (click)="onClose()">
+          <mat-icon>close</mat-icon>
+          Cancelar
+        </button>
+        
+        <button 
+          type="submit"
+          mat-raised-button 
+          color="primary"
+          class="rounded-sm"
+          [disabled]="paymentForm.invalid || processing">
+          <mat-spinner *ngIf="processing" diameter="20" class="mr-2"></mat-spinner>
+          <mat-icon *ngIf="!processing">payment</mat-icon>
+          {{ processing ? 'Procesando...' : 'Confirmar Pago' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+

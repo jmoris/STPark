@@ -1,0 +1,51 @@
+<div class="p-6">
+  <div class="flex items-start justify-between mb-4">
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">{{ isEdit ? 'Editar Lavado' : 'Nuevo Lavado' }}</h2>
+      <p class="text-gray-600">{{ isEdit ? 'Modifica los datos del lavado' : 'Asigna un lavado a un vehículo y define su estado' }}</p>
+    </div>
+    <button mat-icon-button (click)="cancel()" aria-label="Cerrar">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <form [formGroup]="form" class="grid grid-cols-1 gap-4">
+    <mat-form-field appearance="outline" *ngIf="!isEdit">
+      <mat-label>Placa</mat-label>
+      <input matInput formControlName="plate" placeholder="ABC123" />
+      <mat-error *ngIf="form.get('plate')?.hasError('required')">Placa es obligatoria</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" *ngIf="!isEdit">
+      <mat-label>Tipo de lavado</mat-label>
+      <mat-select formControlName="car_wash_type_id">
+        <mat-option *ngFor="let t of washTypes" [value]="t.id">
+          {{ t.name }} — {{ t.price | number:'1.0-0' }} CLP
+        </mat-option>
+      </mat-select>
+      <mat-error *ngIf="form.get('car_wash_type_id')?.hasError('required')">Tipo es obligatorio</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Estado</mat-label>
+      <mat-select formControlName="status">
+        <mat-option *ngFor="let s of statusOptions" [value]="s.value">
+          {{ s.label }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <div class="flex gap-2 justify-end mt-2">
+      <button mat-stroked-button class="rounded-sm" (click)="cancel()" type="button">
+        Cancelar
+      </button>
+      <button mat-raised-button color="primary" class="rounded-sm" (click)="save()" type="button" [disabled]="saving">
+        <mat-icon *ngIf="!saving">save</mat-icon>
+        <mat-spinner *ngIf="saving" diameter="18"></mat-spinner>
+        Guardar
+      </button>
+    </div>
+  </form>
+</div>
+
+

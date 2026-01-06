@@ -162,8 +162,22 @@ export class AuthService {
     if (tenant) {
       localStorage.setItem('current_tenant', JSON.stringify(tenant));
       localStorage.removeItem('central_admin_mode');
+      // Limpiar configuración anterior de sessionStorage antes de cargar la nueva
+      sessionStorage.removeItem('system_config');
+      console.log('Cambiando a tenant:', tenant.id);
+      // Cargar configuración cuando se cambia de tenant
+      this.configService.loadConfig().subscribe({
+        next: (config) => {
+          console.log('Configuración cargada al cambiar de tenant:', tenant.id, config);
+        },
+        error: (error) => {
+          console.error('Error al cargar configuración al cambiar de tenant:', error);
+        }
+      });
     } else {
       localStorage.removeItem('current_tenant');
+      // Limpiar configuración al salir del modo tenant
+      sessionStorage.removeItem('system_config');
     }
   }
 
@@ -253,7 +267,12 @@ export class AuthService {
           if (centralAdminMode) {
             this.currentTenantSubject.next(null);
           } else if (tenantStr) {
-            this.currentTenantSubject.next(JSON.parse(tenantStr));
+            const tenant = JSON.parse(tenantStr);
+            this.currentTenantSubject.next(tenant);
+            console.log('Tenant cargado desde storage:', tenant.id);
+            // Cargar configuración del tenant después de cargar los datos de autenticación
+            // No usar setTimeout, cargar directamente
+            this.loadSystemConfig();
           }
         }
         console.log('Stored auth data loaded successfully');

@@ -176,15 +176,49 @@
       </mat-card>
     </div>
 
-    <!-- Payments by Method -->
+    <!-- Payments by Method with Sales Breakdown -->
     <mat-card class="rounded-lg" *ngIf="totals && totals.payments_by_method && totals.payments_by_method.length > 0">
       <mat-card-header class="pb-4">
         <mat-card-title class="flex items-center gap-2">
           <mat-icon>receipt_long</mat-icon>
-          Pagos por Método
+          Ventas y Pagos por Método
         </mat-card-title>
       </mat-card-header>
       <mat-card-content>
+        <!-- Sales Breakdown -->
+        <div class="mb-6 space-y-3 pb-4 border-b border-gray-200">
+          <!-- Parking Sales -->
+          <div class="flex items-center justify-between py-2">
+            <div class="flex items-center gap-3">
+              <mat-icon class="text-blue-600 text-lg">local_parking</mat-icon>
+              <span class="text-gray-700 font-medium">Estacionamiento</span>
+            </div>
+            <div class="text-right">
+              <span class="text-lg font-bold text-gray-900">{{ formatAmount(totals.parking_sales_total || 0) }}</span>
+              <div class="text-xs text-gray-500">{{ totals.tickets_count || 0 }} {{ totals.tickets_count === 1 ? 'ticket' : 'tickets' }}</div>
+            </div>
+          </div>
+
+          <!-- Car Washes -->
+          <div class="flex items-center justify-between py-2" *ngIf="carWashEnabled && totals.car_washes_total !== undefined && totals.car_washes_total > 0">
+            <div class="flex items-center gap-3">
+              <mat-icon class="text-green-600 text-lg">local_car_wash</mat-icon>
+              <span class="text-gray-700 font-medium">Lavados de Autos</span>
+            </div>
+            <div class="text-right">
+              <span class="text-lg font-bold text-gray-900">{{ formatAmount(totals.car_washes_total) }}</span>
+              <div class="text-xs text-gray-500">{{ totals.car_washes_count || 0 }} {{ totals.car_washes_count === 1 ? 'lavado' : 'lavados' }}</div>
+            </div>
+          </div>
+
+          <!-- Total Sales -->
+          <div class="flex items-center justify-between py-2 pt-3 border-t border-gray-200">
+            <span class="font-semibold text-gray-900">Total Ventas:</span>
+            <span class="text-xl font-bold text-gray-900">{{ formatAmount(totals.sales_total) }}</span>
+          </div>
+        </div>
+
+        <!-- Payments by Method Table -->
         <div class="overflow-x-auto">
           <table mat-table [dataSource]="totals.payments_by_method" class="w-full">
             <ng-container matColumnDef="method">
@@ -211,13 +245,6 @@
             <tr mat-header-row *matHeaderRowDef="displayedColumns" class="border-b-2 border-gray-200"></tr>
             <tr mat-row *matRowDef="let row; columns: displayedColumns" class="border-b border-gray-100"></tr>
           </table>
-        </div>
-        <!-- Total Vendido -->
-        <div class="flex justify-end items-center mt-4 pt-4 border-t border-gray-200" *ngIf="totals && totals.sales_total !== null && totals.sales_total !== undefined">
-          <div class="flex items-center gap-3">
-            <span class="text-lg font-medium text-gray-700">Total Vendido:</span>
-            <span class="text-2xl font-bold text-gray-900">{{ formatAmount(totals.sales_total) }}</span>
-          </div>
         </div>
       </mat-card-content>
     </mat-card>

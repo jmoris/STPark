@@ -11,6 +11,7 @@ import {
   Alert,
   Image,
   BackHandler,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -19,10 +20,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
 import { apiService } from '@/services/api';
 import { PaymentModal } from '@/components/PaymentModal';
-import { systemConfigService } from '@/services/systemConfig';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReactNativePosPrinter, { ThermalPrinterDevice } from 'react-native-thermal-pos-printer';
+import { Platform, Linking } from 'react-native';
+import { CarWashPaymentModal } from '@/components/CarWashPaymentModal';
+import { systemConfigService } from '@/services/systemConfig';
 
 export default function HomeScreen() {
   const [resumenExpandido, setResumenExpandido] = useState(false);
@@ -34,8 +37,13 @@ export default function HomeScreen() {
   const [showDebtsModal, setShowDebtsModal] = useState(false);
   const [debtsByPlate, setDebtsByPlate] = useState<any[]>([]);
   const [loadingDebts, setLoadingDebts] = useState(false);
+  const [showPendingCarWashesModal, setShowPendingCarWashesModal] = useState(false);
+  const [pendingCarWashes, setPendingCarWashes] = useState<any[]>([]);
+  const [loadingPendingCarWashes, setLoadingPendingCarWashes] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedSession, setSelectedSession] = useState<any>(null);
+  const [selectedCarWash, setSelectedCarWash] = useState<any>(null);
+  const [showCarWashPaymentModal, setShowCarWashPaymentModal] = useState(false);
   const [printerConnected, setPrinterConnected] = useState(false);
   const [printerConnecting, setPrinterConnecting] = useState(false);
   const [printerInfo, setPrinterInfo] = useState<string>('');
@@ -49,6 +57,7 @@ export default function HomeScreen() {
   const [foundActiveSession, setFoundActiveSession] = useState<any>(null);
   const [foundDebts, setFoundDebts] = useState<any[]>([]);
   const [systemName, setSystemName] = useState<string>('Sistema de Gestión de Estacionamiento');
+  const [carWashEnabled, setCarWashEnabled] = useState<boolean>(false);
   const { operator, logout } = useAuth();
   const { tenantConfig, isLoading: tenantLoading, setTenant } = useTenant();
   const modalsRef = useRef({
@@ -58,6 +67,7 @@ export default function HomeScreen() {
     showPlateQueryModal,
     showPaymentModal,
   });
+  const scrollViewRef = useRef<ScrollView>(null);
 
   // Mantener refs de modales actualizadas
   useEffect(() => {
@@ -70,6 +80,22 @@ export default function HomeScreen() {
     };
   }, [showTenantConfigModal, showActiveSessionsModal, showDebtsModal, showPlateQueryModal, showPaymentModal]);
 
+  // Efecto para scroll automático al expandir/colapsar resumen
+  useEffect(() => {
+    if (scrollViewRef.current) {
+      // Pequeño delay para asegurar que el layout se actualizó
+      setTimeout(() => {
+        if (resumenExpandido) {
+          // Scroll hasta el final cuando se expande
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        } else {
+          // Scroll hasta arriba cuando se colapsa
+          scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+        }
+      }, 100);
+    }
+  }, [resumenExpandido]);
+
   // Verificar si hay tenant configurado al cargar la pantalla
   useEffect(() => {
     if (!tenantLoading && !tenantConfig.isValid) {
@@ -81,9 +107,9 @@ export default function HomeScreen() {
     }
   }, [tenantLoading, tenantConfig.isValid]);
 
-  // Cargar el nombre del sistema desde la API
+  // Cargar el nombre del sistema y configuración desde la API
   useEffect(() => {
-    const loadSystemName = async () => {
+    const loadSystemConfig = async () => {
       try {
         // Primero intentar cargar desde el servidor
         await systemConfigService.loadFromServer();
@@ -91,15 +117,21 @@ export default function HomeScreen() {
         const name = await systemConfigService.getSystemName();
         setSystemName(name);
         console.log('Nombre del sistema cargado:', name);
+        
+        // Verificar si el módulo de lavado de autos está habilitado
+        const isCarWashEnabled = await systemConfigService.isCarWashEnabled();
+        setCarWashEnabled(isCarWashEnabled);
+        console.log('Módulo de lavado de autos habilitado:', isCarWashEnabled);
       } catch (error) {
-        console.error('Error cargando nombre del sistema:', error);
-        // Si falla, mantener el valor por defecto
+        console.error('Error cargando configuración del sistema:', error);
+        // Si falla, mantener los valores por defecto
+        setCarWashEnabled(false);
       }
     };
 
     // Solo cargar si el tenant está configurado
     if (!tenantLoading && tenantConfig.isValid) {
-      loadSystemName();
+      loadSystemConfig();
     }
   }, [tenantLoading, tenantConfig.isValid, tenantConfig.tenant]);
 
@@ -308,6 +340,9 @@ export default function HomeScreen() {
     loadActiveSessions();
     loadDailyStats();
     loadDebtsByPlate();
+    if (carWashEnabled) {
+      loadPendingCarWashes();
+    }
     // Limpiar consulta después del pago
     setPlateQuery('');
     setFoundActiveSession(null);
@@ -405,11 +440,63 @@ export default function HomeScreen() {
     await loadDebtsByPlate();
   };
 
+  // Función para cargar lavados pendientes
+  const loadPendingCarWashes = async () => {
+    setLoadingPendingCarWashes(true);
+    try {
+      console.log('Cargando lavados pendientes...');
+      const response = await apiService.getCarWashes({ status: 'PENDING' });
+      
+      if (response.success && response.data) {
+        console.log('Lavados pendientes cargados:', response.data);
+        setPendingCarWashes(response.data);
+      } else {
+        console.error('Error cargando lavados pendientes:', response.message);
+        setPendingCarWashes([]);
+      }
+    } catch (error) {
+      console.error('Error cargando lavados pendientes:', error);
+      setPendingCarWashes([]);
+    } finally {
+      setLoadingPendingCarWashes(false);
+    }
+  };
+
+  // Función para mostrar lavados pendientes
+  const handleShowPendingCarWashes = async () => {
+    console.log('=== ABRIENDO MODAL DE LAVADOS PENDIENTES ===');
+    
+    // Abrir el modal primero para mostrar el estado de carga
+    setShowPendingCarWashesModal(true);
+    
+    // Luego cargar los lavados pendientes
+    await loadPendingCarWashes();
+  };
+
   // Función para liquidar una deuda específica
   const handleLiquidateDebt = (debt: any) => {
     console.log('Liquidando deuda:', debt);
     setSelectedSession(debt);
     setShowPaymentModal(true);
+  };
+
+
+  // Función para manejar checkout de lavado pendiente
+  const handleCheckoutCarWash = (carWash: any) => {
+    console.log('Iniciando checkout para lavado:', carWash);
+    setSelectedCarWash(carWash);
+    setShowPendingCarWashesModal(false);
+    setShowCarWashPaymentModal(true);
+  };
+
+  // Función para manejar éxito del pago de lavado
+  const handleCarWashPaymentSuccess = () => {
+    setShowCarWashPaymentModal(false);
+    setSelectedCarWash(null);
+    if (carWashEnabled) {
+      loadPendingCarWashes();
+    }
+    loadDailyStats();
   };
 
   // Función para mostrar sesiones activas
@@ -496,7 +583,7 @@ export default function HomeScreen() {
     }, [tenantConfig.tenant])
   );
 
-  const menuItems = [
+  const allMenuItems = [
     {
       title: 'Entrada',
       description: 'Iniciar estacionamiento',
@@ -512,6 +599,14 @@ export default function HomeScreen() {
       color: '#ffffff',
     },
     {
+      title: 'Lavado de Autos',
+      description: 'Registrar lavado de auto',
+      icon: 'car.fill',
+      route: '/lavado-autos',
+      color: '#ffffff',
+      requiresCarWash: true, // Este ítem requiere que el módulo de lavado esté habilitado
+    },
+    {
       title: 'Turnos',
       description: 'Gestionar turnos',
       icon: 'clock.fill',
@@ -519,6 +614,14 @@ export default function HomeScreen() {
       color: '#ffffff',
     },
   ];
+
+  // Filtrar menuItems para excluir lavado de autos si no está habilitado
+  const menuItems = allMenuItems.filter(item => {
+    if (item.requiresCarWash) {
+      return carWashEnabled;
+    }
+    return true;
+  });
 
   const handleMenuPress = (route: string) => {
     router.push(route as any);
@@ -554,10 +657,11 @@ export default function HomeScreen() {
       color: '#b3d9ff',
       textAlign: 'center',
       fontWeight: '500',
+      marginBottom: 4,
     },
     iconContainer: {
       alignItems: 'center',
-      marginBottom: 20,
+      marginBottom: 8,
     },
     logoImage: {
       width: 200,
@@ -566,7 +670,7 @@ export default function HomeScreen() {
     },
     menuContainer: {
       marginBottom: 12,
-      marginTop: 8, // Espacio adicional desde el header
+      marginTop: 4, // Espacio adicional desde el header
     },
     menuItem: {
       backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -689,7 +793,8 @@ export default function HomeScreen() {
     },
     operatorInfo: {
       alignItems: 'center',
-      marginBottom: 12,
+      marginTop: 0,
+      marginBottom: 4,
     },
     operatorName: {
       fontSize: 20,
@@ -1072,24 +1177,26 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.container}>
-      <Link href="/configuracion" asChild>
-        <TouchableOpacity style={styles.configButton}>
-          <IconSymbol size={24} name="gear" color="#ffffff" />
-        </TouchableOpacity>
-      </Link>
-      
-      <TouchableOpacity
-        style={styles.logoutButton}
-        onPress={handleLogout}
-      >
-        <IconSymbol size={24} name="power" color="#ffffff" />
-      </TouchableOpacity>
+
       
       <ScrollView 
+        ref={scrollViewRef}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={true}
         bounces={true}
       >
+        <Link href="/configuracion" asChild>
+          <TouchableOpacity style={styles.configButton}>
+            <IconSymbol size={24} name="gear" color="#ffffff" />
+          </TouchableOpacity>
+        </Link>
+      
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+        >
+          <IconSymbol size={24} name="power" color="#ffffff" />
+        </TouchableOpacity>
         <View style={styles.header}>
           <View style={styles.iconContainer}>
             <Image 
@@ -1200,6 +1307,15 @@ export default function HomeScreen() {
                 </Text>
                 <Text style={styles.statLabel}>Con Deuda</Text>
               </TouchableOpacity>
+              
+              {carWashEnabled && (
+                <TouchableOpacity style={styles.statItem} onPress={handleShowPendingCarWashes}>
+                  <Text style={styles.statNumber}>
+                    {loadingStats ? '...' : dailyStats?.car_washes?.pending_count || 0}
+                  </Text>
+                  <Text style={styles.statLabel}>Lavados Pendientes</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -1353,6 +1469,73 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
+      {/* Modal de Lavados Pendientes */}
+      <Modal
+        visible={showPendingCarWashesModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowPendingCarWashesModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Lavados Pendientes</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowPendingCarWashesModal(false)}
+              >
+                <IconSymbol size={24} name="xmark.circle.fill" color="#6c757d" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalBody}>
+              {loadingPendingCarWashes ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>Cargando lavados pendientes...</Text>
+                </View>
+              ) : pendingCarWashes.length > 0 ? (
+                <FlatList
+                  data={pendingCarWashes}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={({ item }) => (
+                    <View style={styles.sessionItem}>
+                      <View style={styles.sessionInfo}>
+                        <Text style={styles.sessionPlate}>{item.plate}</Text>
+                        <Text style={styles.sessionSector}>
+                          Tipo: {item.car_wash_type?.name || 'N/A'}
+                        </Text>
+                        <Text style={styles.sessionTime}>
+                          Monto: ${Math.round(parseFloat(item.amount || 0)).toLocaleString('es-CL', { maximumFractionDigits: 0 })}
+                        </Text>
+                        {item.performed_at && (
+                          <Text style={styles.sessionTime}>
+                            Fecha: {new Date(item.performed_at).toLocaleString('es-CL')}
+                          </Text>
+                        )}
+                      </View>
+                      <TouchableOpacity 
+                        style={styles.checkoutButton}
+                        onPress={() => handleCheckoutCarWash(item)}
+                      >
+                        <IconSymbol size={20} name="creditcard.fill" color="#fff" />
+                        <Text style={styles.checkoutButtonText}>Pagar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  style={styles.sessionsList}
+                />
+              ) : (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateText}>
+                    No hay lavados pendientes
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal de Consulta por Patente */}
       <Modal
         visible={showPlateQueryModal}
@@ -1489,6 +1672,18 @@ export default function HomeScreen() {
             ? "debt" 
             : "checkout"
         }
+        operator={operator}
+      />
+
+      {/* Modal de Pago de Lavado de Autos */}
+      <CarWashPaymentModal
+        visible={showCarWashPaymentModal}
+        onClose={() => {
+          setShowCarWashPaymentModal(false);
+          setSelectedCarWash(null);
+        }}
+        carWash={selectedCarWash}
+        onSuccess={handleCarWashPaymentSuccess}
         operator={operator}
       />
 

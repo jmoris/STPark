@@ -10,6 +10,7 @@ use App\Models\Sector;
 use App\Models\Shift;
 use App\Models\PricingProfile;
 use App\Models\PricingRule;
+use App\Models\CarWash;
 use App\Helpers\DatabaseHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -804,6 +805,19 @@ class ReportController extends Controller
         // Deudas pendientes (mantener todas, no filtrar por período)
         $pendingDebts = Debt::pending()->get();
 
+        // Lavados de autos del período (filtrados por performed_at)
+        $todayCarWashes = CarWash::where('performed_at', '>=', $periodStart)
+            ->where('performed_at', '<=', $periodEnd)
+            ->with(['carWashType'])
+            ->get();
+
+        // Estadísticas de lavados de autos
+        $carWashesTotal = $todayCarWashes->where('status', 'PAID')->sum('amount');
+        $carWashesCount = $todayCarWashes->where('status', 'PAID')->count();
+        $carWashesPendingCount = $todayCarWashes->where('status', 'PENDING')->count();
+        $carWashesCashTotal = $todayCarWashes->where('status', 'PAID')->whereNull('approval_code')->sum('amount');
+        $carWashesCardTotal = $todayCarWashes->where('status', 'PAID')->whereNotNull('approval_code')->sum('amount');
+
         // Sesiones activas por hora dentro del horario de trabajo
         $hourlyData = [];
         
@@ -899,6 +913,13 @@ class ReportController extends Controller
             'pending_debts' => [
                 'count' => $pendingDebts->count(),
                 'total_amount' => $pendingDebts->sum('principal_amount'),
+            ],
+            'car_washes' => [
+                'total_amount' => $carWashesTotal,
+                'count' => $carWashesCount,
+                'pending_count' => $carWashesPendingCount,
+                'cash_total' => $carWashesCashTotal,
+                'card_total' => $carWashesCardTotal,
             ],
         ];
 

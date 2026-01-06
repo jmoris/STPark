@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\ParkingSession;
 use App\Models\Debt;
+use App\Models\CarWash;
 use Carbon\Carbon;
 
 class StatsController extends Controller
@@ -41,6 +42,10 @@ class StatsController extends Controller
             $totalDebtAmount = Debt::where('status', 'PENDING')
                 ->sum('principal_amount');
 
+            // Estadísticas de lavados de autos pendientes (históricos, sin filtro de fecha)
+            $carWashesPendingCount = CarWash::where('status', 'PENDING')
+                ->count();
+
             $stats = [
                 'date' => $today->format('Y-m-d'),
                 'active_vehicles' => $activeVehicles,
@@ -48,6 +53,9 @@ class StatsController extends Controller
                 'vehicles_with_debt' => $vehiclesWithDebt,
                 'total_revenue' => $totalRevenue,
                 'total_debt_amount' => $totalDebtAmount,
+                'car_washes' => [
+                    'pending_count' => $carWashesPendingCount,
+                ],
                 'summary' => [
                     'total_sessions_today' => $completedVehicles, // Solo sesiones completadas hoy
                     'active_sessions_historical' => $activeVehicles, // Sesiones activas históricas

@@ -83,7 +83,7 @@
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
       <!-- Total Revenue -->
-      <fuse-card class="p-6">
+      <fuse-card class="p-6 order-1 md:order-1">
         <div class="flex items-center">
           <div class="p-3 bg-green-100 rounded-lg">
             <mat-icon class="text-green-600">attach_money</mat-icon>
@@ -96,7 +96,7 @@
       </fuse-card>
 
       <!-- Total Sessions -->
-      <fuse-card class="p-6">
+      <fuse-card class="p-6 order-2 md:order-2">
         <div class="flex items-center">
           <div class="p-3 bg-blue-100 rounded-lg">
             <mat-icon class="text-blue-600">directions_car</mat-icon>
@@ -108,47 +108,8 @@
         </div>
       </fuse-card>
 
-      <!-- Average Ticket -->
-      <fuse-card class="p-6">
-        <div class="flex items-center">
-          <div class="p-3 bg-purple-100 rounded-lg">
-            <mat-icon class="text-purple-600">receipt</mat-icon>
-          </div>
-          <div class="ml-4">
-            <p class="text-sm font-medium text-gray-600">Ticket Promedio</p>
-            <p class="text-2xl font-bold text-gray-900">{{ formatAmount(stats.averageTicket) }}</p>
-          </div>
-        </div>
-      </fuse-card>
-
-      <!-- Active Sessions -->
-      <fuse-card class="p-6">
-        <div class="flex items-center">
-          <div class="p-3 bg-orange-100 rounded-lg">
-            <mat-icon class="text-orange-600">schedule</mat-icon>
-          </div>
-          <div class="ml-4">
-            <p class="text-sm font-medium text-gray-600">Sesiones Activas</p>
-            <p class="text-2xl font-bold text-gray-900">{{ stats.activeSessions }}</p>
-          </div>
-        </div>
-      </fuse-card>
-
-      <!-- Pending Debts -->
-      <fuse-card class="p-6">
-        <div class="flex items-center">
-          <div class="p-3 bg-red-100 rounded-lg">
-            <mat-icon class="text-red-600">warning</mat-icon>
-          </div>
-          <div class="ml-4">
-            <p class="text-sm font-medium text-gray-600">Deudas Pendientes</p>
-            <p class="text-2xl font-bold text-gray-900">{{ formatAmount(stats.pendingDebts) }}</p>
-          </div>
-        </div>
-      </fuse-card>
-
       <!-- Occupancy Level -->
-      <fuse-card class="p-6">
+      <fuse-card class="p-6 order-4 md:order-3">
         <div class="flex items-center">
           <div class="p-3 rounded-lg" [ngClass]="getOccupancyBgColor()">
             <mat-icon [ngClass]="getOccupancyIconColor()">local_parking</mat-icon>
@@ -160,6 +121,67 @@
             </p>
             <p class="text-xs text-gray-500 mt-1">
               {{ stats.activeSessions }} / {{ maxCapacity > 0 ? maxCapacity : 'N/A' }} vehículos
+            </p>
+          </div>
+        </div>
+      </fuse-card>
+
+      <!-- Pending Debts -->
+      <fuse-card class="p-6 order-6 md:order-4">
+        <div class="flex items-center">
+          <div class="p-3 bg-red-100 rounded-lg">
+            <mat-icon class="text-red-600">warning</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Deudas Pendientes</p>
+            <p class="text-2xl font-bold text-gray-900">{{ formatAmount(stats.pendingDebts) }}</p>
+          </div>
+        </div>
+      </fuse-card>
+
+      <!-- Active Sessions -->
+      <fuse-card class="p-6 order-3 md:order-5">
+        <div class="flex items-center">
+          <div class="p-3 bg-orange-100 rounded-lg">
+            <mat-icon class="text-orange-600">schedule</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Sesiones Activas</p>
+            <p class="text-2xl font-bold text-gray-900">{{ stats.activeSessions }}</p>
+          </div>
+        </div>
+      </fuse-card>
+
+      <!-- Car Washes -->
+      <fuse-card class="p-6 order-5 md:order-6" *ngIf="carWashEnabled && dashboardData?.car_washes">
+        <div class="flex items-center">
+          <div class="p-3 bg-cyan-100 rounded-lg">
+            <mat-icon class="text-cyan-600">local_car_wash</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Lavados de Autos</p>
+            <p class="text-2xl font-bold text-gray-900">{{ formatAmount(stats.carWashesTotal) }}</p>
+            <p class="text-xs text-gray-500 mt-1">
+              {{ stats.carWashesCount }} {{ stats.carWashesCount === 1 ? 'lavado' : 'lavados' }} pagados
+              <span *ngIf="stats.carWashesPendingCount > 0" class="text-orange-600">
+                • {{ stats.carWashesPendingCount }} pendiente{{ stats.carWashesPendingCount > 1 ? 's' : '' }}
+              </span>
+            </p>
+          </div>
+        </div>
+      </fuse-card>
+
+      <!-- Average Ticket (solo cuando car wash está deshabilitado) -->
+      <fuse-card class="p-6 order-5 md:order-6" *ngIf="!carWashEnabled">
+        <div class="flex items-center">
+          <div class="p-3 bg-purple-100 rounded-lg">
+            <mat-icon class="text-purple-600">receipt</mat-icon>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm font-medium text-gray-600">Ticket Promedio</p>
+            <p class="text-2xl font-bold text-gray-900">{{ formatAmount(stats.averageTicket) }}</p>
+            <p class="text-xs text-gray-500 mt-1">
+              {{ stats.totalSessions }} {{ stats.totalSessions === 1 ? 'sesión' : 'sesiones' }}
             </p>
           </div>
         </div>

@@ -24,6 +24,7 @@ import { DebtService } from 'app/core/services/debt.service';
 import { DashboardData } from 'app/interfaces/parking.interface';
 import { HttpClient } from '@angular/common/http';
 import { environment } from 'environments/environment';
+import { ConfigService } from 'app/core/services/config.service';
 
 // Configuración de formato de fecha para dd/mm/yyyy
 export const DATE_FORMATS = {
@@ -95,6 +96,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   dashboardData: DashboardData | null = null;
   loading = false;
   error: string | null = null;
+  carWashEnabled = false;
 
   // Date picker
   selectedDate = new Date();
@@ -108,9 +110,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
   stats = {
     totalRevenue: 0,
     totalSessions: 0,
-    averageTicket: 0,
     pendingDebts: 0,
-    activeSessions: 0
+    activeSessions: 0,
+    carWashesTotal: 0,
+    carWashesCount: 0,
+    carWashesPendingCount: 0,
+    averageTicket: 0,
   };
 
   // Occupancy
@@ -122,13 +127,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private sessionService: ParkingSessionService,
     private paymentService: PaymentService,
     private debtService: DebtService,
-    private http: HttpClient
+    private http: HttpClient,
+    private configService: ConfigService
   ) {}
 
   ngOnInit(): void {
     this.loadDashboardData();
     this.loadMaxCapacity();
+    this.loadConfig();
     this.initializeCharts();
+  }
+
+  private loadConfig(): void {
+    this.configService.systemConfig$.pipe(takeUntil(this._unsubscribeAll)).subscribe(config => {
+      this.carWashEnabled = config?.car_wash_enabled === true;
+    });
+    this.configService.loadConfig();
   }
 
   ngOnDestroy(): void {
@@ -177,14 +191,20 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private updateStats(): void {
     if (!this.dashboardData) return;
 
+    // Calcular ticket promedio (solo sesiones, sin car washes)
+    const averageTicket = this.dashboardData.today_sales.count > 0
+      ? this.dashboardData.today_sales.total_amount / this.dashboardData.today_sales.count
+      : 0;
+
     this.stats = {
       totalRevenue: this.dashboardData.today_sales.total_amount,
       totalSessions: this.dashboardData.today_sales.count,
-      averageTicket: this.dashboardData.today_sales.count > 0 
-        ? this.dashboardData.today_sales.total_amount / this.dashboardData.today_sales.count 
-        : 0,
       pendingDebts: this.dashboardData.pending_debts.total_amount,
-      activeSessions: this.dashboardData.active_sessions.count
+      activeSessions: this.dashboardData.active_sessions.count,
+      carWashesTotal: this.dashboardData.car_washes?.total_amount || 0,
+      carWashesCount: this.dashboardData.car_washes?.count || 0,
+      carWashesPendingCount: this.dashboardData.car_washes?.pending_count || 0,
+      averageTicket: averageTicket,
     };
 
     // Calcular porcentaje de ocupación

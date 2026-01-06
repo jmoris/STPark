@@ -49,6 +49,7 @@ export default function LoginScreen() {
   const tenantConfigRef = useRef({ isValid: tenantConfig.isValid, loading: tenantLoading });
   const serviceCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isLongPressingRef = useRef(false);
+  const showFloatingButtonRef = useRef(false);
   const modalsRef = useRef({
     showTenantConfigModal,
     showSuccessModal,
@@ -100,6 +101,11 @@ export default function LoginScreen() {
         if (!serviceCheckTimerRef.current) {
           console.log('Iniciando verificación periódica del servicio cada 30s');
           const timer = setInterval(() => {
+            // No verificar si el botón flotante está visible para evitar que se oculte
+            if (showFloatingButtonRef.current) {
+              console.log('Botón flotante visible, omitiendo verificación automática');
+              return;
+            }
             console.log('Verificación automática del servicio...');
             loadOperators();
           }, 30000);
@@ -129,14 +135,33 @@ export default function LoginScreen() {
   // Cargar operadores al montar y cuando cambia el tenant
   useEffect(() => {
     if (!tenantLoading && tenantConfig.isValid) {
-      loadOperators();
+      // Solo cargar operadores si el botón flotante no está visible
+      // para evitar que se oculte cuando el usuario está intentando acceder a configuración
+      if (!showFloatingButtonRef.current) {
+        loadOperators();
+      } else {
+        console.log('Botón flotante visible, omitiendo carga de operadores');
+      }
     }
   }, [tenantLoading, tenantConfig.isValid, tenantConfig.tenant]);
+
+  // Sincronizar ref cuando cambia showFloatingButton
+  useEffect(() => {
+    showFloatingButtonRef.current = showFloatingButton;
+  }, [showFloatingButton]);
 
   // Solo verificar estado de red cuando la pantalla recibe foco
   useFocusEffect(
     React.useCallback(() => {
       console.log('=== PANTALLA DE LOGIN ENFOCADA ===');
+      
+      // Preservar el estado del botón flotante si ya estaba visible
+      const wasButtonVisible = showFloatingButtonRef.current;
+      if (wasButtonVisible) {
+        console.log('Preservando estado del botón flotante durante re-focus');
+        // Asegurar que el estado también esté sincronizado
+        setShowFloatingButton(true);
+      }
       
       // Manejar el botón atrás de Android
       // Primero cerrar modales si están abiertos, luego prevenir navegación hacia atrás
@@ -178,7 +203,11 @@ export default function LoginScreen() {
           setServiceStatus('Desconectado');
         } else if (tenantConfig.isValid) {
           // Si hay red y tenant configurado, hacer una verificación del servicio
-          loadOperators();
+          // Solo cargar operadores si el botón flotante no está visible
+          // para evitar que se oculte cuando el usuario está intentando acceder a configuración
+          if (!showFloatingButtonRef.current) {
+            loadOperators();
+          }
         }
       });
       
@@ -186,9 +215,9 @@ export default function LoginScreen() {
         console.log('=== PANTALLA DE LOGIN PERDIÓ EL FOCO ===');
         // Remover el listener cuando la pantalla pierde el foco
         backHandler.remove();
-        // Limpiar el estado de los botones flotantes cuando se sale de la pantalla
-        setShowFloatingButton(false);
-        // Limpiar timers si existen
+        // NO limpiar el estado del botón flotante aquí para evitar que se oculte
+        // cuando la pantalla pierde y recupera el foco rápidamente
+        // Solo limpiar timers si existen
         if (longPressTimer) {
           clearTimeout(longPressTimer);
         }
@@ -196,7 +225,7 @@ export default function LoginScreen() {
           clearTimeout(autoHideTimer);
         }
       };
-    }, [tenantConfig.isValid, tenantConfig.tenant, longPressTimer, autoHideTimer])
+    }, [tenantConfig.isValid, tenantConfig.tenant])
   );
 
   // Limpiar timers al desmontar el componente
@@ -222,11 +251,17 @@ export default function LoginScreen() {
     const timer = setTimeout(() => {
       console.log('=== PRESIÓN LARGA COMPLETADA ===');
       console.log('Mostrando botón flotante');
+      showFloatingButtonRef.current = true;
       setShowFloatingButton(true);
+      // Aumentar el tiempo de auto-ocultación a 30 segundos para dar más tiempo
       const hideTimer = setTimeout(() => {
-        console.log('Auto-ocultando botón flotante después de 10s');
-        setShowFloatingButton(false);
-      }, 10000); // 10 segundos
+        // Solo ocultar si el botón aún está visible (no se ha navegado)
+        if (showFloatingButtonRef.current) {
+          console.log('Auto-ocultando botón flotante después de 30s');
+          showFloatingButtonRef.current = false;
+          setShowFloatingButton(false);
+        }
+      }, 30000); // 30 segundos (aumentado de 10s)
       setAutoHideTimer(hideTimer);
     }, 5000); // 5 segundos
     setLongPressTimer(timer);
@@ -248,6 +283,7 @@ export default function LoginScreen() {
 
   // Función para ocultar el botón flotante
   const hideFloatingButton = () => {
+    showFloatingButtonRef.current = false;
     setShowFloatingButton(false);
     if (autoHideTimer) {
       clearTimeout(autoHideTimer);
@@ -308,6 +344,12 @@ export default function LoginScreen() {
   };
 
   const loadOperators = async () => {
+    // No cargar operadores si el botón flotante está visible
+    if (showFloatingButtonRef.current) {
+      console.log('Botón flotante visible, omitiendo carga de operadores');
+      return;
+    }
+    
     // Evitar llamadas múltiples simultáneas
     if (loadingOperators) {
       console.log('Operadores ya se están cargando, omitiendo llamada duplicada');
@@ -668,7 +710,7 @@ export default function LoginScreen() {
       </SafeAreaView>
 
       {/* Botón flotante de configuración - Fijo en pantalla completamente fuera de cualquier contenedor */}
-      {showFloatingButton && (
+      {(showFloatingButton || showFloatingButtonRef.current) && (
         <View style={styles.fixedButtonsWrapper} pointerEvents="box-none">
           <TouchableOpacity
             style={[

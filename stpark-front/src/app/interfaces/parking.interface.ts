@@ -390,6 +390,13 @@ export interface DashboardData {
     total_amount: number;
     by_method: any;
   };
+  car_washes?: {
+    total_amount: number;
+    count: number;
+    pending_count: number;
+    cash_total: number;
+    card_total: number;
+  };
 }
 
 export interface DebtRequest {
@@ -447,6 +454,11 @@ export interface ShiftTotals {
   cash_over_short?: number;
   tickets_count: number;
   sales_total: number;
+  parking_sales_total: number;
+  car_washes_total: number;
+  car_washes_count: number;
+  car_washes_cash_total: number;
+  car_washes_card_total: number;
   payments_by_method: PaymentByMethod[];
 }
 
@@ -525,14 +537,22 @@ export interface ShiftReport {
     cash_declared?: number;
     cash_over_short?: number;
   };
-  sales_summary: {
+  parking_sales_summary: {
+    total: number;
     tickets_count: number;
-    subtotal: number;
-    discount_total: number;
+  };
+  car_washes_summary: {
+    total: number;
+    count: number;
+    cash_total: number;
+    card_total: number;
+  };
+  sales_total_summary: {
     total: number;
   };
   payments_by_method: any[];
   recent_payments: any[];
+  car_washes: any[];
   cash_adjustments: CashAdjustment[];
   created_by?: any;
   closed_by?: any;
