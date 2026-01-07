@@ -14,6 +14,7 @@ export interface SystemConfig {
   boleta_electronica: boolean; // Configuración de Boleta Electrónica (solo lectura para usuarios, solo administradores pueden cambiar)
   max_capacity?: number; // Capacidad máxima de vehículos en el estacionamiento
   car_wash_enabled?: boolean; // Configuración de módulo de lavado de autos (solo lectura para usuarios, solo administradores pueden cambiar)
+  car_wash_payment_deferred?: boolean; // Permitir pago posterior del lavado de autos (solo visible si car_wash_enabled está activo)
 }
 
 @Injectable({ providedIn: 'root' })
@@ -21,14 +22,15 @@ export class ConfigService {
   private _httpClient = inject(HttpClient);
   private _systemConfig = new BehaviorSubject<SystemConfig>({
     name: 'STPark - Sistema de Gestión de Estacionamientos',
-    currency: 'CLP',
-    timezone: 'America/Santiago',
-    language: 'es',
-    pos_tuu: false,
-    boleta_electronica: false,
-    max_capacity: 0,
-    car_wash_enabled: false
-  });
+      currency: 'CLP',
+      timezone: 'America/Santiago',
+      language: 'es',
+      pos_tuu: false,
+      boleta_electronica: false,
+      max_capacity: 0,
+      car_wash_enabled: false,
+      car_wash_payment_deferred: false
+    });
   private _configLoaded = false;
 
   /**
@@ -44,7 +46,8 @@ export class ConfigService {
       pos_tuu: false,
       boleta_electronica: false,
       max_capacity: 0,
-      car_wash_enabled: false
+      car_wash_enabled: false,
+      car_wash_payment_deferred: false
     };
 
     return this._httpClient.get<{ success: boolean; data: SystemConfig }>(`${environment.apiUrl}/settings/general`)

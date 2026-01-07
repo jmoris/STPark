@@ -10,6 +10,7 @@ export interface SystemConfig {
   language: string;
   pos_tuu: boolean; // Configuración de POS TUU (solo lectura para usuarios)
   car_wash_enabled?: boolean; // Configuración de módulo de lavado de autos
+  car_wash_payment_deferred?: boolean; // Permitir pago posterior del lavado de autos
 }
 
 class SystemConfigService {
@@ -65,7 +66,8 @@ class SystemConfigService {
       timezone: 'America/Santiago',
       language: 'es',
       pos_tuu: false,
-      car_wash_enabled: false
+      car_wash_enabled: false,
+      car_wash_payment_deferred: false
     };
     
     return defaultConfig;

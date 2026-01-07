@@ -47,12 +47,27 @@ export default function LavadoAutosScreen() {
   const [showNoShiftAlert, setShowNoShiftAlert] = useState(false);
   const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
   const [openingShift, setOpeningShift] = useState(false);
+  const [carWashPaymentDeferred, setCarWashPaymentDeferred] = useState<boolean>(false);
   const selectedDate = new Date(); // Readonly - siempre usa la fecha/hora actual
 
-  // Cargar tipos de lavado al montar el componente
+  // Cargar tipos de lavado y configuración al montar el componente
   useEffect(() => {
     loadWashTypes();
+    loadPaymentDeferredConfig();
   }, []);
+
+  // Cargar configuración de pago posterior
+  const loadPaymentDeferredConfig = async () => {
+    try {
+      const config = await systemConfigService.getConfig();
+      const isPaymentDeferred = config.car_wash_payment_deferred || false;
+      setCarWashPaymentDeferred(isPaymentDeferred);
+      console.log('LavadoAutos: Pago posterior habilitado:', isPaymentDeferred);
+    } catch (error) {
+      console.error('Error cargando configuración de pago posterior:', error);
+      setCarWashPaymentDeferred(false);
+    }
+  };
 
   const loadWashTypes = async () => {
     setLoadingTypes(true);
@@ -85,8 +100,14 @@ export default function LavadoAutosScreen() {
       return;
     }
 
-    // Mostrar modal de selección de pago
-    setShowPaymentOptionModal(true);
+    // Si el pago posterior está habilitado, mostrar modal de elección
+    // Si no está habilitado, ir directo al pago inmediato
+    if (carWashPaymentDeferred) {
+      setShowPaymentOptionModal(true);
+    } else {
+      // Si no está habilitado, ir directo al pago inmediato
+      handlePayNow();
+    }
   };
 
   const handlePayLater = async () => {

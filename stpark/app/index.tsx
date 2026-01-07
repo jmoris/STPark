@@ -25,6 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReactNativePosPrinter, { ThermalPrinterDevice } from 'react-native-thermal-pos-printer';
 import { Platform, Linking } from 'react-native';
 import { CarWashPaymentModal } from '@/components/CarWashPaymentModal';
+import { CarWashPaymentChoiceModal } from '@/components/CarWashPaymentChoiceModal';
 import { systemConfigService } from '@/services/systemConfig';
 
 export default function HomeScreen() {
@@ -44,6 +45,8 @@ export default function HomeScreen() {
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [selectedCarWash, setSelectedCarWash] = useState<any>(null);
   const [showCarWashPaymentModal, setShowCarWashPaymentModal] = useState(false);
+  const [showCarWashPaymentChoiceModal, setShowCarWashPaymentChoiceModal] = useState(false);
+  const [carWashPaymentDeferred, setCarWashPaymentDeferred] = useState<boolean>(false);
   const [printerConnected, setPrinterConnected] = useState(false);
   const [printerConnecting, setPrinterConnecting] = useState(false);
   const [printerInfo, setPrinterInfo] = useState<string>('');
@@ -122,6 +125,12 @@ export default function HomeScreen() {
         const isCarWashEnabled = await systemConfigService.isCarWashEnabled();
         setCarWashEnabled(isCarWashEnabled);
         console.log('Módulo de lavado de autos habilitado:', isCarWashEnabled);
+        
+        // Verificar si el pago posterior está habilitado
+        const config = await systemConfigService.getConfig();
+        const isPaymentDeferred = config.car_wash_payment_deferred || false;
+        setCarWashPaymentDeferred(isPaymentDeferred);
+        console.log('Pago posterior de lavado habilitado:', isPaymentDeferred);
       } catch (error) {
         console.error('Error cargando configuración del sistema:', error);
         // Si falla, mantener los valores por defecto
@@ -486,7 +495,47 @@ export default function HomeScreen() {
     console.log('Iniciando checkout para lavado:', carWash);
     setSelectedCarWash(carWash);
     setShowPendingCarWashesModal(false);
+    
+    // Si el pago posterior está habilitado y el lavado está habilitado, mostrar modal de elección
+    if (carWashEnabled && carWashPaymentDeferred) {
+      setShowCarWashPaymentChoiceModal(true);
+    } else {
+      // Si no está habilitado el pago posterior, ir directo al modal de pago
+      setShowCarWashPaymentModal(true);
+    }
+  };
+
+  // Función para manejar "Pagar Ahora"
+  const handlePayNow = () => {
+    setShowCarWashPaymentChoiceModal(false);
     setShowCarWashPaymentModal(true);
+  };
+
+  // Función para manejar "Pagar al Retirar" (dejar pendiente)
+  const handlePayLater = async () => {
+    if (!selectedCarWash) return;
+    
+    try {
+      // No hacer nada adicional aquí, solo cerrar el modal
+      // El lavado ya está pendiente de pago
+      setShowCarWashPaymentChoiceModal(false);
+      setSelectedCarWash(null);
+      
+      // Recargar la lista de lavados pendientes
+      if (carWashEnabled) {
+        await loadPendingCarWashes();
+      }
+      await loadDailyStats();
+      
+      Alert.alert(
+        'Éxito',
+        'El lavado quedó pendiente de pago. Podrás pagarlo cuando el cliente retire el vehículo.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Error dejando lavado pendiente:', error);
+      Alert.alert('Error', 'No se pudo dejar el lavado pendiente de pago');
+    }
   };
 
   // Función para manejar éxito del pago de lavado
@@ -1673,6 +1722,18 @@ export default function HomeScreen() {
             : "checkout"
         }
         operator={operator}
+      />
+
+      {/* Modal de Elección de Pago de Lavado de Autos */}
+      <CarWashPaymentChoiceModal
+        visible={showCarWashPaymentChoiceModal}
+        onClose={() => {
+          setShowCarWashPaymentChoiceModal(false);
+          setSelectedCarWash(null);
+        }}
+        onPayNow={handlePayNow}
+        onPayLater={handlePayLater}
+        carWash={selectedCarWash}
       />
 
       {/* Modal de Pago de Lavado de Autos */}

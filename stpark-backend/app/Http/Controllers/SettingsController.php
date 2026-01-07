@@ -75,7 +75,8 @@ class SettingsController extends Controller
             'pos_tuu' => false, // Configuración de POS TUU (solo lectura para usuarios, solo administradores pueden cambiar)
             'boleta_electronica' => false, // Configuración de Boleta Electrónica (solo lectura para usuarios, solo administradores pueden cambiar)
             'max_capacity' => 0, // Capacidad máxima de vehículos en el estacionamiento
-            'car_wash_enabled' => false // Configuración de módulo de lavado de autos (solo lectura para usuarios, solo administradores pueden cambiar)
+            'car_wash_enabled' => false, // Configuración de módulo de lavado de autos (solo lectura para usuarios, solo administradores pueden cambiar)
+            'car_wash_payment_deferred' => false // Permitir pago posterior del lavado de autos (solo visible si car_wash_enabled está activo)
         ];
         
         // Obtener información del plan del tenant desde la conexión central
@@ -140,6 +141,7 @@ class SettingsController extends Controller
             'boleta_electronica' => isset($config['boleta_electronica']) ? (bool) $config['boleta_electronica'] : $defaultConfig['boleta_electronica'],
             'max_capacity' => isset($config['max_capacity']) ? (int) $config['max_capacity'] : $defaultConfig['max_capacity'],
             'car_wash_enabled' => isset($config['car_wash_enabled']) ? (bool) $config['car_wash_enabled'] : $defaultConfig['car_wash_enabled'],
+            'car_wash_payment_deferred' => isset($config['car_wash_payment_deferred']) ? (bool) $config['car_wash_payment_deferred'] : $defaultConfig['car_wash_payment_deferred'],
             'plan_name' => $planName
         ];
         
@@ -165,17 +167,38 @@ class SettingsController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'language' => 'required|string|max:10',
-            'max_capacity' => 'nullable|integer|min:0'
-            // pos_tuu y boleta_electronica NO se incluyen aquí - solo pueden ser modificados por administradores directamente en la BD
+            'max_capacity' => 'nullable|integer|min:0',
+            'car_wash_payment_deferred' => 'nullable|boolean' // Permitir que el usuario modifique este campo
+            // pos_tuu, boleta_electronica y car_wash_enabled NO se incluyen aquí - solo pueden ser modificados por administradores directamente en la BD
         ]);
 
-        // Obtener la configuración actual para preservar pos_tuu y boleta_electronica
+        // Obtener la configuración actual para preservar campos de solo lectura
         $currentSetting = Settings::where('key', 'general')->first();
         $currentConfig = $currentSetting ? $currentSetting->value : [];
         
-        // Preservar pos_tuu y boleta_electronica del valor actual (no permitir que usuarios lo cambien)
+        // Log del valor ANTES de preservar
+        \Log::info('Settings: Valores ANTES de preservar', [
+            'car_wash_enabled_en_currentConfig' => isset($currentConfig['car_wash_enabled']) ? ($currentConfig['car_wash_enabled'] ? 'true' : 'false') : 'NO_EXISTE',
+            'car_wash_payment_deferred_en_request' => $request->has('car_wash_payment_deferred') ? ($request->input('car_wash_payment_deferred') ? 'true' : 'false') : 'NO_ENVIADO',
+        ]);
+        
+        // SIEMPRE preservar pos_tuu, boleta_electronica y car_wash_enabled del valor actual (NO permitir que usuarios lo cambien)
+        // Estos valores nunca deben cambiar desde aquí, solo desde la base de datos central
         $validated['pos_tuu'] = isset($currentConfig['pos_tuu']) ? (bool) $currentConfig['pos_tuu'] : false;
         $validated['boleta_electronica'] = isset($currentConfig['boleta_electronica']) ? (bool) $currentConfig['boleta_electronica'] : false;
+        
+        // IMPORTANTE: car_wash_enabled SIEMPRE se preserva del valor actual, NUNCA del request
+        $preservedCarWashEnabled = isset($currentConfig['car_wash_enabled']) ? (bool) $currentConfig['car_wash_enabled'] : false;
+        $validated['car_wash_enabled'] = $preservedCarWashEnabled;
+        
+        // car_wash_payment_deferred viene en la petición y puede ser modificado por el usuario
+        // Si no viene, preservar el valor actual
+        if (!isset($validated['car_wash_payment_deferred'])) {
+            $validated['car_wash_payment_deferred'] = isset($currentConfig['car_wash_payment_deferred']) ? (bool) $currentConfig['car_wash_payment_deferred'] : false;
+        } else {
+            // Convertir a boolean explícitamente
+            $validated['car_wash_payment_deferred'] = (bool) $validated['car_wash_payment_deferred'];
+        }
         
         // Si max_capacity no viene en la petición, preservar el valor actual o usar 0 por defecto
         if (!isset($validated['max_capacity'])) {
@@ -187,8 +210,12 @@ class SettingsController extends Controller
         \Log::info('Settings: Guardando configuración general', [
             'name' => $validated['name'],
             'language' => $validated['language'],
-            'pos_tuu' => $validated['pos_tuu'] . ' (preservado, no modificable por usuarios)',
-            'boleta_electronica' => $validated['boleta_electronica'] . ' (preservado, no modificable por usuarios)'
+            'pos_tuu' => ($validated['pos_tuu'] ? 'true' : 'false') . ' (preservado, no modificable por usuarios)',
+            'boleta_electronica' => ($validated['boleta_electronica'] ? 'true' : 'false') . ' (preservado, no modificable por usuarios)',
+            'car_wash_enabled' => ($validated['car_wash_enabled'] ? 'true' : 'false') . ' (preservado de BD, NO modificado)',
+            'car_wash_payment_deferred' => ($validated['car_wash_payment_deferred'] ? 'true' : 'false') . ' (modificado por usuario)',
+            'max_capacity' => $validated['max_capacity'],
+            'car_wash_enabled_preservado_de' => $preservedCarWashEnabled ? 'true' : 'false'
         ]);
 
         $setting = Settings::updateOrCreate(

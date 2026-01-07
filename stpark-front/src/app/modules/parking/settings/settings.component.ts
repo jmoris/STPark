@@ -67,7 +67,9 @@ export class SettingsComponent implements OnInit {
       plan_name: ['Sin plan'], // Se deshabilitará después de cargar
       pos_tuu: [{ value: false, disabled: true }], // Solo lectura - solo administradores pueden cambiar
       boleta_electronica: [{ value: false, disabled: true }], // Solo lectura - solo administradores pueden cambiar
-      max_capacity: [0, [Validators.required, Validators.min(0)]]
+      max_capacity: [0, [Validators.required, Validators.min(0)]],
+      car_wash_enabled: [{ value: false, disabled: true }], // Solo lectura - solo administradores pueden cambiar
+      car_wash_payment_deferred: [false] // Permitir pago posterior del lavado de autos (solo visible si car_wash_enabled está activo)
     });
 
     this.pricingForm = this.fb.group({
@@ -99,8 +101,8 @@ export class SettingsComponent implements OnInit {
             this.planName = planName;
             console.log('Plan name asignado:', this.planName);
             
-            // Excluir plan_name, pos_tuu y boleta_electronica del patchValue ya que los actualizamos por separado
-            const { plan_name, pos_tuu, boleta_electronica, ...formData } = response.data;
+            // Excluir plan_name, pos_tuu, boleta_electronica y car_wash_enabled del patchValue ya que los actualizamos por separado
+            const { plan_name, pos_tuu, boleta_electronica, car_wash_enabled, ...formData } = response.data;
             
             // Actualizar los demás campos del formulario
             this.generalForm.patchValue(formData);
@@ -141,6 +143,36 @@ export class SettingsComponent implements OnInit {
                 setTimeout(() => {
                   boletaElectronicaControl.disable({ emitEvent: false });
                 }, 100);
+              }
+
+              // Actualizar car_wash_enabled (solo lectura)
+              const carWashEnabledControl = this.generalForm.get('car_wash_enabled');
+              if (carWashEnabledControl && response.data.car_wash_enabled !== undefined) {
+                if (carWashEnabledControl.disabled) {
+                  carWashEnabledControl.enable({ emitEvent: false });
+                }
+                const carWashEnabledValue = !!response.data.car_wash_enabled;
+                carWashEnabledControl.setValue(carWashEnabledValue, { emitEvent: false });
+                setTimeout(() => {
+                  carWashEnabledControl.disable({ emitEvent: false });
+                }, 100);
+              }
+              
+              // Si car_wash_enabled es false, desactivar también car_wash_payment_deferred solo en la UI
+              // Pero NO forzar el guardado de este valor, ya que car_wash_enabled puede cambiar después
+              const carWashEnabledValue = response.data.car_wash_enabled === true;
+              if (!carWashEnabledValue) {
+                const paymentDeferredControl = this.generalForm.get('car_wash_payment_deferred');
+                if (paymentDeferredControl) {
+                  paymentDeferredControl.setValue(false, { emitEvent: false });
+                  paymentDeferredControl.disable({ emitEvent: false });
+                }
+              } else {
+                // Si car_wash_enabled es true, habilitar el campo
+                const paymentDeferredControl = this.generalForm.get('car_wash_payment_deferred');
+                if (paymentDeferredControl) {
+                  paymentDeferredControl.enable({ emitEvent: false });
+                }
               }
             }, 0);
           } else {
@@ -216,8 +248,19 @@ export class SettingsComponent implements OnInit {
     }
 
     this.loading = true;
-    // Excluir pos_tuu, boleta_electronica y plan_name del objeto a enviar (solo lectura, el backend los preserva automáticamente)
-    const { pos_tuu, boleta_electronica, plan_name, ...config } = this.generalForm.getRawValue();
+    
+    // Obtener el valor de car_wash_payment_deferred ANTES de excluir campos
+    // Asegurarse de obtener el valor incluso si el campo está deshabilitado
+    const carWashPaymentDeferredControl = this.generalForm.get('car_wash_payment_deferred');
+    const carWashPaymentDeferredValue = carWashPaymentDeferredControl ? carWashPaymentDeferredControl.value : false;
+    
+    // Excluir pos_tuu, boleta_electronica, car_wash_enabled y plan_name del objeto a enviar (solo lectura, el backend los preserva automáticamente)
+    const { pos_tuu, boleta_electronica, car_wash_enabled, plan_name, ...config } = this.generalForm.getRawValue();
+    
+    // Asegurar que car_wash_payment_deferred se incluya en el objeto a enviar
+    config.car_wash_payment_deferred = carWashPaymentDeferredValue;
+    
+    console.log('Settings: Enviando configuración al backend', config);
 
     this.http.post(`${environment.apiUrl}/settings/general`, config)
       .subscribe({
@@ -225,7 +268,8 @@ export class SettingsComponent implements OnInit {
           this.snackBar.open('Configuración general guardada exitosamente', 'Cerrar', {
             duration: 3000
           });
-          this.loading = false;
+          // Recargar la configuración después de guardar para mantener los valores sincronizados
+          this.loadGeneralSettings();
         },
         error: (error) => {
           console.error('Error al guardar configuración general:', error);

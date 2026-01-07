@@ -101,6 +101,29 @@
                     </span>
                   </mat-hint>
                 </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Módulo de Lavado de Autos</mat-label>
+                  <mat-select formControlName="car_wash_enabled">
+                    <mat-option [value]="true">Activado</mat-option>
+                    <mat-option [value]="false">Desactivado</mat-option>
+                  </mat-select>
+                  <mat-hint>
+                    <span style="display: inline-flex; align-items: center; gap: 4px;">
+                      <mat-icon style="font-size: 16px; width: 16px; height: 16px;">lock</mat-icon>
+                      Solo lectura - Solo administradores pueden modificar este valor
+                    </span>
+                  </mat-hint>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" *ngIf="generalForm.get('car_wash_enabled')?.value === true">
+                  <mat-label>Pago Posterior de Lavado</mat-label>
+                  <mat-select formControlName="car_wash_payment_deferred">
+                    <mat-option [value]="true">Activado</mat-option>
+                    <mat-option [value]="false">Desactivado</mat-option>
+                  </mat-select>
+                  <mat-hint>Permite que los clientes paguen el lavado al retirar el vehículo en lugar de inmediatamente</mat-hint>
+                </mat-form-field>
               </div>
             </form>
           </mat-card-content>
