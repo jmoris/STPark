@@ -98,7 +98,9 @@ class PricingService
             $endTime = Carbon::parse($endedAt)->setTimezone('America/Santiago');
         }
         
-        $durationMinutes = $startTime->diffInMinutes($endTime);
+        // Calcular duración usando solo minutos completos (sin considerar segundos)
+        // Solo se consideran los minutos completos para mayor precisión
+        $durationMinutes = (int)$startTime->diffInMinutes($endTime); // Solo minutos completos, sin redondear
         
         $breakdown = [];
         $totalAmount = 0;

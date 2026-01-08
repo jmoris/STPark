@@ -101,6 +101,7 @@ export interface ParkingSession {
   seconds_total?: number;
   gross_amount?: number;
   discount_amount?: number;
+  discount_id?: number;
   net_amount?: number;
   status: 'CREATED' | 'ACTIVE' | 'TO_PAY' | 'PAID' | 'CLOSED' | 'CANCELED' | 'COMPLETED' | 'FORCED_CHECKOUT' | 'CANCELLED';
   created_at?: string;
@@ -110,6 +111,7 @@ export interface ParkingSession {
   operator?: Operator; // Operador que recibió el vehículo (operator_in_id)
   operator_out?: Operator; // Operador que hizo el checkout (operator_out_id)
   payments?: Payment[]; // Pagos asociados a la sesión
+  discount?: any; // Información del descuento aplicado
   // Campos calculados del backend
   duration_minutes?: number;
   duration_formatted?: string;

@@ -327,6 +327,8 @@ class ApiService {
     amount: number;
     approval_code?: string;
     operator_id?: number;
+    discount_id?: number;
+    discount_code?: string;
   }): Promise<ApiResponse<any>> {
     try {
       const response = await makeRequest(`/sessions/${sessionId}/checkout`, {
@@ -345,10 +347,47 @@ class ApiService {
   }
 
   // Obtener cotización de sesión
-  async getSessionQuote(sessionId: number): Promise<ApiResponse<any>> {
+  async getSessionQuote(sessionId: number, params?: { discount_id?: number; discount_code?: string }): Promise<ApiResponse<any>> {
     try {
+      const body: any = {};
+      if (params?.discount_id) {
+        body.discount_id = params.discount_id;
+        console.log('API: Enviando discount_id:', params.discount_id);
+      }
+      if (params?.discount_code) {
+        body.discount_code = params.discount_code;
+        console.log('API: Enviando discount_code:', params.discount_code);
+      }
+      
+      // Siempre enviar un body JSON, aunque esté vacío, para evitar problemas con el backend
+      const requestBody = JSON.stringify(body);
+      console.log('API: Body enviado a quote:', requestBody);
+      
       const response = await makeRequest(`/sessions/${sessionId}/quote`, {
         method: 'POST',
+        headers: {
+          ...await this.getHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: requestBody,
+      });
+
+      const data = await response.json();
+      console.log('API: Respuesta de quote:', data);
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+      };
+    }
+  }
+
+  // Obtener descuentos de sesiones
+  async getSessionDiscounts(): Promise<ApiResponse<any[]>> {
+    try {
+      const response = await makeRequest(`/session-discounts`, {
+        method: 'GET',
         headers: await this.getHeaders(),
       });
 
@@ -357,6 +396,7 @@ class ApiService {
       return {
         success: false,
         message: 'Error de conexión con el servidor',
+        data: [],
       };
     }
   }

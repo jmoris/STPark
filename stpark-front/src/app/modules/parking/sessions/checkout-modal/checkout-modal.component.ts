@@ -18,6 +18,7 @@ import { ParkingSession } from 'app/interfaces/parking.interface';
 export interface CheckoutModalData {
   session: ParkingSession;
   quote?: any;
+  selectedDiscount?: any;
 }
 
 @Component({
@@ -176,12 +177,19 @@ export class CheckoutModalComponent implements OnInit, OnDestroy {
         : Number(formData.amount) || 0;
     }
     
-    const paymentData = {
+    const paymentData: any = {
       amount: amountValue,
       payment_method: formData.payment_method,
       notes: formData.notes || null,
       operator_id: this.session.operator_in_id // Operador que cierra (mismo que abrió)
     };
+
+    // Agregar descuento si está en la cotización o fue seleccionado
+    if (this.quote?.discount_id) {
+      paymentData.discount_id = this.quote.discount_id;
+    } else if (this.data.selectedDiscount?.id) {
+      paymentData.discount_id = this.data.selectedDiscount.id;
+    }
 
     this.sessionService.checkoutSession(this.session.id, paymentData)
       .pipe(takeUntil(this._unsubscribeAll))

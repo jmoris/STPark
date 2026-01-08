@@ -9,6 +9,7 @@ import {
   Alert,
   Linking,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { apiService } from '@/services/api';
@@ -40,6 +41,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [showApprovalCodeModal, setShowApprovalCodeModal] = useState(false);
   const [showChangeModal, setShowChangeModal] = useState(false);
   const [showPrintTicketModal, setShowPrintTicketModal] = useState(false);
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [pendingTicketData, setPendingTicketData] = useState<CheckoutTicketData | null>(null);
   const [printTicketCountdown, setPrintTicketCountdown] = useState(10);
   const [paymentSummary, setPaymentSummary] = useState<any>(null);
@@ -51,6 +53,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [useTuuPosPayment, setUseTuuPosPayment] = useState<boolean>(false); // Cargado desde configuración del tenant
   const [quoteBreakdown, setQuoteBreakdown] = useState<any[] | null>(null); // Breakdown de la cotización para obtener monto mínimo
+  const [availableDiscounts, setAvailableDiscounts] = useState<any[]>([]);
+  const [selectedDiscountId, setSelectedDiscountId] = useState<number | null>(null);
+  const [selectedDiscount, setSelectedDiscount] = useState<any | null>(null);
+  const [loadingDiscounts, setLoadingDiscounts] = useState(false);
+  const [discountCode, setDiscountCode] = useState('');
+  const [quoteEndedAt, setQuoteEndedAt] = useState<string | null>(null); // Guardar ended_at de la cotización
   const tuuPaymentProcessedRef = React.useRef(false);
 
   // Cargar configuración de POS TUU al montar el componente
@@ -110,6 +118,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setShowApprovalCodeModal(false);
       setShowChangeModal(false);
       setShowPrintTicketModal(false);
+      setShowDiscountModal(false);
       setPendingTicketData(null);
       setPrintTicketCountdown(10);
       setSelectedPaymentMethod(null);
@@ -118,13 +127,20 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setPaymentSummary(null);
       setEstimatedAmount(null);
       setQuoteBreakdown(null);
+      setSelectedDiscountId(null);
+      setSelectedDiscount(null);
+      setDiscountCode('');
+      setQuoteEndedAt(null);
       tuuPaymentProcessedRef.current = false;
       console.log('PaymentModal: Modal cerrado, reseteando estado');
     } else if (data) {
       console.log('PaymentModal: Modal abierto, reseteando tuuPaymentProcessed');
       // Resetear el ref cuando se abre el modal con nuevos datos
       tuuPaymentProcessedRef.current = false;
-      // Obtener cotización cuando se abre el modal
+      // Cargar descuentos y obtener cotización cuando se abre el modal
+      if (type === 'checkout') {
+        loadDiscounts();
+      }
       getEstimatedQuote();
       
       // Siempre mostrar el modal de método de pago primero
@@ -133,8 +149,31 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   }, [visible, data]);
 
+  // Función para cargar descuentos disponibles
+  const loadDiscounts = async () => {
+    setLoadingDiscounts(true);
+    try {
+      const response = await apiService.getSessionDiscounts();
+      if (response.success && response.data) {
+        // Filtrar solo descuentos activos y vigentes
+        const now = new Date();
+        const validDiscounts = (response.data || []).filter((discount: any) => {
+          if (!discount.is_active) return false;
+          if (discount.valid_from && new Date(discount.valid_from) > now) return false;
+          if (discount.valid_until && new Date(discount.valid_until) < now) return false;
+          return true;
+        });
+        setAvailableDiscounts(validDiscounts);
+      }
+    } catch (error) {
+      console.error('PaymentModal: Error cargando descuentos:', error);
+    } finally {
+      setLoadingDiscounts(false);
+    }
+  };
+
   // Función para obtener cotización estimada
-  const getEstimatedQuote = async () => {
+  const getEstimatedQuote = async (discountIdOverride?: number | null, discountCodeOverride?: string) => {
     if (!data) {
       console.log('PaymentModal: No hay data para obtener cotización');
       return;
@@ -145,10 +184,36 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     try {
       let response;
       if (type === 'checkout') {
-        // Para checkout, obtener cotización de la sesión
-        console.log('PaymentModal: Llamando a getSessionQuote para sesión:', data.id);
-        response = await apiService.getSessionQuote(data.id);
+        // Para checkout, obtener cotización de la sesión con descuento si está seleccionado
+        // Usar los parámetros override si se proporcionan (para evitar problemas de timing con state)
+        const activeDiscountId = discountIdOverride !== undefined ? discountIdOverride : selectedDiscountId;
+        const activeDiscountCode = discountCodeOverride !== undefined ? discountCodeOverride : discountCode;
+        
+        const quoteParams: any = {};
+        if (activeDiscountId) {
+          quoteParams.discount_id = activeDiscountId;
+          console.log('PaymentModal: Usando discount_id:', activeDiscountId);
+        } else if (activeDiscountCode) {
+          quoteParams.discount_code = activeDiscountCode;
+          console.log('PaymentModal: Usando discount_code:', activeDiscountCode);
+        } else {
+          console.log('PaymentModal: Sin descuento aplicado');
+        }
+        
+        console.log('PaymentModal: Llamando a getSessionQuote para sesión:', data.id, 'con params:', quoteParams);
+        response = await apiService.getSessionQuote(data.id, quoteParams);
         console.log('PaymentModal: Respuesta de cotización:', response);
+        
+        // Log detallado de la respuesta
+        if (response.success && response.data) {
+          console.log('PaymentModal: Detalles de cotización:', {
+            gross_amount: response.data.gross_amount,
+            discount_amount: response.data.discount_amount,
+            net_amount: response.data.net_amount,
+            discount_id_used: activeDiscountId,
+            discount_code_used: activeDiscountCode
+          });
+        }
       } else {
         // Para deudas, usar el monto de la deuda directamente
         if (data.debts && data.debts.length > 0) {
@@ -165,21 +230,85 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       
       if (response.success && response.data) {
         const amount = response.data.net_amount || response.data.gross_amount || 0;
-        console.log('PaymentModal: Monto obtenido:', amount);
+        console.log('PaymentModal: Monto final obtenido:', amount, '(net_amount:', response.data.net_amount, ', gross_amount:', response.data.gross_amount, ')');
         setEstimatedAmount(amount);
         // Guardar breakdown para obtener monto mínimo
         if (response.data.breakdown) {
           setQuoteBreakdown(response.data.breakdown);
         }
+        // Guardar ended_at de la cotización para usarlo en el checkout
+        // Esto asegura que la duración calculada en checkout sea la misma que en la cotización
+        if (response.data.ended_at) {
+          setQuoteEndedAt(response.data.ended_at);
+          console.log('PaymentModal: ended_at de cotización guardado:', response.data.ended_at);
+        }
         // NO procesar automáticamente con TUU aquí
         // El pago con TUU se iniciará solo cuando el usuario seleccione "Tarjeta"
       } else {
         console.log('PaymentModal: Error en respuesta de cotización:', response);
+        Alert.alert('Error', response.message || 'Error al obtener cotización');
       }
     } catch (error) {
       console.error('PaymentModal: Error obteniendo cotización:', error);
+      Alert.alert('Error', 'Error al obtener cotización. Por favor intenta nuevamente.');
     } finally {
       setLoadingQuote(false);
+    }
+  };
+
+  // Función para manejar cambio de descuento
+  const handleDiscountChange = (discountId: number | null) => {
+    console.log('PaymentModal: Cambiando descuento a:', discountId);
+    
+    // Actualizar estado
+    setSelectedDiscountId(discountId);
+    if (discountId) {
+      const discount = availableDiscounts.find((d: any) => d.id === discountId);
+      setSelectedDiscount(discount || null);
+      setDiscountCode(''); // Limpiar código si se selecciona un descuento
+      console.log('PaymentModal: Descuento seleccionado:', discount);
+    } else {
+      setSelectedDiscount(null);
+      console.log('PaymentModal: Descuento removido');
+    }
+    
+    // Cerrar modal de descuentos
+    setShowDiscountModal(false);
+    
+    // Recalcular cotización con el nuevo descuento (pasar directamente el discountId para evitar problemas de timing)
+    if (type === 'checkout' && data?.id) {
+      getEstimatedQuote(discountId, undefined);
+    }
+  };
+
+  // Función para aplicar código de descuento
+  const handleApplyDiscountCode = () => {
+    const code = discountCode.trim();
+    if (code) {
+      console.log('PaymentModal: Aplicando código de descuento:', code);
+      setSelectedDiscountId(null);
+      setSelectedDiscount(null);
+      // Cerrar modal de descuentos
+      setShowDiscountModal(false);
+      // Recalcular cotización con el código (pasar directamente el código para evitar problemas de timing)
+      if (type === 'checkout' && data?.id) {
+        // Usar setTimeout para asegurar que el estado se actualice primero
+        setTimeout(() => {
+          getEstimatedQuote(null, code);
+        }, 100);
+      }
+    }
+  };
+
+  // Función para quitar descuento
+  const handleRemoveDiscount = () => {
+    console.log('PaymentModal: Quitando descuento');
+    setSelectedDiscountId(null);
+    setSelectedDiscount(null);
+    setDiscountCode('');
+    // Recalcular cotización sin descuento (pasar null explícitamente)
+    if (type === 'checkout' && data?.id) {
+      getEstimatedQuote(null, undefined);
     }
   };
 
@@ -353,14 +482,25 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       
       if (type === 'checkout') {
         // Procesar checkout de sesión
-        const endedAt = getCurrentDateInSantiago();
+        // Usar el mismo ended_at de la cotización para que la duración sea consistente
+        // Si no está disponible (no debería pasar), usar el actual
+        const endedAt = quoteEndedAt || getCurrentDateInSantiago();
+        console.log('PaymentModal: Usando ended_at para checkout:', endedAt, '(de cotización:', quoteEndedAt ? 'SÍ' : 'NO', ')');
         const paymentData: any = {
           payment_method: 'CARD',
-          amount: paymentAmount,
+          // amount ya no es necesario, el backend calcula net_amount internamente
+          // Para tarjeta, el monto se cobra exactamente (no hay vuelto)
           ended_at: endedAt,
           approval_code: approvalCode || undefined,
           operator_id: operator.id, // Operador que hace el checkout (REQUERIDO)
         };
+
+        // Agregar descuento si está seleccionado
+        if (selectedDiscountId) {
+          paymentData.discount_id = selectedDiscountId;
+        } else if (discountCode.trim()) {
+          paymentData.discount_code = discountCode.trim();
+        }
 
         response = await apiService.checkoutSession(data.id, paymentData);
       } else {
@@ -423,6 +563,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             const isFullDay = data.is_full_day || response.data.session?.is_full_day || false;
             const duration = isFullDay ? 'Día completo' : calculateElapsedTime(startTime, endTime);
 
+            // Obtener información del descuento desde la respuesta
+            const sessionDiscountTuu = response.data?.session?.discount || response.data?.quote?.discount_id ? 
+              (response.data?.session?.discount || null) : null;
+            const quoteDataTuu = response.data?.quote || response.data?.session || {};
+            
             const ticketData: CheckoutTicketData = {
               type: 'CHECKOUT',
               plate: data.plate,
@@ -439,6 +584,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               // No incluir datos de pago porque TUU ya imprime el comprobante
               minAmount: getMinAmountFromBreakdown(),
               isFullDay: isFullDay,
+              // Datos de descuento si está aplicado
+              discountName: sessionDiscountTuu?.name || selectedDiscount?.name || undefined,
+              discountDescription: sessionDiscountTuu?.description || selectedDiscount?.description || undefined,
+              discountAmount: quoteDataTuu.discount_amount || response.data?.session?.discount_amount || undefined,
+              grossAmount: quoteDataTuu.gross_amount || response.data?.session?.gross_amount || undefined,
+              netAmount: quoteDataTuu.net_amount || response.data?.session?.net_amount || paymentAmount || undefined,
               // Datos de FacturaPi si están disponibles (para pagos en efectivo con boleta electrónica)
               ted: response.data?.payment?.ted || response.data?.ted || undefined,
               folio: response.data?.payment?.folio || undefined,
@@ -717,11 +868,21 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         
         const paymentData: any = {
           payment_method: selectedPaymentMethod,
-          amount: estimatedAmount || 0,
+          // amount ya no es necesario, el backend calcula net_amount internamente
+          // Solo enviar amount_paid para calcular vuelto en efectivo
           ended_at: endedAt,
           operator_id: operator.id, // Operador que hace el checkout (REQUERIDO)
         };
 
+        // Agregar descuento si está seleccionado
+        if (selectedDiscountId) {
+          paymentData.discount_id = selectedDiscountId;
+        } else if (discountCode.trim()) {
+          paymentData.discount_code = discountCode.trim();
+        }
+
+        // Para efectivo, enviar amount_paid (monto recibido) para calcular vuelto
+        // El backend calculará net_amount internamente y lo usará para crear el pago
         if (selectedPaymentMethod === 'CASH' && amountPaid) {
           paymentData.amount_paid = parseFloat(amountPaid);
         } else if (selectedPaymentMethod === 'CARD' && approvalCode) {
@@ -790,6 +951,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             const isFullDay = data.is_full_day || response.data.session?.is_full_day || false;
             const duration = isFullDay ? 'Día completo' : calculateElapsedTime(startTime, endTime);
             
+            // Obtener información del descuento desde la respuesta
+            const sessionDiscount = response.data?.session?.discount || response.data?.quote?.discount_id ? 
+              (response.data?.session?.discount || null) : null;
+            const quoteData = response.data?.quote || response.data?.session || {};
+            
             const ticketData: CheckoutTicketData = {
               type: 'CHECKOUT',
               plate: data.plate,
@@ -808,6 +974,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 parseFloat(amountPaid) - (estimatedAmount || 0) : undefined,
               minAmount: getMinAmountFromBreakdown(),
               isFullDay: isFullDay,
+              // Datos de descuento si está aplicado
+              discountName: sessionDiscount?.name || selectedDiscount?.name || undefined,
+              discountDescription: sessionDiscount?.description || selectedDiscount?.description || undefined,
+              discountAmount: quoteData.discount_amount || response.data?.session?.discount_amount || undefined,
+              grossAmount: quoteData.gross_amount || response.data?.session?.gross_amount || undefined,
+              netAmount: quoteData.net_amount || response.data?.session?.net_amount || estimatedAmount || undefined,
               // Datos de FacturaPi si están disponibles (para pagos en efectivo con boleta electrónica)
               ted: response.data?.payment?.ted || response.data?.ted || undefined,
               folio: response.data?.payment?.folio || undefined,
@@ -1006,6 +1178,26 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     return Math.max(...minAmounts);
   };
 
+  // Función para obtener texto descriptivo del descuento
+  const getDiscountDisplayValue = (discount: any): string => {
+    if (discount.discount_type === 'AMOUNT') {
+      return `Descuento fijo: $${(discount.value || 0).toLocaleString('es-CL')}`;
+    } else if (discount.discount_type === 'PERCENTAGE') {
+      const maxInfo = discount.max_amount ? ` (máx: $${discount.max_amount.toLocaleString('es-CL')})` : '';
+      return `Descuento: ${discount.value || 0}%${maxInfo}`;
+    } else if (discount.discount_type === 'PRICING_PROFILE') {
+      const parts: string[] = [];
+      if (discount.minute_value) {
+        parts.push(`Min: $${discount.minute_value.toLocaleString('es-CL')}`);
+      }
+      if (discount.min_amount) {
+        parts.push(`Mín: $${discount.min_amount.toLocaleString('es-CL')}`);
+      }
+      return parts.length > 0 ? parts.join(', ') : 'Perfil personalizado';
+    }
+    return '-';
+  };
+
   if (!data) return null;
 
   // Función para obtener el título del modal según el tipo
@@ -1117,6 +1309,41 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <Text style={styles.sessionSummaryValue}>{dataInfo.time}</Text>
                 </View>
               </View>
+
+              {/* Botón para aplicar descuento - Solo para checkout */}
+              {type === 'checkout' && (
+                <TouchableOpacity
+                  style={styles.discountButton}
+                  onPress={() => setShowDiscountModal(true)}
+                >
+                  <IconSymbol name="tag.fill" size={18} color="#007bff" />
+                  <Text style={styles.discountButtonText}>
+                    {selectedDiscount || discountCode ? 'Cambiar descuento' : 'Aplicar descuento'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Mostrar descuento aplicado de forma compacta - Solo para checkout */}
+              {type === 'checkout' && (selectedDiscount || discountCode) && (
+                <View style={styles.discountAppliedCompact}>
+                  <IconSymbol name="checkmark.circle.fill" size={16} color="#28a745" />
+                  <Text style={styles.discountAppliedCompactText}>
+                    {selectedDiscount ? selectedDiscount.name : `Código: ${discountCode}`}
+                  </Text>
+                  {selectedDiscount && (
+                    <Text style={styles.discountAppliedCompactValue}>
+                      {getDiscountDisplayValue(selectedDiscount)}
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {/* Mostrar mensaje de recalculando */}
+              {type === 'checkout' && loadingQuote && (
+                <Text style={styles.discountRecalculatingText}>
+                  Recalculando con descuento...
+                </Text>
+              )}
 
               <Text style={styles.paymentMethodTitle}>Selecciona el método de pago:</Text>
               
@@ -1344,6 +1571,139 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Descuentos - Solo para checkout */}
+      {type === 'checkout' && (
+        <Modal
+          visible={showDiscountModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowDiscountModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Aplicar Descuento</Text>
+                <TouchableOpacity
+                  style={styles.modalCloseButton}
+                  onPress={() => setShowDiscountModal(false)}
+                >
+                  <IconSymbol size={24} name="xmark.circle.fill" color="#6c757d" />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.modalContent}>
+                {loadingDiscounts ? (
+                  <Text style={styles.discountLoadingText}>Cargando descuentos...</Text>
+                ) : (
+                  <>
+                    {/* Selector de descuentos */}
+                    <View style={styles.discountSelectorContainer}>
+                      <Text style={styles.discountLabel}>Seleccionar descuento:</Text>
+                      <ScrollView style={styles.discountList} nestedScrollEnabled>
+                        <TouchableOpacity
+                          style={[
+                            styles.discountOption,
+                            selectedDiscountId === null && styles.discountOptionSelected
+                          ]}
+                          onPress={() => handleDiscountChange(null)}
+                        >
+                          <Text style={[
+                            styles.discountOptionText,
+                            selectedDiscountId === null && styles.discountOptionTextSelected
+                          ]}>
+                            Ninguno
+                          </Text>
+                          {selectedDiscountId === null && (
+                            <IconSymbol name="checkmark.circle.fill" size={20} color="#28a745" />
+                          )}
+                        </TouchableOpacity>
+                        {availableDiscounts.map((discount: any) => (
+                          <TouchableOpacity
+                            key={discount.id}
+                            style={[
+                              styles.discountOption,
+                              selectedDiscountId === discount.id && styles.discountOptionSelected
+                            ]}
+                            onPress={() => handleDiscountChange(discount.id)}
+                          >
+                            <View style={styles.discountOptionContent}>
+                              <Text style={[
+                                styles.discountOptionText,
+                                selectedDiscountId === discount.id && styles.discountOptionTextSelected
+                              ]}>
+                                {discount.name}
+                              </Text>
+                              {discount.description && (
+                                <Text style={styles.discountOptionDescription}>
+                                  {discount.description}
+                                </Text>
+                              )}
+                              <Text style={styles.discountOptionSubtext}>
+                                {getDiscountDisplayValue(discount)}
+                              </Text>
+                            </View>
+                            {selectedDiscountId === discount.id && (
+                              <IconSymbol name="checkmark.circle.fill" size={20} color="#28a745" />
+                            )}
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+
+                    {/* Separador */}
+                    <View style={styles.discountDivider}>
+                      <View style={styles.discountDividerLine} />
+                      <Text style={styles.discountDividerText}>O</Text>
+                      <View style={styles.discountDividerLine} />
+                    </View>
+
+                    {/* Campo para código de descuento */}
+                    <View style={styles.discountCodeContainer}>
+                      <Text style={styles.discountLabel}>Ingresar código de descuento:</Text>
+                      <View style={styles.discountCodeInputContainer}>
+                        <TextInput
+                          style={styles.discountCodeInput}
+                          value={discountCode}
+                          onChangeText={setDiscountCode}
+                          placeholder="Ingresa código"
+                          placeholderTextColor="#6c757d"
+                          autoCapitalize="characters"
+                        />
+                        <TouchableOpacity
+                          style={[
+                            styles.discountCodeButton,
+                            discountCode.trim() && styles.discountCodeButtonActive
+                          ]}
+                          onPress={handleApplyDiscountCode}
+                          disabled={!discountCode.trim()}
+                        >
+                          <IconSymbol 
+                            name="checkmark" 
+                            size={18} 
+                            color={discountCode.trim() ? "#fff" : "#6c757d"} 
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Botón para quitar descuento si hay uno aplicado */}
+                    {(selectedDiscount || discountCode) && (
+                      <TouchableOpacity
+                        style={styles.removeDiscountButton}
+                        onPress={handleRemoveDiscount}
+                      >
+                        <IconSymbol name="xmark.circle.fill" size={18} color="#dc3545" />
+                        <Text style={styles.removeDiscountButtonText}>Quitar descuento</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </>
   );
 };
@@ -1557,6 +1917,213 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
     textAlign: 'center',
+  },
+  // Estilos para selector de descuentos
+  discountSection: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  discountSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#043476',
+    marginBottom: 12,
+  },
+  discountLoadingText: {
+    fontSize: 14,
+    color: '#6c757d',
+    textAlign: 'center',
+    paddingVertical: 8,
+  },
+  discountSelectorContainer: {
+    marginBottom: 12,
+  },
+  discountLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#043476',
+    marginBottom: 8,
+  },
+  discountList: {
+    maxHeight: 150,
+    marginBottom: 8,
+  },
+  discountOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  discountOptionSelected: {
+    backgroundColor: '#e7f3ff',
+    borderColor: '#007bff',
+    borderWidth: 2,
+  },
+  discountOptionContent: {
+    flex: 1,
+  },
+  discountOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#043476',
+    marginBottom: 4,
+  },
+  discountOptionTextSelected: {
+    color: '#007bff',
+  },
+  discountOptionSubtext: {
+    fontSize: 12,
+    color: '#6c757d',
+  },
+  discountCodeContainer: {
+    marginTop: 12,
+  },
+  discountCodeInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  discountCodeInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    backgroundColor: '#fff',
+  },
+  discountCodeButton: {
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+  },
+  discountInfoContainer: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#e7f3ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#b3d9ff',
+  },
+  discountInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  discountInfoText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007bff',
+  },
+  discountInfoDescription: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginTop: 4,
+  },
+  discountRecalculatingText: {
+    fontSize: 12,
+    color: '#007bff',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  // Estilos compactos para descuento
+  discountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#e7f3ff',
+    borderWidth: 1,
+    borderColor: '#007bff',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  discountButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007bff',
+  },
+  discountAppliedCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: '#d4edda',
+    borderWidth: 1,
+    borderColor: '#28a745',
+    marginBottom: 12,
+  },
+  discountAppliedCompactText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#155724',
+  },
+  discountAppliedCompactValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#155724',
+  },
+  discountDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  discountDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#dee2e6',
+  },
+  discountDividerText: {
+    marginHorizontal: 12,
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+  },
+  discountOptionDescription: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  removeDiscountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#f8d7da',
+    borderWidth: 1,
+    borderColor: '#dc3545',
+  },
+  removeDiscountButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#dc3545',
+  },
+  discountCodeButtonActive: {
+    backgroundColor: '#28a745',
   },
 });
 

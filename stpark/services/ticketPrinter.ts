@@ -42,6 +42,12 @@ export interface CheckoutTicketData extends TicketData {
   folio?: string; // Número de folio retornado por FacturaPi
   ivaAmount?: number; // Cantidad de IVA retornada por FacturaPi
   sucsii?: string; // Sucursal SII retornada por FacturaPi
+  // Campos para descuentos
+  discountName?: string; // Nombre del descuento aplicado
+  discountDescription?: string; // Descripción del descuento
+  discountAmount?: number; // Monto del descuento
+  grossAmount?: number; // Monto bruto (antes del descuento)
+  netAmount?: number; // Monto neto (después del descuento)
 }
 
 export interface ShiftCloseTicketData {
@@ -167,7 +173,27 @@ class TicketPrinterService {
         await TuuPrinter.addTextLine(`Monto minimo: ${this.formatAmount(data.minAmount)}`, {align: 0, size: 24, bold: false, italic: false});
         await TuuPrinter.addBlankLines(1);
       }
-      await TuuPrinter.addTextLine(`Monto a pagar: ${this.formatAmount(data.amount)}`, {align: 0, size: 24, bold: true, italic: false});
+      
+      // Mostrar información de descuento solo si está aplicado y es válido
+      // Verificar que hay descuento real (discountAmount > 0 o discountName presente)
+      const hasDiscount = (data.discountAmount !== undefined && data.discountAmount !== null && data.discountAmount > 0) || 
+                          (data.discountName && data.discountName.trim() !== '');
+      
+      if (hasDiscount) {
+        await TuuPrinter.addTextLine('------------ DESCUENTO APLICADO ------------', {align: 1, size: 18, bold: false, italic: false});
+        if (data.discountName) {
+          await TuuPrinter.addTextLine(`${data.discountName}`, {align: 0, size: 20, bold: true, italic: false});
+        }
+        if (data.grossAmount && data.discountAmount && data.discountAmount > 0) {
+          await TuuPrinter.addColumns([
+            {text: `Subtotal: ${this.formatAmount(data.grossAmount)}`, align: 0, size: 20},
+            {text: `Descuento: ${this.formatAmount(data.discountAmount)}`, align: 2, size: 20}
+          ]);
+        }
+        await TuuPrinter.addBlankLines(1);
+      }
+      
+      await TuuPrinter.addTextLine(`Monto a pagar: ${this.formatAmount(data.amount || data.netAmount || 0)}`, {align: 0, size: 24, bold: true, italic: false});
       
       // Si es ingreso diario, mostrar el texto centrado debajo del monto
       if (data.isFullDay) {
@@ -633,7 +659,13 @@ Salida: ${endTime}
 Duracion: ${duration}
 
 ${data.minAmount && data.minAmount > 0 ? `Monto minimo: ${this.formatAmount(data.minAmount)}\n` : ''}
-Monto a pagar: ${this.formatAmount(data.amount)}
+${((data.discountAmount !== undefined && data.discountAmount !== null && data.discountAmount > 0) || 
+   (data.discountName && data.discountName.trim() !== '')) ? `
+--- DESCUENTO APLICADO ---
+${data.discountName ? `${data.discountName}\n` : ''}
+${data.grossAmount && data.discountAmount && data.discountAmount > 0 ? `Subtotal: ${this.formatAmount(data.grossAmount)}  Descuento: -${this.formatAmount(data.discountAmount)}\n` : ''}
+` : ''}
+Monto a pagar: ${this.formatAmount(data.amount || data.netAmount || 0)}
 ${data.isFullDay ? `
    ** Ticket de ingreso diario **
 ` : ''}

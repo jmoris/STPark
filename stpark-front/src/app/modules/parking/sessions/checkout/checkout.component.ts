@@ -15,13 +15,16 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { FuseCardComponent } from '@fuse/components/card';
 import { FuseConfirmationService } from '@fuse/services/confirmation';
 
 import { ParkingSessionService } from 'app/core/services/parking-session.service';
 import { PrinterService } from 'app/core/services/printer.service';
+import { DiscountService } from 'app/core/services/discount.service';
 import { ParkingSession } from 'app/interfaces/parking.interface';
+import { SessionDiscount } from 'app/interfaces/discount.interface';
 import { CheckoutModalComponent, CheckoutModalData } from '../checkout-modal/checkout-modal.component';
 
 @Component({
@@ -41,6 +44,7 @@ import { CheckoutModalComponent, CheckoutModalData } from '../checkout-modal/che
     MatDividerModule,
     MatChipsModule,
     MatDialogModule,
+    MatTooltipModule,
     FuseCardComponent
   ],
   templateUrl: './checkout.component.html',
@@ -55,6 +59,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   error: string | null = null;
   calculating = false;
   quote: any = null;
+  availableDiscounts: SessionDiscount[] = [];
+  loadingDiscounts = false;
+  selectedDiscount: SessionDiscount | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -62,6 +69,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     private fb: FormBuilder,
     private sessionService: ParkingSessionService,
     private printerService: PrinterService,
+    private discountService: DiscountService,
     private snackBar: MatSnackBar,
     private confirmationService: FuseConfirmationService,
     private dialog: MatDialog
@@ -80,6 +88,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   private createForm(): FormGroup {
     return this.fb.group({
+      discount_id: [null],
       discount_code: [''],
       notes: [''],
       payment_method: ['CASH', Validators.required],
@@ -107,6 +116,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
             this.router.navigate(['/parking/sessions']);
             return;
           }
+          this.loadDiscounts();
           this.loadQuote();
           this.loading = false;
         },
@@ -142,30 +152,82 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       });
   }
 
+  loadDiscounts(): void {
+    this.loadingDiscounts = true;
+    this.discountService.getSessionDiscounts()
+      .pipe(takeUntil(this._unsubscribeAll))
+      .subscribe({
+        next: (response) => {
+          // Filtrar solo descuentos activos y vigentes
+          const now = new Date();
+          this.availableDiscounts = (response.data || []).filter(discount => {
+            if (!discount.is_active) return false;
+            if (discount.valid_from && new Date(discount.valid_from) > now) return false;
+            if (discount.valid_until && new Date(discount.valid_until) < now) return false;
+            return true;
+          });
+          this.loadingDiscounts = false;
+        },
+        error: (error) => {
+          console.error('Error loading discounts:', error);
+          this.loadingDiscounts = false;
+        }
+      });
+  }
+
+  onDiscountChange(): void {
+    const discountId = this.checkoutForm.get('discount_id')?.value;
+    
+    if (discountId) {
+      this.selectedDiscount = this.availableDiscounts.find(d => d.id === discountId) || null;
+      this.applyDiscount();
+    } else {
+      this.selectedDiscount = null;
+      this.checkoutForm.patchValue({ discount_code: '' });
+      // Recalcular sin descuento
+      this.loadQuote();
+    }
+  }
+
   onApplyDiscount(): void {
-    if (!this.session || !this.checkoutForm.get('discount_code')?.value) return;
+    if (!this.session) return;
+    this.applyDiscount();
+  }
+
+  private applyDiscount(): void {
+    if (!this.session) return;
 
     this.calculating = true;
+    const discountId = this.checkoutForm.get('discount_id')?.value;
     const discountCode = this.checkoutForm.get('discount_code')?.value;
+    
     // Usar la hora actual como hora de cierre
     const endedAt = new Date().toISOString();
+    const quoteParams: any = { ended_at: endedAt };
     
-    this.sessionService.getQuote(this.session.id, { 
-      ended_at: endedAt,
-      discount_code: discountCode 
-    })
+    if (discountId) {
+      quoteParams.discount_id = discountId;
+    } else if (discountCode) {
+      quoteParams.discount_code = discountCode;
+    }
+    
+    this.sessionService.getQuote(this.session.id, quoteParams)
       .pipe(takeUntil(this._unsubscribeAll))
       .subscribe({
         next: (response) => {
           this.quote = response.data;
           this.calculating = false;
-          // No actualizar automáticamente el monto, dejar que el usuario lo llene
-          this.snackBar.open('Descuento aplicado correctamente', 'Cerrar', { duration: 3000 });
+          // Actualizar monto según método de pago
+          this.onPaymentMethodChange();
+          if (discountId || discountCode) {
+            this.snackBar.open('Descuento aplicado correctamente', 'Cerrar', { duration: 3000 });
+          }
         },
         error: (error) => {
           this.calculating = false;
           console.error('Error applying discount:', error);
-          this.snackBar.open('Error al aplicar descuento', 'Cerrar', { duration: 3000 });
+          const errorMsg = error?.error?.message || 'Error al aplicar descuento';
+          this.snackBar.open(errorMsg, 'Cerrar', { duration: 3000 });
         }
       });
   }
@@ -206,13 +268,22 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     if (!this.session || !this.checkoutForm.valid) return;
 
     this.loading = true;
-    const checkoutData = {
+    const discountId = this.checkoutForm.get('discount_id')?.value;
+    const discountCode = this.checkoutForm.get('discount_code')?.value;
+    
+    const checkoutData: any = {
       payment_method: this.checkoutForm.get('payment_method')?.value,
       amount: this.getNumericAmount(),
-      discount_code: this.checkoutForm.get('discount_code')?.value || null,
       notes: this.checkoutForm.get('notes')?.value || null,
       operator_id: this.session.operator_in_id // Operador que cierra (mismo que abrió)
     };
+    
+    // Agregar descuento si está seleccionado
+    if (discountId) {
+      checkoutData.discount_id = discountId;
+    } else if (discountCode) {
+      checkoutData.discount_code = discountCode;
+    }
 
     this.sessionService.checkoutSession(this.session.id, checkoutData)
       .pipe(takeUntil(this._unsubscribeAll))
@@ -253,7 +324,11 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       width: '800px',
       maxWidth: '95vw',
       maxHeight: '90vh',
-      data: { session: this.session, quote: this.quote } as CheckoutModalData,
+      data: { 
+        session: this.session, 
+        quote: this.quote,
+        selectedDiscount: this.selectedDiscount 
+      } as CheckoutModalData,
       disableClose: false
     });
 
@@ -570,6 +645,22 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     return paymentMethod !== 'CASH';
   }
 
+  /**
+   * Obtener el número de columnas para el grid de tarjetas informativas
+   */
+  getInfoCardsGridColumns(): string {
+    const hasDailyMax = this.hasDailyMaxAmount();
+    const hasDiscount = !!this.selectedDiscount;
+    
+    // Siempre hay tarifa por minuto (1), más las otras tarjetas si existen
+    if (hasDailyMax && hasDiscount) {
+      return 'md:grid-cols-3'; // Tarifa, Máximo diario, Descuento
+    } else if (hasDailyMax || hasDiscount) {
+      return 'md:grid-cols-2'; // Tarifa + una más
+    }
+    return 'md:grid-cols-1'; // Solo tarifa
+  }
+
   // Estado del desglose de reglas
   breakdownExpanded = false;
 
@@ -579,6 +670,28 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   toggleBreakdown(): void {
     this.breakdownExpanded = !this.breakdownExpanded;
     console.log('Breakdown expanded:', this.breakdownExpanded);
+  }
+
+  /**
+   * Obtener texto descriptivo del descuento para mostrar
+   */
+  getDiscountDisplayValue(discount: SessionDiscount): string {
+    if (discount.discount_type === 'AMOUNT') {
+      return `Descuento fijo: ${this.formatAmount(discount.value || 0)}`;
+    } else if (discount.discount_type === 'PERCENTAGE') {
+      const maxInfo = discount.max_amount ? ` (máx: ${this.formatAmount(discount.max_amount)})` : '';
+      return `Descuento: ${discount.value || 0}%${maxInfo}`;
+    } else if (discount.discount_type === 'PRICING_PROFILE') {
+      const parts: string[] = [];
+      if (discount.minute_value) {
+        parts.push(`Min: ${this.formatAmount(discount.minute_value)}`);
+      }
+      if (discount.min_amount) {
+        parts.push(`Mín: ${this.formatAmount(discount.min_amount)}`);
+      }
+      return parts.length > 0 ? parts.join(', ') : 'Perfil personalizado';
+    }
+    return '-';
   }
 
   /**

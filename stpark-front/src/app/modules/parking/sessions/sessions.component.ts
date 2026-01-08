@@ -21,6 +21,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
 import { FuseConfirmationService } from '@fuse/services/confirmation';
 import { getSpanishPaginatorIntl } from 'app/core/providers/spanish-paginator-intl';
@@ -36,6 +37,7 @@ import {
   Operator,
   SessionsApiResponse
 } from 'app/interfaces/parking.interface';
+import { SessionDiscountsModalComponent } from './session-discounts-modal/session-discounts-modal.component';
 
 @Component({
   selector: 'app-sessions',
@@ -59,7 +61,8 @@ import {
     MatSnackBarModule,
     MatProgressSpinnerModule,
     MatCheckboxModule,
-    MatCardModule
+    MatCardModule,
+    MatDialogModule
   ],
   providers: [
     { provide: MatPaginatorIntl, useValue: getSpanishPaginatorIntl() }
@@ -153,7 +156,8 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
     private router: Router,
     private snackBar: MatSnackBar,
     private confirmationService: FuseConfirmationService,
-    private breakpointObserver: BreakpointObserver
+    private breakpointObserver: BreakpointObserver,
+    private dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
@@ -567,6 +571,21 @@ export class SessionsComponent implements OnInit, OnDestroy, AfterViewInit {
 
   createNewSession(): void {
     this.router.navigate(['/parking/sessions/new']);
+  }
+
+  openDiscountsModal(): void {
+    const dialogRef = this.dialog.open(SessionDiscountsModalComponent, {
+      width: '900px',
+      maxWidth: '95vw',
+      maxHeight: '90vh'
+    });
+
+    dialogRef.afterClosed().subscribe((changed) => {
+      if (changed) {
+        // Recargar datos si hubo cambios (opcional)
+        // Por ahora no es necesario recargar nada
+      }
+    });
   }
 
   exportSessions(): void {

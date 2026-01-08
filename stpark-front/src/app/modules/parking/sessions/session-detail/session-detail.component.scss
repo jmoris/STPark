@@ -217,6 +217,63 @@
   font-size: 1.125rem;
 }
 
+/* Discount Info Styles */
+.amount-item.discount-info {
+  background: linear-gradient(to bottom right, var(--fuse-primary-50), var(--fuse-primary-100));
+  border-color: var(--fuse-primary-300);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.discount-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.discount-header .amount-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--fuse-primary-800);
+  font-weight: 600;
+}
+
+.discount-icon {
+  font-size: 1.125rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--fuse-primary-600);
+}
+
+.discount-details {
+  width: 100%;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--fuse-primary-200);
+}
+
+.discount-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--fuse-primary-900);
+  margin: 0 0 0.25rem 0;
+}
+
+.discount-description {
+  font-size: 0.75rem;
+  color: var(--fuse-primary-700);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.estimated-discount-note {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--fuse-warn-200);
+}
+
 /* Tiempo real */
 .info-value.real-time {
   color: var(--fuse-primary-600);

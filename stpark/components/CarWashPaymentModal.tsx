@@ -246,22 +246,50 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
         console.error('Error obteniendo turno activo:', error);
       }
 
-      // Actualizar el car wash a PAID con datos adicionales
-      const updateData: any = {
-        status: 'PAID',
-        amount: paymentAmount,
-      };
-      if (operator?.id) {
-        updateData.cashier_operator_id = operator.id;
+      // Si el lavado no existe (no tiene id), crearlo directamente como PAID
+      // Si ya existe, actualizarlo a PAID
+      let response;
+      
+      if (!carWash.id) {
+        // Crear el lavado directamente como PAID
+        const performedAt = carWash.performed_at || new Date().toISOString();
+        const createData: any = {
+          plate: carWash.plate,
+          car_wash_type_id: carWash.car_wash_type_id,
+          status: 'PAID',
+          amount: paymentAmount,
+          performed_at: performedAt,
+        };
+        if (operator?.id) {
+          createData.operator_id = operator.id;
+          createData.cashier_operator_id = operator.id;
+        }
+        if (activeShiftId) {
+          createData.shift_id = activeShiftId;
+        }
+        if (approvalCodeValue) {
+          createData.approval_code = approvalCodeValue;
+        }
+        console.log('CarWashPaymentModal: Creando lavado como PAID con datos:', JSON.stringify(createData, null, 2));
+        response = await apiService.createCarWash(createData);
+      } else {
+        // Actualizar el lavado existente a PAID
+        const updateData: any = {
+          status: 'PAID',
+          amount: paymentAmount,
+        };
+        if (operator?.id) {
+          updateData.cashier_operator_id = operator.id;
+        }
+        if (activeShiftId) {
+          updateData.shift_id = activeShiftId;
+        }
+        if (approvalCodeValue) {
+          updateData.approval_code = approvalCodeValue;
+        }
+        console.log('CarWashPaymentModal: Actualizando lavado con datos:', JSON.stringify(updateData, null, 2));
+        response = await apiService.updateCarWash(carWash.id, updateData);
       }
-      if (activeShiftId) {
-        updateData.shift_id = activeShiftId;
-      }
-      if (approvalCodeValue) {
-        updateData.approval_code = approvalCodeValue;
-      }
-      console.log('CarWashPaymentModal: Actualizando lavado con datos:', JSON.stringify(updateData, null, 2));
-      const response = await apiService.updateCarWash(carWash.id, updateData);
 
       if (response.success) {
         // Preparar datos del ticket para mostrar modal de impresión
@@ -498,20 +526,44 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
         washAmount: washAmount,
       });
 
-      // Actualizar el car wash a PAID con datos adicionales
-      // amount debe ser el precio del lavado, no el monto recibido
-      const updateData: any = {
-        status: 'PAID',
-        amount: washAmount, // Precio del lavado, no el monto recibido
-      };
-      if (operator?.id) {
-        updateData.cashier_operator_id = operator.id;
+      // Si el lavado no existe (no tiene id), crearlo directamente como PAID
+      // Si ya existe, actualizarlo a PAID
+      let response;
+      
+      if (!carWash.id) {
+        // Crear el lavado directamente como PAID
+        const performedAt = carWash.performed_at || new Date().toISOString();
+        const createData: any = {
+          plate: carWash.plate,
+          car_wash_type_id: carWash.car_wash_type_id,
+          status: 'PAID',
+          amount: washAmount, // Precio del lavado, no el monto recibido
+          performed_at: performedAt,
+        };
+        if (operator?.id) {
+          createData.operator_id = operator.id;
+          createData.cashier_operator_id = operator.id;
+        }
+        if (activeShiftId) {
+          createData.shift_id = activeShiftId;
+        }
+        console.log('CarWashPaymentModal: Creando lavado como PAID con datos (efectivo):', JSON.stringify(createData, null, 2));
+        response = await apiService.createCarWash(createData);
+      } else {
+        // Actualizar el lavado existente a PAID
+        const updateData: any = {
+          status: 'PAID',
+          amount: washAmount, // Precio del lavado, no el monto recibido
+        };
+        if (operator?.id) {
+          updateData.cashier_operator_id = operator.id;
+        }
+        if (activeShiftId) {
+          updateData.shift_id = activeShiftId;
+        }
+        console.log('CarWashPaymentModal: Actualizando lavado con datos (efectivo):', JSON.stringify(updateData, null, 2));
+        response = await apiService.updateCarWash(carWash.id, updateData);
       }
-      if (activeShiftId) {
-        updateData.shift_id = activeShiftId;
-      }
-      console.log('CarWashPaymentModal: Actualizando lavado con datos (efectivo):', JSON.stringify(updateData, null, 2));
-      const response = await apiService.updateCarWash(carWash.id, updateData);
 
       if (response.success) {
         // PRIMERO: Imprimir ticket con estado PAID y datos de pago en efectivo
@@ -623,22 +675,50 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
         carWashId: carWash?.id,
       });
 
-      // Actualizar el car wash a PAID con datos adicionales
-      const updateData: any = {
-        status: 'PAID',
-        amount: washAmount,
-      };
-      if (operator?.id) {
-        updateData.cashier_operator_id = operator.id;
+      // Si el lavado no existe (no tiene id), crearlo directamente como PAID
+      // Si ya existe, actualizarlo a PAID
+      let response;
+      
+      if (!carWash.id) {
+        // Crear el lavado directamente como PAID
+        const performedAt = carWash.performed_at || new Date().toISOString();
+        const createData: any = {
+          plate: carWash.plate,
+          car_wash_type_id: carWash.car_wash_type_id,
+          status: 'PAID',
+          amount: washAmount,
+          performed_at: performedAt,
+        };
+        if (operator?.id) {
+          createData.operator_id = operator.id;
+          createData.cashier_operator_id = operator.id;
+        }
+        if (activeShiftId) {
+          createData.shift_id = activeShiftId;
+        }
+        if (approvalCode.trim()) {
+          createData.approval_code = approvalCode.trim();
+        }
+        console.log('CarWashPaymentModal: Creando lavado como PAID con datos (tarjeta manual):', JSON.stringify(createData, null, 2));
+        response = await apiService.createCarWash(createData);
+      } else {
+        // Actualizar el lavado existente a PAID
+        const updateData: any = {
+          status: 'PAID',
+          amount: washAmount,
+        };
+        if (operator?.id) {
+          updateData.cashier_operator_id = operator.id;
+        }
+        if (activeShiftId) {
+          updateData.shift_id = activeShiftId;
+        }
+        if (approvalCode.trim()) {
+          updateData.approval_code = approvalCode.trim();
+        }
+        console.log('CarWashPaymentModal: Actualizando lavado con datos (tarjeta manual):', JSON.stringify(updateData, null, 2));
+        response = await apiService.updateCarWash(carWash.id, updateData);
       }
-      if (activeShiftId) {
-        updateData.shift_id = activeShiftId;
-      }
-      if (approvalCode.trim()) {
-        updateData.approval_code = approvalCode.trim();
-      }
-      console.log('CarWashPaymentModal: Actualizando lavado con datos (tarjeta manual):', JSON.stringify(updateData, null, 2));
-      const response = await apiService.updateCarWash(carWash.id, updateData);
 
       if (response.success) {
         // Para pagos manuales con tarjeta, imprimir directamente (no hay comprobante de TUU)

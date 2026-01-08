@@ -8,6 +8,7 @@ use App\Models\Sector;
 use App\Models\Street;
 use App\Models\Operator;
 use App\Models\Settings;
+use App\Models\SessionDiscount;
 use App\Services\PricingService;
 use App\Services\CurrentShiftService;
 use App\Services\PlanLimitService;
@@ -172,7 +173,9 @@ class ParkingSessionService
         }
         
         // Calcular duración: ambas fechas deben estar en el mismo timezone
-        $duration = $startTime->diffInMinutes($endTime);
+        // Usar diffInMinutes para obtener solo minutos completos (sin considerar segundos)
+        // Esto asegura que solo se consideren los minutos completos para mayor precisión
+        $duration = (int)$startTime->diffInMinutes($endTime); // Solo minutos completos, sin redondear
 
         $quote = $this->pricingService->calculatePrice(
             $session->sector_id,
@@ -182,17 +185,73 @@ class ParkingSessionService
             $endTime
         );
 
-        // Aplicar descuento si se proporciona código
+        // Log inicial de parámetros recibidos
+        \Log::info('Quote calculation started', [
+            'session_id' => $sessionId,
+            'params_received' => $params,
+            'duration_minutes' => $duration,
+            'gross_amount' => $quote['total'],
+        ]);
+        
+        // Aplicar descuento si se proporciona discount_id o discount_code
         $discountAmount = 0;
-        if (isset($params['discount_code']) && !empty($params['discount_code'])) {
-            // Aquí se podría implementar la lógica de descuentos
-            // Por ahora, simulamos un descuento del 10%
-            $discountAmount = $quote['total'] * 0.1;
+        $discountId = null;
+        
+        if (isset($params['discount_id']) && !empty($params['discount_id'])) {
+            \Log::info('Discount ID received in params', ['discount_id' => $params['discount_id']]);
+            $discount = SessionDiscount::find($params['discount_id']);
+            
+            if ($discount) {
+                \Log::info('Discount found', [
+                    'discount_id' => $discount->id,
+                    'discount_name' => $discount->name,
+                    'discount_type' => $discount->discount_type,
+                    'is_valid' => $discount->isValid(),
+                ]);
+                
+                if ($discount->isValid()) {
+                    $discountId = $discount->id;
+                    $discountAmount = $this->calculateDiscountAmount($discount, $quote['total'], $duration);
+                    
+                    // Log para debugging
+                    \Log::info('Discount applied successfully', [
+                        'discount_id' => $discount->id,
+                        'discount_name' => $discount->name,
+                        'discount_type' => $discount->discount_type,
+                        'minute_value' => $discount->minute_value,
+                        'value' => $discount->value,
+                        'duration_minutes' => $duration,
+                        'gross_amount' => $quote['total'],
+                        'discount_amount' => $discountAmount,
+                        'calculated_net_amount' => $quote['total'] - $discountAmount
+                    ]);
+                } else {
+                    \Log::warning('Discount is not valid', ['discount_id' => $discount->id]);
+                }
+            } else {
+                \Log::warning('Discount not found', ['discount_id' => $params['discount_id']]);
+            }
+        } elseif (isset($params['discount_code']) && !empty($params['discount_code'])) {
+            \Log::info('Discount code received', ['discount_code' => $params['discount_code']]);
+            // Buscar por código (si se implementa en el futuro)
+            // Por ahora mantener compatibilidad con código de descuento antiguo
+            $discountAmount = $quote['total'] * 0.1; // 10% de descuento por código
+        } else {
+            \Log::info('No discount provided in params');
         }
 
-        $netAmount = $quote['total'] - $discountAmount;
+        $netAmount = max(0, $quote['total'] - $discountAmount);
+        
+        // Log final del resultado
+        \Log::info('Quote calculation completed', [
+            'session_id' => $sessionId,
+            'gross_amount' => $quote['total'],
+            'discount_amount' => $discountAmount,
+            'net_amount' => $netAmount,
+            'discount_id' => $discountId,
+        ]);
 
-        return [
+        $result = [
             'session_id' => $sessionId,
             'started_at' => $session->started_at,
             'ended_at' => $endTime->toISOString(),
@@ -204,12 +263,79 @@ class ParkingSessionService
             'breakdown' => $quote['breakdown'] ?? [],
             'is_full_day' => false
         ];
+        
+        if ($discountId) {
+            $result['discount_id'] = $discountId;
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Calcular el monto de descuento según el tipo de descuento
+     */
+    private function calculateDiscountAmount(SessionDiscount $discount, float $grossAmount, int $durationMinutes): float
+    {
+        $discountAmount = 0;
+        
+        switch ($discount->discount_type) {
+            case 'AMOUNT':
+                // Descuento fijo
+                $discountAmount = min($discount->value ?? 0, $grossAmount);
+                break;
+                
+            case 'PERCENTAGE':
+                // Descuento porcentual
+                $percentage = ($discount->value ?? 0) / 100;
+                $discountAmount = $grossAmount * $percentage;
+                
+                // Aplicar máximo si está definido
+                if ($discount->max_amount && $discountAmount > $discount->max_amount) {
+                    $discountAmount = $discount->max_amount;
+                }
+                break;
+                
+            case 'PRICING_PROFILE':
+                // Perfil de precio: recalcular con valores personalizados
+                if ($discount->minute_value) {
+                    // Calcular con nuevo valor por minuto
+                    $newAmount = $durationMinutes * (float)($discount->minute_value ?? 0);
+                    
+                    // Aplicar mínimo si está definido
+                    if ($discount->min_amount && $newAmount < (float)$discount->min_amount) {
+                        $newAmount = (float)$discount->min_amount;
+                    }
+                    
+                    // El descuento es la diferencia entre el monto original y el nuevo
+                    $discountAmount = max(0, $grossAmount - $newAmount);
+                    
+                    // Log detallado para debugging
+                    \Log::info('PRICING_PROFILE discount calculation', [
+                        'discount_id' => $discount->id,
+                        'discount_name' => $discount->name,
+                        'duration_minutes' => $durationMinutes,
+                        'minute_value' => $discount->minute_value,
+                        'gross_amount' => $grossAmount,
+                        'calculated_new_amount' => $newAmount,
+                        'discount_amount' => $discountAmount,
+                        'final_net_amount' => $grossAmount - $discountAmount,
+                        'note' => 'For PRICING_PROFILE, net_amount should be newAmount (duration * minute_value), not gross - discount'
+                    ]);
+                } else {
+                    // Si no tiene minute_value configurado, lanzar error
+                    throw new \Exception('El descuento de tipo PRICING_PROFILE debe tener minute_value configurado');
+                }
+                break;
+        }
+        
+        // Asegurar que el descuento no sea mayor al monto total
+        return min($discountAmount, $grossAmount);
     }
 
     /**
      * Realizar checkout de una sesión
      */
-    public function checkout(int $sessionId, string $paymentMethod, float $amount, string|Carbon $endedAt, ?string $approvalCode = null, ?int $operatorOutId = null): array
+    public function checkout(int $sessionId, string $paymentMethod, float $amount, string|Carbon $endedAt, ?string $approvalCode = null, ?int $operatorOutId = null, ?int $discountId = null, ?string $discountCode = null): array
     {
         $session = ParkingSession::findOrFail($sessionId);
         
@@ -238,6 +364,8 @@ class ParkingSessionService
             $startTime = Carbon::parse($session->started_at, 'UTC')->setTimezone('America/Santiago');
 
             // Calcular el precio real
+            $duration = 0; // Inicializar variable
+            
             // Si es sesión por día completo, usar la tarifa máxima del perfil de precios
             if ($session->is_full_day) {
                 $maxDailyAmount = $this->pricingService->getMaxDailyAmount($session->sector_id);
@@ -265,8 +393,10 @@ class ParkingSessionService
                     'duration_minutes' => 0,
                     'pricing_profile' => 'Tarifa máxima diaria'
                 ];
+                $duration = 0; // Para sesiones de día completo
             } else {
-                $duration = $startTime->diffInMinutes($endTime);
+                // Calcular duración usando solo minutos completos (sin considerar segundos)
+                $duration = (int)$startTime->diffInMinutes($endTime); // Solo minutos completos, sin redondear
 
                 $quote = $this->pricingService->calculatePrice(
                     $session->sector_id,
@@ -279,41 +409,213 @@ class ParkingSessionService
 
             // Calcular valores para guardar en la sesión
             $grossAmount = $quote['total'];
-            $discountAmount = 0; // Se puede calcular si hay descuento
-            $netAmount = $grossAmount - $discountAmount;
-            $secondsTotal = isset($quote['duration_minutes']) ? $quote['duration_minutes'] * 60 : $startTime->diffInSeconds($endTime);
+            $discountAmount = 0;
+            $discountIdToSave = null;
+            
+            // Aplicar descuento si se proporciona discount_id o discount_code
+            if ($discountId) {
+                $discount = SessionDiscount::find($discountId);
+                if ($discount && $discount->isValid()) {
+                    $discountIdToSave = $discount->id;
+                    // Usar duration_minutes del quote si está disponible, sino usar $duration
+                    $durationForDiscount = isset($quote['duration_minutes']) ? $quote['duration_minutes'] : $duration;
+                    $discountAmount = $this->calculateDiscountAmount($discount, $grossAmount, $durationForDiscount);
+                }
+            } elseif ($discountCode) {
+                // Buscar por código (si se implementa en el futuro)
+                // Por ahora mantener compatibilidad con código de descuento antiguo
+                $discountAmount = $grossAmount * 0.1; // 10% de descuento por código
+            }
+            
+            $netAmount = max(0, $grossAmount - $discountAmount);
+            
+            // Log para debugging
+            \Log::info('Checkout calculation', [
+                'session_id' => $sessionId,
+                'gross_amount' => $grossAmount,
+                'discount_amount' => $discountAmount,
+                'net_amount' => $netAmount,
+                'amount_paid' => $amount,
+                'discount_id' => $discountIdToSave,
+                'duration' => $duration
+            ]);
+            // Calcular segundos totales basándose en minutos completos
+            $secondsTotal = isset($quote['duration_minutes']) ? $quote['duration_minutes'] * 60 : $startTime->diffInMinutes($endTime) * 60;
 
             // Actualizar la sesión con todos los valores calculados
-            $session->update([
+            // IMPORTANTE: net_amount es el monto que se debe cobrar (con descuento aplicado), NO el monto pagado
+            // Asegurar que los valores sean numéricos y estén correctamente formateados
+            $updateData = [
                 'ended_at' => $endTime,
                 'status' => 'COMPLETED',
                 'operator_out_id' => $operatorOutId,
                 'seconds_total' => $secondsTotal,
-                'gross_amount' => $grossAmount,
-                'discount_amount' => $discountAmount,
-                'net_amount' => $netAmount
-            ]);
-
-            $result = [
-                'session' => $session->load(['sector', 'street', 'operator', 'operatorOut', 'payments']),
-                'quote' => $quote
+                'gross_amount' => (float)$grossAmount,
+                'discount_amount' => (float)$discountAmount,
+                'net_amount' => (float)$netAmount  // NUNCA usar $amount (monto pagado) aquí
             ];
-
-            // Si el monto pagado es 0, crear deuda automáticamente
-            if ($amount == 0 && $quote['total'] > 0) {
-                // Crear deuda por el monto que corresponde
-                $debt = Debt::create([
-                    'plate' => $session->plate,
+            
+            // Agregar discount_id si hay descuento aplicado
+            if ($discountIdToSave) {
+                $updateData['discount_id'] = $discountIdToSave;
+            }
+            
+            // Log antes de actualizar
+            \Log::info('About to update session', [
+                'session_id' => $session->id,
+                'update_data' => $updateData,
+                'amount_paid' => $amount,
+                'note' => 'net_amount should be calculated value, NOT amount paid'
+            ]);
+            
+            // Actualizar usando update directo para evitar problemas con mutators/accessors
+            $rowsAffected = DB::table('parking_sessions')
+                ->where('id', $session->id)
+                ->update($updateData);
+            
+            if ($rowsAffected === 0) {
+                \Log::error('Failed to update session!', ['session_id' => $session->id]);
+                throw new \Exception('Error al actualizar la sesión');
+            }
+            
+            // Refrescar el modelo después del update directo
+            $session->refresh();
+            
+            // Refrescar la sesión para asegurar que tenemos los valores actualizados
+            $session->refresh();
+            
+            // Verificación explícita: si el net_amount guardado no coincide con el calculado, forzar actualización
+            // Esto previene problemas de caché o valores desactualizados
+            if (abs((float)$session->net_amount - $netAmount) > 0.01) {
+                \Log::warning('Mismatch in net_amount detected, forcing update', [
                     'session_id' => $session->id,
-                    'origin' => 'SESSION',
-                    'principal_amount' => $quote['total'],
-                    'status' => 'PENDING',
-                    'created_at' => Carbon::now('America/Santiago')
+                    'saved_net_amount' => $session->net_amount,
+                    'calculated_net_amount' => $netAmount,
+                    'difference' => abs((float)$session->net_amount - $netAmount)
                 ]);
+                
+                // Forzar actualización directa en la base de datos
+                DB::table('parking_sessions')
+                    ->where('id', $session->id)
+                    ->update([
+                        'net_amount' => $netAmount,
+                        'gross_amount' => $grossAmount,
+                        'discount_amount' => $discountAmount
+                    ]);
+                
+                $session->refresh();
+            }
+            
+            // Verificación final: asegurar que los valores sean consistentes
+            $finalNetAmount = (float)$session->net_amount;
+            $finalGrossAmount = (float)$session->gross_amount;
+            $finalDiscountAmount = (float)$session->discount_amount;
+            $expectedNetAmount = $finalGrossAmount - $finalDiscountAmount;
+            
+            if (abs($finalNetAmount - $expectedNetAmount) > 0.01) {
+                \Log::error('Inconsistency detected in session financial values', [
+                    'session_id' => $session->id,
+                    'gross_amount' => $finalGrossAmount,
+                    'discount_amount' => $finalDiscountAmount,
+                    'net_amount' => $finalNetAmount,
+                    'expected_net_amount' => $expectedNetAmount,
+                    'difference' => abs($finalNetAmount - $expectedNetAmount)
+                ]);
+                
+                // Corregir automáticamente
+                DB::table('parking_sessions')
+                    ->where('id', $session->id)
+                    ->update(['net_amount' => $expectedNetAmount]);
+                
+                $session->refresh();
+            }
 
-                $result['debt'] = $debt;
-                $result['message'] = 'Sesión cerrada sin pago. Deuda creada automáticamente.';
-            } else {
+            // Recargar la sesión desde la base de datos para asegurar valores frescos
+            $session->refresh();
+            $session = ParkingSession::with(['sector', 'street', 'operator', 'operatorOut', 'payments', 'discount'])
+                ->findOrFail($session->id);
+            
+            $result = [
+                'session' => $session,
+                'quote' => [
+                    'gross_amount' => $grossAmount,
+                    'discount_amount' => $discountAmount,
+                    'net_amount' => $netAmount,
+                    'duration_minutes' => $duration,
+                    'breakdown' => $quote['breakdown'] ?? [],
+                    'pricing_profile' => $quote['pricing_profile'] ?? 'Perfil por defecto'
+                ]
+            ];
+            
+            // Verificar que se guardó correctamente - log adicional
+            // Leer directamente desde la base de datos para evitar problemas de caché
+            $dbSession = DB::table('parking_sessions')
+                ->where('id', $session->id)
+                ->first(['id', 'gross_amount', 'discount_amount', 'net_amount']);
+            
+            \Log::info('Session after update', [
+                'session_id' => $session->id,
+                'model_net_amount' => $session->net_amount,
+                'db_net_amount' => $dbSession->net_amount ?? 'N/A',
+                'calculated_net_amount' => $netAmount,
+                'model_gross_amount' => $session->gross_amount,
+                'db_gross_amount' => $dbSession->gross_amount ?? 'N/A',
+                'model_discount_amount' => $session->discount_amount,
+                'db_discount_amount' => $dbSession->discount_amount ?? 'N/A',
+                'amount_paid' => $amount
+            ]);
+            
+            // Si hay diferencia entre modelo y BD, corregir
+            if ($dbSession && abs((float)$dbSession->net_amount - $netAmount) > 0.01) {
+                \Log::error('Database value mismatch detected!', [
+                    'session_id' => $session->id,
+                    'db_net_amount' => $dbSession->net_amount,
+                    'calculated_net_amount' => $netAmount
+                ]);
+                
+                DB::table('parking_sessions')
+                    ->where('id', $session->id)
+                    ->update(['net_amount' => $netAmount]);
+                
+                $session->refresh();
+            }
+
+            // Lógica para crear deuda o procesar pago:
+            // - Si es CASH y amount == 0: crear deuda (no se recibió dinero)
+            // - Si es CARD o TRANSFER y amount == 0: asumir que se pagó el netAmount completo
+            //   (cuando se procesa con tarjeta, el monto se cobra exacto, no hay vuelto)
+            if ($amount == 0 && $netAmount > 0) {
+                // Para pagos con tarjeta o transferencia, si amount es 0, asumir que se pagó el monto completo
+                // Esto puede pasar cuando no se envía amount_paid desde el frontend (comportamiento esperado)
+                if ($paymentMethod === 'CARD' || $paymentMethod === 'TRANSFER') {
+                    // Asumir que se pagó el netAmount completo
+                    $amount = $netAmount;
+                    \Log::info('Card/Transfer payment with amount=0, assuming full payment', [
+                        'session_id' => $session->id,
+                        'payment_method' => $paymentMethod,
+                        'assumed_amount' => $amount,
+                        'net_amount' => $netAmount,
+                        'approval_code' => $approvalCode
+                    ]);
+                } else {
+                    // Solo para CASH, crear deuda si no se recibió dinero
+                    $debt = Debt::create([
+                        'plate' => $session->plate,
+                        'session_id' => $session->id,
+                        'origin' => 'SESSION',
+                        'principal_amount' => $netAmount, // Usar net_amount, no gross_amount
+                        'status' => 'PENDING',
+                        'created_at' => Carbon::now('America/Santiago')
+                    ]);
+
+                    $result['debt'] = $debt;
+                    $result['message'] = 'Sesión cerrada sin pago. Deuda creada automáticamente.';
+                    return $result;
+                }
+            }
+            
+            // Procesar el pago solo si amount > 0 (ya sea recibido o asumido para CARD/TRANSFER)
+            if ($amount > 0 && $netAmount > 0) {
                 // Obtener turno actual del operador que hace el checkout (no del que recibió el vehículo)
                 // IMPORTANTE: Si no se proporciona operatorOutId, lanzar error para evitar asociar pagos al operador incorrecto
                 if (!$operatorOutId) {
@@ -328,35 +630,102 @@ class ParkingSessionService
                 }
                 
                 // Crear el pago normal asociado al turno del operador que hace el checkout
-                $payment = $session->payments()->create([
-                    'amount' => $amount,
+                // IMPORTANTE: El monto del pago debe ser el net_amount (monto a cobrar), NO el monto recibido
+                // Si se recibió más dinero (vuelto), eso no se registra como parte del pago
+                $paymentAmount = $netAmount; // Usar net_amount (monto a cobrar), no $amount (monto recibido)
+                
+                \Log::info('Creating payment', [
+                    'session_id' => $session->id,
+                    'payment_amount' => $paymentAmount,
+                    'amount_received' => $amount,
+                    'change' => $amount > $paymentAmount ? $amount - $paymentAmount : 0,
+                    'note' => 'Payment amount should equal session net_amount, not received amount'
+                ]);
+                
+                // Crear el pago directamente en la base de datos para evitar cualquier problema
+                $paymentId = DB::table('payments')->insertGetId([
+                    'session_id' => $session->id,
+                    'amount' => $paymentAmount, // IMPORTANTE: Monto a cobrar (net_amount), NO monto recibido
                     'method' => $paymentMethod,
                     'status' => 'COMPLETED',
                     'paid_at' => Carbon::now('America/Santiago'),
                     'approval_code' => $approvalCode,
-                    'shift_id' => $shift->id, // Siempre asociar al turno del operador que hace el checkout
+                    'shift_id' => $shift->id,
+                    'created_at' => Carbon::now('America/Santiago'),
+                    'updated_at' => Carbon::now('America/Santiago'),
+                ]);
+                
+                // Cargar el pago creado
+                $payment = \App\Models\Payment::find($paymentId);
+                
+                \Log::info('Payment created successfully', [
+                    'payment_id' => $payment->id,
+                    'payment_amount' => $payment->amount,
+                    'session_net_amount' => $netAmount,
+                    'amount_received' => $amount,
+                    'match' => abs((float)$payment->amount - $netAmount) < 0.01 ? 'YES' : 'NO'
                 ]);
 
-                // Registrar operación en el turno
+                // Registrar operación en el turno con el monto correcto (net_amount)
                 \App\Models\ShiftOperation::create([
                     'shift_id' => $shift->id,
                     'kind' => \App\Models\ShiftOperation::KIND_ADJUSTMENT,
-                    'amount' => $amount,
+                    'amount' => $paymentAmount, // Usar paymentAmount (net_amount), no $amount recibido
                     'at' => Carbon::now('America/Santiago'),
                     'ref_id' => $payment->id,
                     'ref_type' => 'payment',
-                    'notes' => "Pago {$paymentMethod} por {$amount}",
+                    'notes' => "Pago {$paymentMethod} por {$paymentAmount}" . ($amount > $paymentAmount ? " (recibido: {$amount}, vuelto: " . ($amount - $paymentAmount) . ")" : ""),
                 ]);
 
                 // Si el pago es en efectivo y la boleta electrónica está activada, enviar a facturapi
+                // Usar paymentAmount (net_amount) para la facturación, no el monto recibido
                 $facturapiData = null;
                 if ($paymentMethod === 'CASH') {
-                    $facturapiData = $this->sendElectronicReceiptToFacturAPI($session, $payment, $amount);
+                    $facturapiData = $this->sendElectronicReceiptToFacturAPI($session, $payment, $paymentAmount);
                 }
 
                 // Cargar el pago con sus relaciones
                 $payment->refresh();
+                
+                // Verificar que el pago se guardó con el monto correcto (net_amount, no amount recibido)
+                $dbPayment = DB::table('payments')->where('id', $payment->id)->first(['id', 'amount']);
+                if ($dbPayment && abs((float)$dbPayment->amount - $paymentAmount) > 0.01) {
+                    \Log::error('CRITICAL: Payment amount mismatch!', [
+                        'payment_id' => $payment->id,
+                        'db_amount' => $dbPayment->amount,
+                        'expected_amount' => $paymentAmount,
+                        'session_net_amount' => $netAmount,
+                        'amount_received' => $amount
+                    ]);
+                    
+                    // Corregir el pago en la base de datos
+                    DB::table('payments')
+                        ->where('id', $payment->id)
+                        ->update(['amount' => $paymentAmount]);
+                    
+                    $payment->refresh();
+                }
+                
+                \Log::info('Final payment verification', [
+                    'payment_id' => $payment->id,
+                    'payment_amount_in_db' => $dbPayment->amount ?? 'N/A',
+                    'payment_amount_in_model' => $payment->amount,
+                    'session_net_amount' => $netAmount,
+                    'amount_received' => $amount,
+                    'match' => $dbPayment && abs((float)$dbPayment->amount - $paymentAmount) < 0.01 ? 'CORRECT' : 'INCORRECT'
+                ]);
+                
                 $result['payment'] = $payment;
+                
+                // Calcular y agregar vuelto si corresponde (solo para efectivo cuando amount_paid > net_amount)
+                $change = 0;
+                if ($paymentMethod === 'CASH' && $amount > $paymentAmount) {
+                    $change = $amount - $paymentAmount;
+                }
+                $result['change'] = $change;
+                $result['amount_received'] = $amount;
+                $result['amount_charged'] = $paymentAmount; // net_amount que se cobró
+                
                 // Incluir todos los datos de FacturaPi en la respuesta si están disponibles
                 if ($facturapiData) {
                     $result['payment']->ted = $facturapiData['ted'] ?? null;
@@ -370,9 +739,48 @@ class ParkingSessionService
                     $result['payment']->sucsii = $facturapiData['sucsii'] ?? null;
                 }
                 $result['message'] = 'Checkout procesado exitosamente';
+                
+                // Verificación final después de crear el pago: asegurar que net_amount no cambió
+                $session->refresh();
+                if (abs((float)$session->net_amount - $netAmount) > 0.01) {
+                    \Log::error('CRITICAL: net_amount changed after payment creation!', [
+                        'session_id' => $session->id,
+                        'net_amount_before_payment' => $netAmount,
+                        'net_amount_after_payment' => $session->net_amount,
+                        'amount_paid' => $amount,
+                        'difference' => abs((float)$session->net_amount - $netAmount)
+                    ]);
+                    
+                    // Forzar corrección inmediata
+                    DB::table('parking_sessions')
+                        ->where('id', $session->id)
+                        ->update(['net_amount' => $netAmount]);
+                    
+                    $session->refresh();
+                }
             }
 
+            // Verificación final antes de commit
+            $session->refresh();
+            \Log::info('Final session values before commit', [
+                'session_id' => $session->id,
+                'net_amount' => $session->net_amount,
+                'gross_amount' => $session->gross_amount,
+                'discount_amount' => $session->discount_amount,
+                'calculated_net_amount' => $netAmount
+            ]);
+
             DB::commit();
+            
+            // Verificación final después de commit
+            $session->refresh();
+            \Log::info('Final session values after commit', [
+                'session_id' => $session->id,
+                'net_amount' => $session->net_amount,
+                'gross_amount' => $session->gross_amount,
+                'discount_amount' => $session->discount_amount
+            ]);
+            
             return $result;
 
         } catch (\Exception $e) {
@@ -449,7 +857,8 @@ class ParkingSessionService
             // Cuando se creó la sesión con Carbon::now('America/Santiago'), Laravel lo convirtió a UTC
             // Entonces al leer, debemos convertir de UTC a America/Santiago
             $startTime = Carbon::parse($session->started_at, 'UTC')->setTimezone('America/Santiago');
-            $duration = $startTime->diffInMinutes($endTime);
+            // Calcular duración usando solo minutos completos (sin considerar segundos)
+            $duration = (int)$startTime->diffInMinutes($endTime); // Solo minutos completos, sin redondear
 
             $quote = $this->pricingService->calculatePrice(
                 $session->sector_id,

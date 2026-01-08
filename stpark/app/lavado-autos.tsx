@@ -175,43 +175,25 @@ export default function LavadoAutosScreen() {
 
   const handlePayNow = async () => {
     setShowPaymentOptionModal(false);
-    setLoading(true);
-    try {
-      const performedAt = selectedDate.toISOString();
-      const response = await apiService.createCarWash({
-        plate: patente.toUpperCase().trim(),
-        car_wash_type_id: selectedType,
-        status: 'PENDING',
-        operator_id: operator?.id,
-        performed_at: performedAt,
-      });
-
-      if (response.success) {
-        // Incluir el tipo de lavado en el objeto creado para que el modal de pago lo tenga
-        const washType = washTypes.find((type) => type.id === selectedType);
-        setCreatedCarWash({
-          ...response.data,
-          car_wash_type: washType || { name: 'N/A', price: 0 },
-          amount: washType?.price || 0,
-        });
-        setShowPaymentModal(true);
-      } else {
-        console.error('Error en respuesta:', response);
-        
-        // Verificar si no hay turno abierto
-        if (response.error_code === 'NO_SHIFT_OPEN') {
-          setShowNoShiftAlert(true);
-          return;
-        }
-        
-        Alert.alert('Error', response.message || 'No se pudo crear el lavado de auto');
-      }
-    } catch (error) {
-      console.error('Error creando lavado de auto:', error);
-      Alert.alert('Error', 'Error de conexión con el servidor');
-    } finally {
-      setLoading(false);
-    }
+    
+    // Cuando el pago diferido está desactivado, NO crear el lavado todavía
+    // En su lugar, pasar la información al modal de pago para que lo cree como PAID después del pago
+    const washType = washTypes.find((type) => type.id === selectedType);
+    const performedAt = selectedDate.toISOString();
+    
+    // Crear objeto temporal con la información necesaria para el modal
+    // Sin id significa que el lavado aún no existe y se creará como PAID después del pago
+    setCreatedCarWash({
+      plate: patente.toUpperCase().trim(),
+      car_wash_type_id: selectedType,
+      car_wash_type: washType || { name: 'N/A', price: 0 },
+      amount: washType?.price || 0,
+      performed_at: performedAt,
+      operator_id: operator?.id,
+      // No incluir id - esto indica que el lavado se debe crear como PAID después del pago
+    });
+    
+    setShowPaymentModal(true);
   };
 
   const handleOpenShift = async (openingFloat: number) => {

@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\CarWash;
 use App\Models\CarWashType;
+use App\Models\ParkingSession;
 use App\Services\CurrentShiftService;
+use App\Services\ParkingSessionService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,10 +16,15 @@ use Illuminate\Support\Facades\Validator;
 class CarWashController extends Controller
 {
     protected $currentShiftService;
+    protected $parkingSessionService;
 
-    public function __construct(CurrentShiftService $currentShiftService)
+    public function __construct(
+        CurrentShiftService $currentShiftService,
+        ParkingSessionService $parkingSessionService
+    )
     {
         $this->currentShiftService = $currentShiftService;
+        $this->parkingSessionService = $parkingSessionService;
     }
 
     public function index(Request $request): JsonResponse
@@ -103,8 +110,10 @@ class CarWashController extends Controller
 
         $now = Carbon::now('America/Santiago');
 
+        $plate = strtoupper(trim((string) $request->get('plate')));
+        
         $wash = CarWash::create([
-            'plate' => strtoupper(trim((string) $request->get('plate'))),
+            'plate' => $plate,
             'car_wash_type_id' => $type->id,
             'session_id' => $request->get('session_id'),
             'operator_id' => $request->get('operator_id'),
@@ -114,6 +123,51 @@ class CarWashController extends Controller
             'performed_at' => $now,
             'paid_at' => $status === 'PAID' ? $now : null,
         ]);
+
+        // Buscar y cancelar sesiones activas con la misma patente
+        // Esto es porque si un vehículo entra, se registra la sesión y luego quiere un lavado,
+        // no se debe cobrar el estacionamiento
+        try {
+            $activeSessions = ParkingSession::where('plate', $plate)
+                ->where('status', 'ACTIVE')
+                ->whereNull('ended_at')
+                ->get();
+
+            $cancelledSessions = [];
+            foreach ($activeSessions as $session) {
+                try {
+                    $this->parkingSessionService->cancelSession($session->id);
+                    $cancelledSessions[] = $session->id;
+                    Log::info('CarWashController: Sesión cancelada automáticamente al crear lavado', [
+                        'session_id' => $session->id,
+                        'plate' => $plate,
+                        'car_wash_id' => $wash->id
+                    ]);
+                } catch (\Exception $e) {
+                    Log::warning('CarWashController: Error al cancelar sesión', [
+                        'session_id' => $session->id,
+                        'plate' => $plate,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            if (count($cancelledSessions) > 0) {
+                Log::info('CarWashController: Sesiones canceladas automáticamente', [
+                    'plate' => $plate,
+                    'car_wash_id' => $wash->id,
+                    'cancelled_sessions' => $cancelledSessions,
+                    'total_cancelled' => count($cancelledSessions)
+                ]);
+            }
+        } catch (\Exception $e) {
+            // No fallar la creación del lavado si hay error al cancelar sesiones
+            Log::error('CarWashController: Error al buscar/cancelar sesiones activas', [
+                'plate' => $plate,
+                'car_wash_id' => $wash->id,
+                'error' => $e->getMessage()
+            ]);
+        }
 
         return response()->json([
             'success' => true,

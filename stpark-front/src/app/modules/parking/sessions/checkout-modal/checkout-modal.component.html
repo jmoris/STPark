@@ -22,6 +22,12 @@
     <div class="bg-primary-50 border border-primary-200 rounded-lg p-6 mb-6 text-center">
       <h3 class="text-lg font-semibold text-primary-700 mb-2">Total a Pagar</h3>
       <p class="text-4xl font-bold text-primary-900">{{ formatAmount(quote.net_amount) }}</p>
+      <p *ngIf="quote.discount_amount && quote.discount_amount > 0" class="text-sm text-green-600 mt-2">
+        Descuento aplicado: -{{ formatAmount(quote.discount_amount) }}
+      </p>
+      <p *ngIf="data.selectedDiscount" class="text-xs text-blue-600 mt-1">
+        {{ data.selectedDiscount.name }}
+      </p>
     </div>
 
     <!-- Formulario de Pago -->

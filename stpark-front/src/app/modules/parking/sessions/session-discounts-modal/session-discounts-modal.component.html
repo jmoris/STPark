@@ -1,0 +1,196 @@
+<div class="p-6">
+  <div class="flex items-start justify-between mb-4">
+    <div>
+      <h2 class="text-xl font-bold text-gray-900">Descuentos de Sesiones</h2>
+      <p class="text-gray-600">Administra descuentos aplicables a las sesiones de estacionamiento</p>
+    </div>
+    <button mat-icon-button (click)="close()" aria-label="Cerrar">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Form -->
+    <div class="bg-white rounded border border-gray-200 p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-gray-900">{{ editingDiscount ? 'Editar descuento' : 'Nuevo descuento' }}</h3>
+        <button mat-stroked-button class="rounded-sm" (click)="startCreate()">
+          <mat-icon>add</mat-icon>
+          Nuevo
+        </button>
+      </div>
+
+      <form [formGroup]="discountForm" class="grid grid-cols-1 gap-4">
+        <mat-form-field appearance="outline">
+          <mat-label>Nombre del descuento</mat-label>
+          <input matInput formControlName="name" placeholder="Ej: Descuento por monto fijo" />
+          <mat-error *ngIf="discountForm.get('name')?.hasError('required')">Nombre es obligatorio</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Descripción</mat-label>
+          <textarea matInput formControlName="description" rows="2" placeholder="Descripción opcional"></textarea>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Tipo de descuento</mat-label>
+          <mat-select formControlName="discount_type">
+            <mat-option *ngFor="let type of discountTypes" [value]="type.value">
+              {{ type.label }}
+            </mat-option>
+          </mat-select>
+          <mat-error *ngIf="discountForm.get('discount_type')?.hasError('required')">Tipo es obligatorio</mat-error>
+        </mat-form-field>
+
+        <!-- Campos para AMOUNT -->
+        <div *ngIf="discountForm.get('discount_type')?.value === 'AMOUNT'" class="grid grid-cols-1 gap-4">
+          <mat-form-field appearance="outline">
+            <mat-label>Monto del descuento (CLP)</mat-label>
+            <input matInput type="number" formControlName="value" placeholder="Ej: 1000" />
+            <mat-error *ngIf="discountForm.get('value')?.hasError('required')">Monto es obligatorio</mat-error>
+            <mat-error *ngIf="discountForm.get('value')?.hasError('min')">El monto debe ser mayor o igual a 0</mat-error>
+          </mat-form-field>
+        </div>
+
+        <!-- Campos para PERCENTAGE -->
+        <div *ngIf="discountForm.get('discount_type')?.value === 'PERCENTAGE'" class="grid grid-cols-1 gap-4">
+          <mat-form-field appearance="outline">
+            <mat-label>Porcentaje de descuento</mat-label>
+            <input matInput type="number" formControlName="value" placeholder="Ej: 10" min="0" max="100" />
+            <mat-hint>Porcentaje del 0 al 100</mat-hint>
+            <mat-error *ngIf="discountForm.get('value')?.hasError('required')">Porcentaje es obligatorio</mat-error>
+            <mat-error *ngIf="discountForm.get('value')?.hasError('min') || discountForm.get('value')?.hasError('max')">
+              El porcentaje debe estar entre 0 y 100
+            </mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Monto máximo de descuento (CLP)</mat-label>
+            <input matInput type="number" formControlName="max_amount" placeholder="Opcional" />
+            <mat-hint>Límite máximo del descuento en pesos</mat-hint>
+            <mat-error *ngIf="discountForm.get('max_amount')?.hasError('min')">
+              El monto máximo debe ser mayor o igual a 0
+            </mat-error>
+          </mat-form-field>
+        </div>
+
+        <!-- Campos para PRICING_PROFILE -->
+        <div *ngIf="discountForm.get('discount_type')?.value === 'PRICING_PROFILE'" class="grid grid-cols-1 gap-4">
+          <mat-form-field appearance="outline">
+            <mat-label>Valor del minuto (CLP)</mat-label>
+            <input matInput type="number" formControlName="minute_value" placeholder="Ej: 50" />
+            <mat-error *ngIf="discountForm.get('minute_value')?.hasError('required')">Valor del minuto es obligatorio</mat-error>
+            <mat-error *ngIf="discountForm.get('minute_value')?.hasError('min')">
+              El valor del minuto debe ser mayor o igual a 0
+            </mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Valor mínimo (CLP)</mat-label>
+            <input matInput type="number" formControlName="min_amount" placeholder="Opcional" />
+            <mat-hint>Tarifa mínima a cobrar</mat-hint>
+            <mat-error *ngIf="discountForm.get('min_amount')?.hasError('min')">
+              El valor mínimo debe ser mayor o igual a 0
+            </mat-error>
+          </mat-form-field>
+        </div>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Prioridad</mat-label>
+          <input matInput type="number" formControlName="priority" placeholder="0" />
+          <mat-hint>Prioridad de aplicación (mayor número = mayor prioridad)</mat-hint>
+        </mat-form-field>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <mat-form-field appearance="outline">
+            <mat-label>Válido desde</mat-label>
+            <input matInput [matDatepicker]="pickerFrom" formControlName="valid_from" />
+            <mat-datepicker-toggle matSuffix [for]="pickerFrom"></mat-datepicker-toggle>
+            <mat-datepicker #pickerFrom></mat-datepicker>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Válido hasta</mat-label>
+            <input matInput [matDatepicker]="pickerUntil" formControlName="valid_until" />
+            <mat-datepicker-toggle matSuffix [for]="pickerUntil"></mat-datepicker-toggle>
+            <mat-datepicker #pickerUntil></mat-datepicker>
+          </mat-form-field>
+        </div>
+
+        <mat-checkbox formControlName="is_active">Activo</mat-checkbox>
+
+        <div class="flex gap-2 justify-end">
+          <button mat-stroked-button class="rounded-sm" (click)="startCreate()" type="button">
+            Cancelar
+          </button>
+          <button mat-raised-button color="primary" class="rounded-sm" (click)="save()" type="button" [disabled]="saving || discountForm.invalid">
+            <mat-icon *ngIf="!saving">save</mat-icon>
+            <mat-spinner *ngIf="saving" diameter="18"></mat-spinner>
+            Guardar
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- List -->
+    <div class="bg-white rounded border border-gray-200 p-4">
+      <h3 class="font-semibold text-gray-900 mb-3">Listado</h3>
+
+      <div class="text-center py-8" *ngIf="loading">
+        <mat-spinner diameter="40" class="mx-auto"></mat-spinner>
+        <p class="mt-3 text-gray-600">Cargando descuentos...</p>
+      </div>
+
+      <div class="overflow-x-auto" *ngIf="!loading">
+        <table mat-table [dataSource]="discounts" class="w-full">
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef>Nombre</th>
+            <td mat-cell *matCellDef="let d" class="font-medium">{{ d.name }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="type">
+            <th mat-header-cell *matHeaderCellDef>Tipo</th>
+            <td mat-cell *matCellDef="let d">{{ getDiscountTypeLabel(d.discount_type) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="value">
+            <th mat-header-cell *matHeaderCellDef>Valor</th>
+            <td mat-cell *matCellDef="let d">{{ getDiscountDisplayValue(d) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let d">
+              <span [class]="d.is_active ? 'text-green-600' : 'text-gray-400'">
+                {{ d.is_active ? 'Activo' : 'Inactivo' }}
+              </span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef class="text-right">Acciones</th>
+            <td mat-cell *matCellDef="let d" class="text-right">
+              <button mat-icon-button (click)="startEdit(d)" aria-label="Editar">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button color="warn" (click)="delete(d)" aria-label="Eliminar">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+
+        <div class="py-6 text-center text-gray-600" *ngIf="discounts.length === 0">
+          No hay descuentos creados todavía.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex justify-end mt-6">
+    <button mat-stroked-button class="rounded-sm" (click)="close()">Cerrar</button>
+  </div>
+</div>
+
+

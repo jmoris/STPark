@@ -218,7 +218,7 @@ class ParkingSessionController extends Controller
     public function show(int $id): JsonResponse
     {
         try {
-            $session = ParkingSession::with(['sector', 'street', 'operator', 'operatorOut', 'payments'])
+            $session = ParkingSession::with(['sector', 'street', 'operator', 'operatorOut', 'payments', 'discount'])
                 ->findOrFail($id);
 
             // Agregar campos calculados
@@ -276,6 +276,7 @@ class ParkingSessionController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'ended_at' => 'nullable|date',
+            'discount_id' => 'nullable|integer|exists:session_discounts,id',
             'discount_code' => 'nullable|string|max:50',
         ]);
 
@@ -306,10 +307,13 @@ class ParkingSessionController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'payment_method' => 'required|in:CASH,CARD,TRANSFER',
-            'amount' => 'required|numeric|min:0',
+            'amount' => 'nullable|numeric|min:0', // Ya no es requerido, se calcula internamente
+            'amount_paid' => 'nullable|numeric|min:0', // Monto recibido (para calcular vuelto en efectivo)
             'ended_at' => 'nullable|date',
             'approval_code' => 'nullable|string|max:100',
             'operator_id' => 'required|exists:operators,id', // REQUERIDO: operador que hace el checkout
+            'discount_id' => 'nullable|exists:session_discounts,id',
+            'discount_code' => 'nullable|string|max:50',
         ]);
 
         if ($validator->fails()) {
@@ -319,18 +323,54 @@ class ParkingSessionController extends Controller
         try {
             DB::beginTransaction();
 
-            // Siempre usar la fecha actual del servidor en timezone America/Santiago
-            // Ignorar ended_at del request para evitar problemas de conversión de timezone
-            $endedAt = Carbon::now('America/Santiago');
+            // Usar el ended_at del request si está presente y es reciente (dentro de los últimos 5 minutos)
+            // Esto asegura que la duración calculada en checkout sea la misma que en la cotización
+            // Si no está presente o es muy antiguo, usar la fecha actual
+            $endedAt = null;
+            if ($request->has('ended_at') && $request->ended_at) {
+                try {
+                    $requestEndedAt = Carbon::parse($request->ended_at, 'UTC')->setTimezone('America/Santiago');
+                    $now = Carbon::now('America/Santiago');
+                    $diffInSeconds = abs($now->diffInSeconds($requestEndedAt));
+                    
+                    // Si el ended_at del request está dentro de los últimos 5 minutos, usarlo
+                    // Esto permite usar el mismo timestamp que se usó en la cotización
+                    if ($diffInSeconds <= 300) { // 5 minutos = 300 segundos
+                        $endedAt = $requestEndedAt;
+                    } else {
+                        // Si es muy antiguo, usar el actual
+                        $endedAt = $now;
+                        \Log::warning('ended_at del request es muy antiguo, usando fecha actual', [
+                            'request_ended_at' => $request->ended_at,
+                            'diff_seconds' => $diffInSeconds
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    // Si hay error parseando, usar fecha actual
+                    \Log::warning('Error parseando ended_at del request, usando fecha actual', [
+                        'ended_at' => $request->ended_at,
+                        'error' => $e->getMessage()
+                    ]);
+                    $endedAt = Carbon::now('America/Santiago');
+                }
+            } else {
+                // Si no se proporciona ended_at, usar la fecha actual
+                $endedAt = Carbon::now('America/Santiago');
+            }
             
             // IMPORTANTE: Usar SOLO el operador que hace el checkout, nunca el que abrió la sesión
+            // amount_paid es el monto recibido (para calcular vuelto), amount es solo referencia
+            $amountPaid = $request->amount_paid ?? $request->amount ?? 0;
+            
             $result = $this->sessionService->checkout(
                 $id,
                 $request->payment_method,
-                $request->amount,
+                $amountPaid, // Monto recibido (para calcular vuelto)
                 $endedAt,
                 $request->approval_code,
-                $request->operator_id // Operador que hace el checkout (REQUERIDO)
+                $request->operator_id, // Operador que hace el checkout (REQUERIDO)
+                $request->discount_id,
+                $request->discount_code
             );
 
             DB::commit();

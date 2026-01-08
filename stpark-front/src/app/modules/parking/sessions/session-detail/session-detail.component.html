@@ -130,6 +130,10 @@
           <div class="info-entry" *ngIf="session.total_paid_formatted">
             <span class="info-label"><strong>Total Pagado</strong></span>
             <span class="info-value"><strong>{{ session.total_paid_formatted }}</strong></span>
+            <span *ngIf="session.net_amount && session.total_paid && session.total_paid < session.net_amount" 
+                  class="info-value" style="color: orange; margin-left: 8px; font-size: 0.75rem;">
+              (Falta: {{ formatAmount(session.net_amount - session.total_paid) }})
+            </span>
           </div>
         </div>
       </div>
@@ -139,18 +143,54 @@
     <div class="financial-summary" *ngIf="session.gross_amount || session.net_amount || isActiveSession">
       <h3>Resumen Financiero</h3>
       <div class="amounts">
-        <div class="amount-item" *ngIf="session.gross_amount">
-          <span class="amount-label">Monto Bruto</span>
-          <span class="amount-value">{{ formatAmount(session.gross_amount) }}</span>
+        <!-- Monto Bruto (Total sin descuento) -->
+        <div class="amount-item" *ngIf="(session.gross_amount || (isActiveSession && quote?.gross_amount)) && (session.discount_amount || quote?.discount_amount)">
+          <span class="amount-label">Subtotal (sin descuento)</span>
+          <span class="amount-value">{{ formatAmount(session.gross_amount || quote?.gross_amount || 0) }}</span>
         </div>
-        <div class="amount-item" *ngIf="session.discount_amount">
-          <span class="amount-label">Descuento</span>
-          <span class="amount-value discount">-{{ formatAmount(session.discount_amount) }}</span>
+        
+        <!-- Información del Descuento Aplicado -->
+        <div class="amount-item discount-info" *ngIf="session.discount_amount && session.discount_amount > 0">
+          <div class="discount-header">
+            <span class="amount-label">
+              <mat-icon class="discount-icon">local_offer</mat-icon>
+              Descuento Aplicado
+            </span>
+            <span class="amount-value discount">-{{ formatAmount(session.discount_amount) }}</span>
+          </div>
+          <div class="discount-details" *ngIf="session.discount">
+            <p class="discount-name">{{ session.discount.name }}</p>
+            <p class="discount-description" *ngIf="session.discount.description">{{ session.discount.description }}</p>
+          </div>
         </div>
-        <div class="amount-item total" *ngIf="session.net_amount">
-          <span class="amount-label">Total</span>
-          <span class="amount-value">{{ formatAmount(session.net_amount) }}</span>
+        
+        <!-- Total Neto (con descuento) -->
+        <div class="amount-item total" *ngIf="session.net_amount || (isActiveSession && quote?.net_amount)">
+          <div class="flex flex-col w-full">
+            <div class="flex justify-between items-center">
+              <span class="amount-label"><strong>Total a Pagar</strong></span>
+              <span class="amount-value"><strong>{{ formatAmount(session.net_amount || quote?.net_amount || 0) }}</strong></span>
+            </div>
+            <div *ngIf="session.net_amount && session.total_paid && session.total_paid < session.net_amount" 
+                 class="mt-2 pt-2 border-t border-primary-200">
+              <div class="flex justify-between items-center text-sm">
+                <span class="text-orange-600">Falta por pagar:</span>
+                <span class="font-semibold text-orange-700">{{ formatAmount(session.net_amount - session.total_paid) }}</span>
+              </div>
+            </div>
+            <div *ngIf="session.net_amount && session.total_paid && session.total_paid >= session.net_amount" 
+                 class="mt-2 pt-2 border-t border-green-200">
+              <div class="flex justify-between items-center text-sm">
+                <span class="text-green-600">Pagado completamente</span>
+                <span *ngIf="session.total_paid > session.net_amount" class="text-green-700">
+                  Vuelto: {{ formatAmount(session.total_paid - session.net_amount) }}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
+        
+        <!-- Costo Estimado para sesiones activas -->
         <div class="amount-item estimated" *ngIf="isActiveSession">
           <span class="amount-label">
             {{ session.is_full_day ? 'Tarifa Máxima Diaria' : 'Costo Estimado' }}
@@ -159,6 +199,11 @@
             <span *ngIf="loadingQuote">Calculando...</span>
             <span *ngIf="!loadingQuote">{{ getEstimatedCostFormatted() }}</span>
           </span>
+          <div *ngIf="quote?.discount_amount && quote.discount_amount > 0 && !loadingQuote" class="estimated-discount-note">
+            <small class="text-blue-600">
+              Incluye descuento: -{{ formatAmount(quote.discount_amount) }}
+            </small>
+          </div>
         </div>
       </div>
     </div>

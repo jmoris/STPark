@@ -24,7 +24,11 @@ class ParkingSession extends Model
         'started_at',
         'ended_at',
         'status',
-        'is_full_day'
+        'is_full_day',
+        'discount_id',
+        'gross_amount',
+        'discount_amount',
+        'net_amount'
     ];
 
     protected $casts = [
@@ -71,6 +75,14 @@ class ParkingSession extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class, 'session_id');
+    }
+
+    /**
+     * Relación con el descuento aplicado
+     */
+    public function discount(): BelongsTo
+    {
+        return $this->belongsTo(SessionDiscount::class, 'discount_id');
     }
 
     /**
