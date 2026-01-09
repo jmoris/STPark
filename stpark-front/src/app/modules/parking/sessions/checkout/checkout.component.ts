@@ -689,6 +689,9 @@ export class CheckoutComponent implements OnInit, OnDestroy {
       if (discount.min_amount) {
         parts.push(`Mín: ${this.formatAmount(discount.min_amount)}`);
       }
+      if (discount.minimum_duration) {
+        parts.push(`Duración mín: ${discount.minimum_duration} min`);
+      }
       return parts.length > 0 ? parts.join(', ') : 'Perfil personalizado';
     }
     return '-';

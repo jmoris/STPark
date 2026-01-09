@@ -1180,18 +1180,25 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // Función para obtener texto descriptivo del descuento
   const getDiscountDisplayValue = (discount: any): string => {
+    const formatCurrency = (value: number) => {
+      return Math.round(value).toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    };
+    
     if (discount.discount_type === 'AMOUNT') {
-      return `Descuento fijo: $${(discount.value || 0).toLocaleString('es-CL')}`;
+      return `$${formatCurrency(discount.value || 0)}`;
     } else if (discount.discount_type === 'PERCENTAGE') {
-      const maxInfo = discount.max_amount ? ` (máx: $${discount.max_amount.toLocaleString('es-CL')})` : '';
-      return `Descuento: ${discount.value || 0}%${maxInfo}`;
+      const maxInfo = discount.max_amount ? ` (máx: $${formatCurrency(discount.max_amount)})` : '';
+      return `${discount.value || 0}%${maxInfo}`;
     } else if (discount.discount_type === 'PRICING_PROFILE') {
       const parts: string[] = [];
       if (discount.minute_value) {
-        parts.push(`Min: $${discount.minute_value.toLocaleString('es-CL')}`);
+        parts.push(`$ Min: $${formatCurrency(discount.minute_value)}`);
       }
       if (discount.min_amount) {
-        parts.push(`Mín: $${discount.min_amount.toLocaleString('es-CL')}`);
+        parts.push(`Mín: $${formatCurrency(discount.min_amount)}`);
+      }
+      if (discount.minimum_duration) {
+        parts.push(`Tpo mín: ${discount.minimum_duration} min`);
       }
       return parts.length > 0 ? parts.join(', ') : 'Perfil personalizado';
     }
@@ -1294,12 +1301,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </View>
                 <View style={styles.sessionSummaryRow}>
                   <Text style={styles.sessionSummaryLabel}>Ubicación:</Text>
-                  <Text style={styles.sessionSummaryValue}>{dataInfo.location}</Text>
+                  <Text style={styles.sessionSummaryValue} numberOfLines={1}>{dataInfo.location}</Text>
                 </View>
                 {type === 'checkout' && data?.operator?.name && (
                   <View style={styles.sessionSummaryRow}>
                     <Text style={styles.sessionSummaryLabel}>Operador que recibió:</Text>
-                    <Text style={styles.sessionSummaryValue}>{data.operator.name}</Text>
+                    <Text style={styles.sessionSummaryValue} numberOfLines={1}>{data.operator.name}</Text>
                   </View>
                 )}
                 <View style={styles.sessionSummaryRow}>
@@ -1326,12 +1333,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               {/* Mostrar descuento aplicado de forma compacta - Solo para checkout */}
               {type === 'checkout' && (selectedDiscount || discountCode) && (
                 <View style={styles.discountAppliedCompact}>
-                  <IconSymbol name="checkmark.circle.fill" size={16} color="#28a745" />
-                  <Text style={styles.discountAppliedCompactText}>
-                    {selectedDiscount ? selectedDiscount.name : `Código: ${discountCode}`}
-                  </Text>
+                  {/* Primera línea: Icono y nombre del descuento */}
+                  <View style={styles.discountAppliedRow}>
+                    <IconSymbol name="checkmark.circle.fill" size={14} color="#28a745" />
+                    <Text style={styles.discountAppliedCompactText} numberOfLines={1}>
+                      {selectedDiscount ? selectedDiscount.name : `Código: ${discountCode}`}
+                    </Text>
+                  </View>
+                  {/* Segunda línea: Valores del descuento */}
                   {selectedDiscount && (
-                    <Text style={styles.discountAppliedCompactValue}>
+                    <Text style={styles.discountAppliedCompactValue} numberOfLines={1}>
                       {getDiscountDisplayValue(selectedDiscount)}
                     </Text>
                   )}
@@ -1745,7 +1756,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f9fa',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 12,
   },
   sessionSummaryTitle: {
     fontSize: 18,
@@ -2051,8 +2062,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#e7f3ff',
     borderWidth: 1,
     borderColor: '#007bff',
-    marginTop: 12,
-    marginBottom: 8,
+    marginTop: 8,
+    marginBottom: 6,
   },
   discountButtonText: {
     fontSize: 14,
@@ -2060,16 +2071,20 @@ const styles = StyleSheet.create({
     color: '#007bff',
   },
   discountAppliedCompact: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    flexDirection: 'column',
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     borderRadius: 6,
     backgroundColor: '#d4edda',
     borderWidth: 1,
     borderColor: '#28a745',
-    marginBottom: 12,
+    marginBottom: 8,
+    gap: 4,
+  },
+  discountAppliedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   discountAppliedCompactText: {
     flex: 1,
@@ -2081,6 +2096,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#155724',
+    marginLeft: 18, // Alinear con el texto de arriba (icono 14px + gap 4px)
   },
   discountDivider: {
     flexDirection: 'row',

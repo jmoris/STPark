@@ -91,6 +91,14 @@
               El valor mínimo debe ser mayor o igual a 0
             </mat-error>
           </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Duración mínima (minutos)</mat-label>
+            <input matInput type="number" formControlName="minimum_duration" placeholder="Opcional" />
+            <mat-hint>Duración mínima en minutos para aplicar este perfil</mat-hint>
+            <mat-error *ngIf="discountForm.get('minimum_duration')?.hasError('min')">
+              La duración mínima debe ser mayor o igual a 0
+            </mat-error>
+          </mat-form-field>
         </div>
 
         <mat-form-field appearance="outline">

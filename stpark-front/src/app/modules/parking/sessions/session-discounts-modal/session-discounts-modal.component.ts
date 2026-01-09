@@ -75,6 +75,7 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
       max_amount: [null],
       minute_value: [null],
       min_amount: [null],
+      minimum_duration: [null],
       is_active: [true],
       priority: [0],
       valid_from: [null],
@@ -160,6 +161,7 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
       max_amount: null,
       minute_value: null,
       min_amount: null,
+      minimum_duration: null,
       is_active: true,
       priority: 0,
       valid_from: null,
@@ -184,6 +186,7 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
     } else if (discount.discount_type === 'PRICING_PROFILE') {
       formData.minute_value = discount.minute_value || null;
       formData.min_amount = discount.min_amount || null;
+      formData.minimum_duration = discount.minimum_duration || null;
     }
 
     if (discount.valid_from) {
@@ -219,6 +222,7 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
     } else if (formValue.discount_type === 'PRICING_PROFILE') {
       payload.minute_value = formValue.minute_value ? Number(formValue.minute_value) : undefined;
       payload.min_amount = formValue.min_amount ? Number(formValue.min_amount) : undefined;
+      payload.minimum_duration = formValue.minimum_duration ? Number(formValue.minimum_duration) : undefined;
     }
 
     // Fechas de validez
@@ -338,6 +342,9 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
       }
       if (discount.min_amount) {
         parts.push(`Mín: ${this.formatAmount(discount.min_amount)}`);
+      }
+      if (discount.minimum_duration) {
+        parts.push(`Duración mín: ${discount.minimum_duration} min`);
       }
       return parts.length > 0 ? parts.join(', ') : 'Perfil personalizado';
     }

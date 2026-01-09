@@ -297,29 +297,76 @@ class ParkingSessionService
                 
             case 'PRICING_PROFILE':
                 // Perfil de precio: recalcular con valores personalizados
+                // Aplica la misma lógica que los perfiles de precios
                 if ($discount->minute_value) {
-                    // Calcular con nuevo valor por minuto
-                    $newAmount = $durationMinutes * (float)($discount->minute_value ?? 0);
+                    $minDurationUsed = $discount->minimum_duration ?? 0;
+                    $minAmountValue = $discount->min_amount ?? null;
                     
-                    // Aplicar mínimo si está definido
-                    if ($discount->min_amount && $newAmount < (float)$discount->min_amount) {
-                        $newAmount = (float)$discount->min_amount;
+                    $newAmount = 0;
+                    
+                    // Si hay duración mínima y monto mínimo, aplicar como base (similar a min_amount_is_base)
+                    if ($minDurationUsed > 0 && $minAmountValue && $durationMinutes >= $minDurationUsed) {
+                        // Aplicar el monto mínimo como base por el tiempo mínimo
+                        $newAmount += (float)$minAmountValue;
+                        
+                        // Calcular minutos restantes después del tiempo mínimo
+                        $remainingMinutes = $durationMinutes - $minDurationUsed;
+                        
+                        // Si hay minutos restantes, cobrarlos al precio por minuto
+                        if ($remainingMinutes > 0) {
+                            $newAmount += $remainingMinutes * (float)$discount->minute_value;
+                        }
+                        
+                        \Log::info('PRICING_PROFILE discount calculation con duración mínima como base', [
+                            'discount_id' => $discount->id,
+                            'discount_name' => $discount->name,
+                            'duration_minutes' => $durationMinutes,
+                            'minimum_duration' => $minDurationUsed,
+                            'min_amount' => $minAmountValue,
+                            'remaining_minutes' => $remainingMinutes,
+                            'minute_value' => $discount->minute_value,
+                            'calculated_new_amount' => $newAmount,
+                        ]);
+                    } else if ($minDurationUsed > 0 && !$minAmountValue) {
+                        // Solo hay duración mínima sin monto mínimo: usar como duración efectiva
+                        $effectiveDuration = max($durationMinutes, $minDurationUsed);
+                        $newAmount = $effectiveDuration * (float)$discount->minute_value;
+                        
+                        \Log::info('PRICING_PROFILE discount calculation con duración mínima forzada', [
+                            'discount_id' => $discount->id,
+                            'discount_name' => $discount->name,
+                            'duration_minutes' => $durationMinutes,
+                            'minimum_duration' => $minDurationUsed,
+                            'effective_duration' => $effectiveDuration,
+                            'minute_value' => $discount->minute_value,
+                            'calculated_new_amount' => $newAmount,
+                        ]);
+                    } else {
+                        // No hay duración mínima: calcular normalmente
+                        $newAmount = $durationMinutes * (float)$discount->minute_value;
+                        
+                        // Aplicar monto mínimo tradicional si existe (solo si no hay duración mínima como base)
+                        if ($minAmountValue && $newAmount < (float)$minAmountValue) {
+                            $newAmount = (float)$minAmountValue;
+                        }
                     }
                     
                     // El descuento es la diferencia entre el monto original y el nuevo
                     $discountAmount = max(0, $grossAmount - $newAmount);
                     
                     // Log detallado para debugging
-                    \Log::info('PRICING_PROFILE discount calculation', [
+                    \Log::info('PRICING_PROFILE discount calculation final', [
                         'discount_id' => $discount->id,
                         'discount_name' => $discount->name,
                         'duration_minutes' => $durationMinutes,
+                        'minimum_duration' => $discount->minimum_duration,
+                        'min_amount' => $discount->min_amount,
                         'minute_value' => $discount->minute_value,
                         'gross_amount' => $grossAmount,
                         'calculated_new_amount' => $newAmount,
                         'discount_amount' => $discountAmount,
                         'final_net_amount' => $grossAmount - $discountAmount,
-                        'note' => 'For PRICING_PROFILE, net_amount should be newAmount (duration * minute_value), not gross - discount'
+                        'note' => 'For PRICING_PROFILE, net_amount should be newAmount, following same logic as pricing profiles'
                     ]);
                 } else {
                     // Si no tiene minute_value configurado, lanzar error
