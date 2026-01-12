@@ -21,6 +21,9 @@ export interface CarWash {
   duration_minutes?: number | null;
   performed_at: string;
   paid_at?: string | null;
+  approval_code?: string | null;
+  payment_type?: 'cash' | 'card' | null;
+  cash_amount_received?: number | null;
   created_at?: string;
   updated_at?: string;
 

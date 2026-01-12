@@ -20,10 +20,13 @@ class CarWash extends Model
         'performed_at',
         'paid_at',
         'approval_code',
+        'payment_type',
+        'cash_amount_received',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'cash_amount_received' => 'decimal:2',
         'duration_minutes' => 'integer',
         'performed_at' => 'datetime',
         'paid_at' => 'datetime',

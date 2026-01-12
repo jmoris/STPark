@@ -40,6 +40,8 @@ export interface UpdateCarWashRequest {
   cashier_operator_id?: number;
   shift_id?: string;
   approval_code?: string;
+  payment_type?: 'cash' | 'card';
+  cash_amount_received?: number;
 }
 
 @Injectable({

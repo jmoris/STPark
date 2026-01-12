@@ -168,27 +168,51 @@ class ShiftService
                 ->where('status', 'PAID')
                 ->count();
 
-            // Efectivo cobrado de lavados de autos (lavados sin approval_code se consideran efectivo)
-            // Si tiene approval_code, es tarjeta; si no, es efectivo
+            // Efectivo cobrado de lavados de autos
+            // Usar payment_type si está disponible, si no usar approval_code como fallback (compatibilidad hacia atrás)
             $carWashesCashTotal = (float) DB::table('car_washes')
                 ->where('shift_id', $shift->id)
                 ->where('status', 'PAID')
-                ->whereNull('approval_code')
+                ->where(function($query) {
+                    // Usar payment_type si está disponible
+                    $query->where('payment_type', 'cash')
+                          // Fallback: si payment_type es null, usar approval_code (sin approval_code = efectivo)
+                          ->orWhere(function($subQuery) {
+                              $subQuery->whereNull('payment_type')
+                                       ->whereNull('approval_code');
+                          });
+                })
                 ->sum('amount');
 
             $carWashesCardTotal = (float) DB::table('car_washes')
                 ->where('shift_id', $shift->id)
                 ->where('status', 'PAID')
-                ->whereNotNull('approval_code')
+                ->where(function($query) {
+                    // Usar payment_type si está disponible
+                    $query->where('payment_type', 'card')
+                          // Fallback: si payment_type es null, usar approval_code (con approval_code = tarjeta)
+                          ->orWhere(function($subQuery) {
+                              $subQuery->whereNull('payment_type')
+                                       ->whereNotNull('approval_code');
+                          });
+                })
                 ->sum('amount');
 
             // Agregar lavados de autos a payments_by_method
-            // Lavados en efectivo (sin approval_code)
+            // Lavados en efectivo
             if ($carWashesCashTotal > 0) {
                 $carWashesCashCount = (int) DB::table('car_washes')
                     ->where('shift_id', $shift->id)
                     ->where('status', 'PAID')
-                    ->whereNull('approval_code')
+                    ->where(function($query) {
+                        // Usar payment_type si está disponible
+                        $query->where('payment_type', 'cash')
+                              // Fallback: si payment_type es null, usar approval_code (sin approval_code = efectivo)
+                              ->orWhere(function($subQuery) {
+                                  $subQuery->whereNull('payment_type')
+                                           ->whereNull('approval_code');
+                              });
+                    })
                     ->count();
                 
                 if (isset($paymentsByMethod['CASH'])) {
@@ -203,12 +227,20 @@ class ShiftService
                 }
             }
 
-            // Lavados con tarjeta (con approval_code)
+            // Lavados con tarjeta
             if ($carWashesCardTotal > 0) {
                 $carWashesCardCount = (int) DB::table('car_washes')
                     ->where('shift_id', $shift->id)
                     ->where('status', 'PAID')
-                    ->whereNotNull('approval_code')
+                    ->where(function($query) {
+                        // Usar payment_type si está disponible
+                        $query->where('payment_type', 'card')
+                              // Fallback: si payment_type es null, usar approval_code (con approval_code = tarjeta)
+                              ->orWhere(function($subQuery) {
+                                  $subQuery->whereNull('payment_type')
+                                           ->whereNotNull('approval_code');
+                              });
+                    })
                     ->count();
                 
                 if (isset($paymentsByMethod['CARD'])) {

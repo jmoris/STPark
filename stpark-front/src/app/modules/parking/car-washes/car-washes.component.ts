@@ -360,7 +360,7 @@ export class CarWashesComponent implements OnInit, OnDestroy, AfterViewInit {
 
   viewCarWash(carWash: CarWash): void {
     const typeName = this.getTypeName(carWash);
-    const fields: ViewModalField[] = [
+    const allFields: (ViewModalField & { condition?: (carWash: CarWash) => boolean })[] = [
       {
         label: 'Placa',
         key: 'plate',
@@ -416,6 +416,33 @@ export class CarWashesComponent implements OnInit, OnDestroy, AfterViewInit {
         format: (value: string | null) => value ? this.formatDateTime(value) : 'No especificado'
       },
       {
+        label: 'Método de Pago',
+        key: 'payment_type',
+        icon: 'payment',
+        type: 'text',
+        format: (value: string | null) => {
+          if (!value) return 'No especificado';
+          return value === 'cash' ? 'Efectivo' : value === 'card' ? 'Tarjeta' : value;
+        },
+        condition: (carWash: CarWash) => carWash.status === 'PAID'
+      },
+      {
+        label: 'Monto Entregado (Efectivo)',
+        key: 'cash_amount_received',
+        icon: 'attach_money',
+        type: 'text',
+        format: (value: number | null) => value ? this.formatAmount(value) : 'No aplicable',
+        condition: (carWash: CarWash) => carWash.status === 'PAID' && carWash.payment_type === 'cash' && !!carWash.cash_amount_received
+      },
+      {
+        label: 'Código de Aprobación',
+        key: 'approval_code',
+        icon: 'confirmation_number',
+        type: 'text',
+        format: (value: string | null) => value || 'No especificado',
+        condition: (carWash: CarWash) => carWash.status === 'PAID' && carWash.payment_type === 'card' && !!carWash.approval_code
+      },
+      {
         label: 'Fecha de Creación',
         key: 'created_at',
         icon: 'schedule',
@@ -423,6 +450,14 @@ export class CarWashesComponent implements OnInit, OnDestroy, AfterViewInit {
         format: (value: string | null) => value ? this.formatDateTime(value) : 'No especificado'
       }
     ];
+
+    // Filtrar campos condicionales
+    const fields: ViewModalField[] = allFields.filter(field => {
+      if ('condition' in field && field.condition) {
+        return field.condition(carWash);
+      }
+      return true;
+    }) as ViewModalField[];
 
     const dialogRef = this.dialog.open(ViewModalComponent, {
       width: '600px',

@@ -86,6 +86,8 @@ class CarWashController extends Controller
             'status' => 'nullable|in:PENDING,PAID',
             'session_id' => 'nullable|exists:parking_sessions,id',
             'operator_id' => 'nullable|exists:operators,id',
+            'payment_type' => 'nullable|in:cash,card',
+            'cash_amount_received' => 'nullable|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -198,6 +200,8 @@ class CarWashController extends Controller
             'performed_at' => $now,
             'paid_at' => $status === 'PAID' ? $now : null,
             'approval_code' => $request->get('approval_code'),
+            'payment_type' => $request->get('payment_type'),
+            'cash_amount_received' => $request->filled('cash_amount_received') ? $request->get('cash_amount_received') : null,
         ]);
 
         // Buscar y cancelar sesiones activas con la misma patente
@@ -265,6 +269,8 @@ class CarWashController extends Controller
             'cashier_operator_id' => 'nullable|exists:operators,id',
             'shift_id' => 'nullable|uuid|exists:shifts,id',
             'approval_code' => 'nullable|string|max:50',
+            'payment_type' => 'nullable|in:cash,card',
+            'cash_amount_received' => 'nullable|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -417,11 +423,21 @@ class CarWashController extends Controller
             $wash->approval_code = $request->get('approval_code');
             Log::info('CarWashController::update - Setting approval_code:', ['approval_code' => $request->get('approval_code')]);
         }
+        if ($request->filled('payment_type')) {
+            $wash->payment_type = $request->get('payment_type');
+            Log::info('CarWashController::update - Setting payment_type:', ['payment_type' => $request->get('payment_type')]);
+        }
+        if ($request->filled('cash_amount_received')) {
+            $wash->cash_amount_received = $request->get('cash_amount_received');
+            Log::info('CarWashController::update - Setting cash_amount_received:', ['cash_amount_received' => $request->get('cash_amount_received')]);
+        }
         
         Log::info('CarWashController::update - CarWash before save:', [
             'cashier_operator_id' => $wash->cashier_operator_id,
             'shift_id' => $wash->shift_id,
             'approval_code' => $wash->approval_code,
+            'payment_type' => $wash->payment_type,
+            'cash_amount_received' => $wash->cash_amount_received,
         ]);
         
         $wash->save();
@@ -431,6 +447,8 @@ class CarWashController extends Controller
             'cashier_operator_id' => $wash->cashier_operator_id,
             'shift_id' => $wash->shift_id,
             'approval_code' => $wash->approval_code,
+            'payment_type' => $wash->payment_type,
+            'cash_amount_received' => $wash->cash_amount_received,
         ]);
 
         return response()->json([

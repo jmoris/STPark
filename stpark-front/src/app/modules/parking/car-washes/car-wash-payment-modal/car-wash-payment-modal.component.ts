@@ -171,8 +171,18 @@ export class CarWashPaymentModalComponent implements OnInit, OnDestroy {
           const updateData: any = {
             status: 'PAID' as CarWashStatus,
             cashier_operator_id: operatorId,
-            approval_code: paymentMethod === 'CARD' ? (formData.approval_code || null) : null
+            payment_type: paymentMethod === 'CASH' ? 'cash' : 'card',
           };
+
+          if (paymentMethod === 'CASH') {
+            // Para efectivo, guardar el monto entregado
+            updateData.cash_amount_received = amountToPay;
+          } else if (paymentMethod === 'CARD') {
+            // Para tarjeta, guardar el código de aprobación si existe
+            if (formData.approval_code) {
+              updateData.approval_code = formData.approval_code;
+            }
+          }
 
           if (shiftId) {
             updateData.shift_id = shiftId;

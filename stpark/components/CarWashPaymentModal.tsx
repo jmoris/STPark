@@ -259,6 +259,7 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
           status: 'PAID',
           amount: paymentAmount,
           performed_at: performedAt,
+          payment_type: 'card',
         };
         if (operator?.id) {
           createData.operator_id = operator.id;
@@ -277,6 +278,7 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
         const updateData: any = {
           status: 'PAID',
           amount: paymentAmount,
+          payment_type: 'card',
         };
         if (operator?.id) {
           updateData.cashier_operator_id = operator.id;
@@ -539,6 +541,8 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
           status: 'PAID',
           amount: washAmount, // Precio del lavado, no el monto recibido
           performed_at: performedAt,
+          payment_type: 'cash',
+          cash_amount_received: paidAmountValue, // Monto entregado en efectivo
         };
         if (operator?.id) {
           createData.operator_id = operator.id;
@@ -554,6 +558,8 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
         const updateData: any = {
           status: 'PAID',
           amount: washAmount, // Precio del lavado, no el monto recibido
+          payment_type: 'cash',
+          cash_amount_received: paidAmountValue, // Monto entregado en efectivo
         };
         if (operator?.id) {
           updateData.cashier_operator_id = operator.id;
@@ -688,6 +694,7 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
           status: 'PAID',
           amount: washAmount,
           performed_at: performedAt,
+          payment_type: 'card',
         };
         if (operator?.id) {
           createData.operator_id = operator.id;
@@ -706,6 +713,7 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
         const updateData: any = {
           status: 'PAID',
           amount: washAmount,
+          payment_type: 'card',
         };
         if (operator?.id) {
           updateData.cashier_operator_id = operator.id;

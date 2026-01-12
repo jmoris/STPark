@@ -325,6 +325,7 @@ export default function LavadoAutosScreen() {
       const updateData: any = {
         status: 'PAID',
         amount: paymentAmount,
+        payment_type: 'card',
       };
       if (operator?.id) {
         updateData.cashier_operator_id = operator.id;
@@ -451,6 +452,8 @@ export default function LavadoAutosScreen() {
       const updateData: any = {
         status: 'PAID',
         amount: washAmount, // Precio del lavado, no el monto recibido
+        payment_type: 'cash',
+        cash_amount_received: paidAmount, // Monto entregado en efectivo
       };
       if (operator?.id) {
         updateData.cashier_operator_id = operator.id;
@@ -550,6 +553,7 @@ export default function LavadoAutosScreen() {
       const updateData: any = {
         status: 'PAID',
         amount: washAmount,
+        payment_type: 'card',
       };
       if (operator?.id) {
         updateData.cashier_operator_id = operator.id;
