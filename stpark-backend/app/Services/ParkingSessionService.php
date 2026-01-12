@@ -196,6 +196,7 @@ class ParkingSessionService
         // Aplicar descuento si se proporciona discount_id o discount_code
         $discountAmount = 0;
         $discountId = null;
+        $newAmount = null; // Para PRICING_PROFILE, almacenar el newAmount calculado
         
         if (isset($params['discount_id']) && !empty($params['discount_id'])) {
             \Log::info('Discount ID received in params', ['discount_id' => $params['discount_id']]);
@@ -226,7 +227,17 @@ class ParkingSessionService
                         $discountId = null;
                     } else {
                         $discountId = $discount->id;
-                        $discountAmount = $this->calculateDiscountAmount($discount, $quote['total'], $duration);
+                        $discountResult = $this->calculateDiscountAmount($discount, $quote['total'], $duration);
+                        
+                        // Para PRICING_PROFILE, el resultado es un array con newAmount y discountAmount
+                        // Para otros tipos, es solo el discountAmount
+                        if ($discount->discount_type === 'PRICING_PROFILE' && is_array($discountResult)) {
+                            $discountAmount = $discountResult['discount_amount'];
+                            $newAmount = $discountResult['new_amount'];
+                        } else {
+                            $discountAmount = $discountResult;
+                            $newAmount = null;
+                        }
                         
                         // Log para debugging
                         \Log::info('Discount applied successfully', [
@@ -239,7 +250,8 @@ class ParkingSessionService
                             'minimum_session_duration' => $minimumSessionDuration,
                             'gross_amount' => $quote['total'],
                             'discount_amount' => $discountAmount,
-                            'calculated_net_amount' => $quote['total'] - $discountAmount
+                            'new_amount' => $newAmount,
+                            'calculated_net_amount' => $newAmount ?? ($quote['total'] - $discountAmount)
                         ]);
                     }
                 } else {
@@ -257,7 +269,13 @@ class ParkingSessionService
             \Log::info('No discount provided in params');
         }
 
-        $netAmount = max(0, $quote['total'] - $discountAmount);
+        // Para PRICING_PROFILE, usar newAmount directamente si está disponible
+        // Para otros tipos, calcular netAmount = grossAmount - discountAmount
+        if (isset($newAmount) && $newAmount !== null) {
+            $netAmount = max(0, $newAmount);
+        } else {
+            $netAmount = max(0, $quote['total'] - $discountAmount);
+        }
         
         // Log final del resultado
         \Log::info('Quote calculation completed', [
@@ -300,8 +318,10 @@ class ParkingSessionService
 
     /**
      * Calcular el monto de descuento según el tipo de descuento
+     * Para PRICING_PROFILE, retorna un array con 'new_amount' y 'discount_amount'
+     * Para otros tipos, retorna solo el discountAmount (float)
      */
-    private function calculateDiscountAmount(SessionDiscount $discount, float $grossAmount, int $durationMinutes): float
+    private function calculateDiscountAmount(SessionDiscount $discount, float $grossAmount, int $durationMinutes)
     {
         $discountAmount = 0;
         
@@ -428,9 +448,16 @@ class ParkingSessionService
                         'gross_amount' => $grossAmount,
                         'calculated_new_amount' => $newAmount,
                         'discount_amount' => $discountAmount,
-                        'final_net_amount' => $grossAmount - $discountAmount,
+                        'final_net_amount' => $newAmount,
                         'note' => 'For PRICING_PROFILE, net_amount should be newAmount, following same logic as pricing profiles'
                     ]);
+                    
+                    // Para PRICING_PROFILE, retornar array con newAmount y discountAmount
+                    // Esto permite que getQuote use newAmount directamente como net_amount
+                    return [
+                        'new_amount' => $newAmount,
+                        'discount_amount' => $discountAmount
+                    ];
                 } else {
                     // Si no tiene minute_value configurado, lanzar error
                     throw new \Exception('El descuento de tipo PRICING_PROFILE debe tener minute_value configurado');
@@ -543,16 +570,35 @@ class ParkingSessionService
                         $discountAmount = 0;
                     } else {
                         $discountIdToSave = $discount->id;
-                        $discountAmount = $this->calculateDiscountAmount($discount, $grossAmount, $durationForDiscount);
+                        $discountResult = $this->calculateDiscountAmount($discount, $grossAmount, $durationForDiscount);
+                        
+                        // Para PRICING_PROFILE, el resultado es un array con newAmount y discountAmount
+                        // Para otros tipos, es solo el discountAmount
+                        if ($discount->discount_type === 'PRICING_PROFILE' && is_array($discountResult)) {
+                            $discountAmount = $discountResult['discount_amount'];
+                            $newAmountForCheckout = $discountResult['new_amount'];
+                        } else {
+                            $discountAmount = $discountResult;
+                            $newAmountForCheckout = null;
+                        }
                     }
                 }
             } elseif ($discountCode) {
                 // Buscar por código (si se implementa en el futuro)
                 // Por ahora mantener compatibilidad con código de descuento antiguo
                 $discountAmount = $grossAmount * 0.1; // 10% de descuento por código
+                $newAmountForCheckout = null;
+            } else {
+                $newAmountForCheckout = null;
             }
             
-            $netAmount = max(0, $grossAmount - $discountAmount);
+            // Para PRICING_PROFILE, usar newAmount directamente si está disponible
+            // Para otros tipos, calcular netAmount = grossAmount - discountAmount
+            if (isset($newAmountForCheckout) && $newAmountForCheckout !== null) {
+                $netAmount = max(0, $newAmountForCheckout);
+            } else {
+                $netAmount = max(0, $grossAmount - $discountAmount);
+            }
             
             // Log para debugging
             \Log::info('Checkout calculation', [
