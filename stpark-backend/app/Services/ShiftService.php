@@ -275,6 +275,73 @@ class ShiftService
         // Total vendido (sesiones + lavados si está habilitado)
         $salesTotal = $parkingSalesTotal + $carWashesTotal;
 
+        // Obtener pagos con tarjeta de turnos anteriores del mismo día
+        $previousShiftsCardTotal = 0;
+        $previousShiftsCardCount = 0;
+        
+        if ($shift->opened_at) {
+            // Obtener la fecha del turno actual (solo fecha, sin hora)
+            $shiftDate = $shift->opened_at->format('Y-m-d');
+            
+            // Buscar turnos abiertos antes del turno actual que sean del mismo día
+            $previousShifts = Shift::where('operator_id', $shift->operator_id)
+                ->where('opened_at', '<', $shift->opened_at)
+                ->whereDate('opened_at', $shiftDate)
+                ->where('status', Shift::STATUS_CLOSED)
+                ->pluck('id')
+                ->toArray();
+            
+            if (!empty($previousShifts)) {
+                // Obtener todas las ventas que tienen pagos en esos turnos anteriores
+                $previousSalesWithPayments = DB::table('payments')
+                    ->whereIn('shift_id', $previousShifts)
+                    ->where('status', 'COMPLETED')
+                    ->where('method', 'CARD')
+                    ->whereNotNull('sale_id')
+                    ->distinct()
+                    ->pluck('sale_id')
+                    ->toArray();
+                
+                // De esas ventas, identificar cuáles están completamente pagadas
+                $previousClosedSalesIds = [];
+                if (!empty($previousSalesWithPayments)) {
+                    $previousClosedSalesIds = DB::table('sales')
+                        ->select('sales.id')
+                        ->whereIn('sales.id', $previousSalesWithPayments)
+                        ->join('payments', 'sales.id', '=', 'payments.sale_id')
+                        ->where('payments.status', 'COMPLETED')
+                        ->groupBy('sales.id', 'sales.total')
+                        ->havingRaw('SUM(payments.amount) >= sales.total')
+                        ->pluck('sales.id')
+                        ->toArray();
+                }
+                
+                // Sumar pagos con tarjeta de turnos anteriores
+                $previousShiftsCardData = DB::table('payments')
+                    ->whereIn('shift_id', $previousShifts)
+                    ->where('status', 'COMPLETED')
+                    ->where('method', 'CARD')
+                    ->where(function($query) use ($previousClosedSalesIds) {
+                        // Incluir pagos de sesiones de estacionamiento
+                        $query->whereNotNull('session_id')
+                              // O pagos de ventas cerradas (completamente pagadas)
+                              ->orWhere(function($subQuery) use ($previousClosedSalesIds) {
+                                  $subQuery->whereNotNull('sale_id');
+                                  if (!empty($previousClosedSalesIds)) {
+                                      $subQuery->whereIn('sale_id', $previousClosedSalesIds);
+                                  } else {
+                                      $subQuery->whereRaw('1 = 0');
+                                  }
+                              });
+                    })
+                    ->select(DB::raw('SUM(amount) as total'), DB::raw('COUNT(*) as count'))
+                    ->first();
+                
+                $previousShiftsCardTotal = (float) ($previousShiftsCardData->total ?? 0);
+                $previousShiftsCardCount = (int) ($previousShiftsCardData->count ?? 0);
+            }
+        }
+
         return [
             'opening_float' => (float) $shift->opening_float,
             'cash_collected' => $cashCollected,
@@ -290,6 +357,8 @@ class ShiftService
             'car_washes_count' => $carWashesCount,
             'car_washes_cash_total' => $carWashesCashTotal,
             'car_washes_card_total' => $carWashesCardTotal,
+            'previous_shifts_card_total' => $previousShiftsCardTotal,
+            'previous_shifts_card_count' => $previousShiftsCardCount,
             'payments_by_method' => $paymentsByMethod->map(function ($item) {
                 return [
                     'method' => $item->method,

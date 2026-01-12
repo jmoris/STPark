@@ -362,6 +362,13 @@ export interface QuoteResponse {
   discount_amount: number;
   net_amount: number;
   pricing_profile: string;
+  discount_id?: number;
+  breakdown?: any[];
+  is_full_day?: boolean;
+  // Propiedades para errores de descuento
+  discount_error?: 'MINIMUM_DURATION_NOT_MET' | string;
+  discount_minimum_duration?: number;
+  discount_name?: string;
 }
 
 export interface DashboardStats {

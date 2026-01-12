@@ -207,24 +207,41 @@ class ParkingSessionService
                     'discount_name' => $discount->name,
                     'discount_type' => $discount->discount_type,
                     'is_valid' => $discount->isValid(),
+                    'minimum_session_duration' => $discount->minimum_session_duration,
+                    'current_duration' => $duration,
                 ]);
                 
                 if ($discount->isValid()) {
-                    $discountId = $discount->id;
-                    $discountAmount = $this->calculateDiscountAmount($discount, $quote['total'], $duration);
-                    
-                    // Log para debugging
-                    \Log::info('Discount applied successfully', [
-                        'discount_id' => $discount->id,
-                        'discount_name' => $discount->name,
-                        'discount_type' => $discount->discount_type,
-                        'minute_value' => $discount->minute_value,
-                        'value' => $discount->value,
-                        'duration_minutes' => $duration,
-                        'gross_amount' => $quote['total'],
-                        'discount_amount' => $discountAmount,
-                        'calculated_net_amount' => $quote['total'] - $discountAmount
-                    ]);
+                    // Validar tiempo mínimo de sesión antes de aplicar el descuento
+                    $minimumSessionDuration = $discount->minimum_session_duration ?? 0;
+                    if ($minimumSessionDuration > 0 && $duration < $minimumSessionDuration) {
+                        \Log::warning('Discount cannot be applied: minimum session duration not met', [
+                            'discount_id' => $discount->id,
+                            'discount_name' => $discount->name,
+                            'minimum_session_duration' => $minimumSessionDuration,
+                            'current_duration' => $duration,
+                        ]);
+                        // No aplicar el descuento, pero no lanzar error para que el frontend pueda mostrar el mensaje
+                        $discountAmount = 0;
+                        $discountId = null;
+                    } else {
+                        $discountId = $discount->id;
+                        $discountAmount = $this->calculateDiscountAmount($discount, $quote['total'], $duration);
+                        
+                        // Log para debugging
+                        \Log::info('Discount applied successfully', [
+                            'discount_id' => $discount->id,
+                            'discount_name' => $discount->name,
+                            'discount_type' => $discount->discount_type,
+                            'minute_value' => $discount->minute_value,
+                            'value' => $discount->value,
+                            'duration_minutes' => $duration,
+                            'minimum_session_duration' => $minimumSessionDuration,
+                            'gross_amount' => $quote['total'],
+                            'discount_amount' => $discountAmount,
+                            'calculated_net_amount' => $quote['total'] - $discountAmount
+                        ]);
+                    }
                 } else {
                     \Log::warning('Discount is not valid', ['discount_id' => $discount->id]);
                 }
@@ -266,6 +283,16 @@ class ParkingSessionService
         
         if ($discountId) {
             $result['discount_id'] = $discountId;
+        }
+        
+        // Si se intentó aplicar un descuento pero no se cumplió el tiempo mínimo de sesión, incluir información
+        if (isset($params['discount_id']) && !empty($params['discount_id']) && !$discountId) {
+            $discount = SessionDiscount::find($params['discount_id']);
+            if ($discount && $discount->minimum_session_duration && $duration < $discount->minimum_session_duration) {
+                $result['discount_error'] = 'MINIMUM_DURATION_NOT_MET';
+                $result['discount_minimum_duration'] = $discount->minimum_session_duration;
+                $result['discount_name'] = $discount->name;
+            }
         }
         
         return $result;
@@ -463,10 +490,25 @@ class ParkingSessionService
             if ($discountId) {
                 $discount = SessionDiscount::find($discountId);
                 if ($discount && $discount->isValid()) {
-                    $discountIdToSave = $discount->id;
+                    // Validar tiempo mínimo de sesión antes de aplicar el descuento
+                    $minimumSessionDuration = $discount->minimum_session_duration ?? 0;
                     // Usar duration_minutes del quote si está disponible, sino usar $duration
                     $durationForDiscount = isset($quote['duration_minutes']) ? $quote['duration_minutes'] : $duration;
-                    $discountAmount = $this->calculateDiscountAmount($discount, $grossAmount, $durationForDiscount);
+                    
+                    if ($minimumSessionDuration > 0 && $durationForDiscount < $minimumSessionDuration) {
+                        \Log::warning('Discount cannot be applied in checkout: minimum session duration not met', [
+                            'discount_id' => $discount->id,
+                            'discount_name' => $discount->name,
+                            'minimum_session_duration' => $minimumSessionDuration,
+                            'current_duration' => $durationForDiscount,
+                        ]);
+                        // No aplicar el descuento
+                        $discountIdToSave = null;
+                        $discountAmount = 0;
+                    } else {
+                        $discountIdToSave = $discount->id;
+                        $discountAmount = $this->calculateDiscountAmount($discount, $grossAmount, $durationForDiscount);
+                    }
                 }
             } elseif ($discountCode) {
                 // Buscar por código (si se implementa en el futuro)

@@ -70,6 +70,8 @@ export interface ShiftCloseTicketData {
     collected: number;
     count: number;
   }>;
+  previousShiftsCardTotal?: number;
+  previousShiftsCardCount?: number;
 }
 
 export interface CarWashTicketData {
@@ -425,6 +427,13 @@ class TicketPrinterService {
         }
       }
       
+      // Mostrar monto de tarjeta de turnos anteriores del mismo día si existe
+      if (data.previousShiftsCardTotal !== undefined && data.previousShiftsCardTotal > 0) {
+        await TuuPrinter.addTextLine('', {align: 0, size: 24, bold: false, italic: false});
+        await TuuPrinter.addTextLine('Tarjeta (turnos anteriores):', {align: 0, size: 24, bold: false, italic: false});
+        await TuuPrinter.addTextLine(`${this.formatAmount(data.previousShiftsCardTotal)} (${data.previousShiftsCardCount || 0} trans.)`, {align: 0, size: 24, bold: false, italic: false});
+      }
+      
       let totalTransactions = data.totalTransactions || 0;
       if (totalTransactions === 0 && data.paymentsByMethod && data.paymentsByMethod.length > 0) {
         totalTransactions = data.paymentsByMethod.reduce((sum, payment) => sum + (payment.count || 0), 0);
@@ -775,6 +784,13 @@ RESUMEN DE TRANSACCIONES:
         ticket += `${methodName}: ${this.formatAmount(payment.collected)} (${payment.count} trans.)
 `;
       });
+    }
+
+    // Mostrar monto de tarjeta de turnos anteriores del mismo día si existe
+    if (data.previousShiftsCardTotal !== undefined && data.previousShiftsCardTotal > 0) {
+      ticket += `
+Tarjeta (turnos anteriores): ${this.formatAmount(data.previousShiftsCardTotal)} (${data.previousShiftsCardCount || 0} trans.)
+`;
     }
 
     ticket += `

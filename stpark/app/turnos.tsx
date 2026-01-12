@@ -117,6 +117,8 @@ export default function TurnosScreen() {
             cashOverShort: response.data.totals?.cash_over_short,
             totalTransactions: response.data.totals?.tickets_count,
             paymentsByMethod: response.data.totals?.payments_by_method,
+            previousShiftsCardTotal: response.data.totals?.previous_shifts_card_total,
+            previousShiftsCardCount: response.data.totals?.previous_shifts_card_count,
           };
 
           const printed = await ticketPrinterService.printShiftCloseTicket(ticketData);

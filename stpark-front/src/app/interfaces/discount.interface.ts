@@ -11,7 +11,8 @@ export interface SessionDiscount {
   // Para PRICING_PROFILE
   minute_value?: number; // Valor del minuto distinto
   min_amount?: number; // Valor mínimo distinto
-  minimum_duration?: number; // Duración mínima en minutos
+  minimum_duration?: number; // Duración mínima en minutos (para cálculo de PRICING_PROFILE)
+  minimum_session_duration?: number; // Duración mínima de sesión requerida para aplicar el descuento (aplica a todos los tipos)
   
   is_active: boolean;
   priority?: number; // Prioridad de aplicación
@@ -30,6 +31,7 @@ export interface SessionDiscountRequest {
   minute_value?: number;
   min_amount?: number;
   minimum_duration?: number;
+  minimum_session_duration?: number;
   is_active?: boolean;
   priority?: number;
   valid_from?: string;

@@ -76,6 +76,7 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
       minute_value: [null],
       min_amount: [null],
       minimum_duration: [null],
+      minimum_session_duration: [null],
       is_active: [true],
       priority: [0],
       valid_from: [null],
@@ -162,6 +163,7 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
       minute_value: null,
       min_amount: null,
       minimum_duration: null,
+      minimum_session_duration: null,
       is_active: true,
       priority: 0,
       valid_from: null,
@@ -188,6 +190,9 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
       formData.min_amount = discount.min_amount || null;
       formData.minimum_duration = discount.minimum_duration || null;
     }
+    
+    // minimum_session_duration aplica a todos los tipos de descuento
+    formData.minimum_session_duration = discount.minimum_session_duration || null;
 
     if (discount.valid_from) {
       formData.valid_from = new Date(discount.valid_from);
@@ -224,6 +229,9 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
       payload.min_amount = formValue.min_amount ? Number(formValue.min_amount) : undefined;
       payload.minimum_duration = formValue.minimum_duration ? Number(formValue.minimum_duration) : undefined;
     }
+    
+    // minimum_session_duration aplica a todos los tipos de descuento
+    payload.minimum_session_duration = formValue.minimum_session_duration ? Number(formValue.minimum_session_duration) : undefined;
 
     // Fechas de validez
     if (formValue.valid_from) {
@@ -345,6 +353,9 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
       }
       if (discount.minimum_duration) {
         parts.push(`Duración mín: ${discount.minimum_duration} min`);
+      }
+      if (discount.minimum_session_duration) {
+        parts.push(`Tpo mín sesión: ${discount.minimum_session_duration} min`);
       }
       return parts.length > 0 ? parts.join(', ') : 'Perfil personalizado';
     }

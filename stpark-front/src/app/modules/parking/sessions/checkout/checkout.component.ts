@@ -135,7 +135,17 @@ export class CheckoutComponent implements OnInit, OnDestroy {
     this.calculating = true;
     // Usar la hora actual como hora de cierre
     const endedAt = new Date().toISOString();
-    this.sessionService.getQuote(this.session.id, { ended_at: endedAt })
+    const discountId = this.checkoutForm.get('discount_id')?.value;
+    const discountCode = this.checkoutForm.get('discount_code')?.value;
+    const quoteParams: any = { ended_at: endedAt };
+    
+    if (discountId) {
+      quoteParams.discount_id = discountId;
+    } else if (discountCode) {
+      quoteParams.discount_code = discountCode;
+    }
+    
+    this.sessionService.getQuote(this.session.id, quoteParams)
       .pipe(takeUntil(this._unsubscribeAll))
       .subscribe({
         next: (response) => {
@@ -143,6 +153,21 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           this.calculating = false;
           // Configurar el campo de monto según el método de pago
           this.onPaymentMethodChange();
+          
+          // Verificar si hay error de tiempo mínimo
+          if (response.data?.discount_error === 'MINIMUM_DURATION_NOT_MET') {
+            const minimumDuration = response.data.discount_minimum_duration || 0;
+            const discountName = response.data.discount_name || 'este descuento';
+            const currentDuration = response.data.duration_minutes || 0;
+            const message = `El descuento "${discountName}" requiere un tiempo mínimo de ${minimumDuration} minutos. Tiempo actual: ${currentDuration} minutos.`;
+            this.snackBar.open(message, 'Cerrar', { 
+              duration: 5000,
+              panelClass: ['error-snackbar']
+            });
+            // Limpiar el descuento seleccionado
+            this.checkoutForm.patchValue({ discount_id: null });
+            this.selectedDiscount = null;
+          }
         },
         error: (error) => {
           this.calculating = false;
@@ -219,7 +244,21 @@ export class CheckoutComponent implements OnInit, OnDestroy {
           this.calculating = false;
           // Actualizar monto según método de pago
           this.onPaymentMethodChange();
-          if (discountId || discountCode) {
+          
+          // Verificar si hay error de tiempo mínimo
+          if (response.data?.discount_error === 'MINIMUM_DURATION_NOT_MET') {
+            const minimumDuration = response.data.discount_minimum_duration || 0;
+            const discountName = response.data.discount_name || 'este descuento';
+            const currentDuration = response.data.duration_minutes || 0;
+            const message = `El descuento "${discountName}" requiere un tiempo mínimo de ${minimumDuration} minutos. Tiempo actual: ${currentDuration} minutos.`;
+            this.snackBar.open(message, 'Cerrar', { 
+              duration: 5000,
+              panelClass: ['error-snackbar']
+            });
+            // Limpiar el descuento seleccionado
+            this.checkoutForm.patchValue({ discount_id: null });
+            this.selectedDiscount = null;
+          } else if (discountId || discountCode) {
             this.snackBar.open('Descuento aplicado correctamente', 'Cerrar', { duration: 3000 });
           }
         },
@@ -676,25 +715,30 @@ export class CheckoutComponent implements OnInit, OnDestroy {
    * Obtener texto descriptivo del descuento para mostrar
    */
   getDiscountDisplayValue(discount: SessionDiscount): string {
+    const parts: string[] = [];
+    
     if (discount.discount_type === 'AMOUNT') {
-      return `Descuento fijo: ${this.formatAmount(discount.value || 0)}`;
+      parts.push(`Descuento fijo: ${this.formatAmount(discount.value || 0)}`);
     } else if (discount.discount_type === 'PERCENTAGE') {
-      const maxInfo = discount.max_amount ? ` (máx: ${this.formatAmount(discount.max_amount)})` : '';
-      return `Descuento: ${discount.value || 0}%${maxInfo}`;
+      parts.push(`Descuento: ${discount.value || 0}%`);
+      if (discount.max_amount) {
+        parts.push(`(máx: ${this.formatAmount(discount.max_amount)})`);
+      }
     } else if (discount.discount_type === 'PRICING_PROFILE') {
-      const parts: string[] = [];
       if (discount.minute_value) {
         parts.push(`Min: ${this.formatAmount(discount.minute_value)}`);
       }
       if (discount.min_amount) {
         parts.push(`Mín: ${this.formatAmount(discount.min_amount)}`);
       }
-      if (discount.minimum_duration) {
-        parts.push(`Duración mín: ${discount.minimum_duration} min`);
-      }
-      return parts.length > 0 ? parts.join(', ') : 'Perfil personalizado';
     }
-    return '-';
+    
+    // Agregar tiempo mínimo de sesión para todos los tipos de descuento
+    if (discount.minimum_session_duration && discount.minimum_session_duration > 0) {
+      parts.push(`Tiempo mín sesión: ${discount.minimum_session_duration} min`);
+    }
+    
+    return parts.length > 0 ? parts.join(', ') : (discount.discount_type === 'PRICING_PROFILE' ? 'Perfil personalizado' : '-');
   }
 
   /**

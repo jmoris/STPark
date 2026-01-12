@@ -229,6 +229,25 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       }
       
       if (response.success && response.data) {
+        // Verificar si hay error de tiempo mínimo
+        if (response.data.discount_error === 'MINIMUM_DURATION_NOT_MET') {
+          const minimumDuration = response.data.discount_minimum_duration || 0;
+          const discountName = response.data.discount_name || 'este descuento';
+          const currentDuration = response.data.duration_minutes || 0;
+          const message = `El descuento "${discountName}" requiere un tiempo mínimo de ${minimumDuration} minutos. Tiempo actual: ${currentDuration} minutos.`;
+          Alert.alert('Tiempo mínimo no cumplido', message);
+          // Limpiar el descuento seleccionado
+          setSelectedDiscountId(null);
+          setSelectedDiscount(null);
+          // Recalcular sin descuento
+          if (type === 'checkout' && data?.id) {
+            setTimeout(() => {
+              getEstimatedQuote(null, undefined);
+            }, 100);
+          }
+          return;
+        }
+        
         const amount = response.data.net_amount || response.data.gross_amount || 0;
         console.log('PaymentModal: Monto final obtenido:', amount, '(net_amount:', response.data.net_amount, ', gross_amount:', response.data.gross_amount, ')');
         setEstimatedAmount(amount);
@@ -1184,25 +1203,30 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       return Math.round(value).toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
     };
     
+    const parts: string[] = [];
+    
     if (discount.discount_type === 'AMOUNT') {
-      return `$${formatCurrency(discount.value || 0)}`;
+      parts.push(`$${formatCurrency(discount.value || 0)}`);
     } else if (discount.discount_type === 'PERCENTAGE') {
-      const maxInfo = discount.max_amount ? ` (máx: $${formatCurrency(discount.max_amount)})` : '';
-      return `${discount.value || 0}%${maxInfo}`;
+      parts.push(`${discount.value || 0}%`);
+      if (discount.max_amount) {
+        parts.push(`(máx: $${formatCurrency(discount.max_amount)})`);
+      }
     } else if (discount.discount_type === 'PRICING_PROFILE') {
-      const parts: string[] = [];
       if (discount.minute_value) {
         parts.push(`$ Min: $${formatCurrency(discount.minute_value)}`);
       }
       if (discount.min_amount) {
         parts.push(`Mín: $${formatCurrency(discount.min_amount)}`);
       }
-      if (discount.minimum_duration) {
-        parts.push(`Tpo mín: ${discount.minimum_duration} min`);
-      }
-      return parts.length > 0 ? parts.join(', ') : 'Perfil personalizado';
     }
-    return '-';
+    
+    // Agregar tiempo mínimo de sesión para todos los tipos de descuento
+    if (discount.minimum_session_duration && discount.minimum_session_duration > 0) {
+      parts.push(`Tpo mín sesión: ${discount.minimum_session_duration} min`);
+    }
+    
+    return parts.length > 0 ? parts.join(', ') : (discount.discount_type === 'PRICING_PROFILE' ? 'Perfil personalizado' : '-');
   };
 
   if (!data) return null;
@@ -1397,6 +1421,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           setShowAmountModal(false);
           setAmountPaid('');
           setSelectedPaymentMethod(null);
+          setShowPaymentMethod(true);
         }}
       >
         <View style={styles.amountModalOverlay}>
@@ -1409,6 +1434,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   setShowAmountModal(false);
                   setAmountPaid('');
                   setSelectedPaymentMethod(null);
+                  setShowPaymentMethod(true);
                 }}
               >
                 <IconSymbol size={24} name="xmark.circle.fill" color="#6c757d" />
@@ -1452,6 +1478,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           setShowApprovalCodeModal(false);
           setApprovalCode('');
           setSelectedPaymentMethod(null);
+          setShowPaymentMethod(true);
         }}
       >
         <View style={styles.amountModalOverlay}>
@@ -1464,6 +1491,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   setShowApprovalCodeModal(false);
                   setApprovalCode('');
                   setSelectedPaymentMethod(null);
+                  setShowPaymentMethod(true);
                 }}
               >
                 <IconSymbol size={24} name="xmark.circle.fill" color="#6c757d" />

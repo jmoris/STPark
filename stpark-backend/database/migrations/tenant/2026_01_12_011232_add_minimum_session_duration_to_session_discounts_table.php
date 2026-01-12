@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('session_discounts', function (Blueprint $table) {
-            $table->integer('minimum_duration')->nullable()->after('min_amount')->comment('Duración mínima en minutos requerida para aplicar el descuento (aplica a todos los tipos)');
+            $table->integer('minimum_session_duration')->nullable()->after('minimum_duration')->comment('Duración mínima de la sesión en minutos requerida para aplicar el descuento (aplica a todos los tipos de descuento)');
         });
     }
 
@@ -22,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('session_discounts', function (Blueprint $table) {
-            $table->dropColumn('minimum_duration');
+            $table->dropColumn('minimum_session_duration');
         });
     }
 };
