@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CarWash;
 use App\Models\CarWashType;
 use App\Models\ParkingSession;
+use App\Models\Shift;
 use App\Services\CurrentShiftService;
 use App\Services\ParkingSessionService;
 use Carbon\Carbon;
@@ -112,16 +113,91 @@ class CarWashController extends Controller
 
         $plate = strtoupper(trim((string) $request->get('plate')));
         
+        // Si se crea como PAID, obtener turno y asignar shift_id y cashier_operator_id
+        $shiftId = null;
+        $cashierOperatorId = null;
+        
+        if ($status === 'PAID' && $operatorId) {
+            // Determinar el operador: priorizar cashier_operator_id del request si viene, sino usar operator_id
+            $operatorIdForShift = $request->filled('cashier_operator_id') 
+                ? $request->get('cashier_operator_id') 
+                : $operatorId;
+            
+            // Intentar obtener el turno activo del operador
+            $shift = $this->currentShiftService->get($operatorIdForShift, null);
+            if ($shift) {
+                // Verificar que el turno pertenece al operador correcto
+                if ($shift->operator_id != $operatorIdForShift) {
+                    Log::warning('CarWashController: El turno no pertenece al operador esperado', [
+                        'operator_id_esperado' => $operatorIdForShift,
+                        'operator_id_del_turno' => $shift->operator_id,
+                        'shift_id' => $shift->id
+                    ]);
+                } else {
+                    $shiftId = $shift->id;
+                    $cashierOperatorId = $operatorIdForShift;
+                    Log::info('CarWashController: Lavado creado como PAID - turno asignado correctamente', [
+                        'car_wash_id' => null, // Aún no existe
+                        'operator_id' => $operatorIdForShift,
+                        'shift_id' => $shiftId,
+                        'cashier_operator_id' => $cashierOperatorId,
+                        'shift_operator_id' => $shift->operator_id
+                    ]);
+                }
+            } else {
+                Log::warning('CarWashController: Lavado creado como PAID pero no se encontró turno activo', [
+                    'operator_id' => $operatorIdForShift
+                ]);
+            }
+            
+            // Si se proporcionan explícitamente en el request, usar esos valores (sobrescribir)
+            // Pero validar que el shift_id pertenece al operador correcto
+            if ($request->filled('shift_id')) {
+                $requestedShiftId = $request->get('shift_id');
+                $requestedShift = Shift::find($requestedShiftId);
+                if ($requestedShift && $requestedShift->operator_id == $operatorIdForShift) {
+                    $shiftId = $requestedShiftId;
+                } else {
+                    Log::warning('CarWashController: El shift_id proporcionado no pertenece al operador', [
+                        'shift_id_proporcionado' => $requestedShiftId,
+                        'operator_id_esperado' => $operatorIdForShift,
+                        'operator_id_del_turno' => $requestedShift?->operator_id
+                    ]);
+                }
+            }
+            if ($request->filled('cashier_operator_id')) {
+                $cashierOperatorId = $request->get('cashier_operator_id');
+                // Si cambió el cashier_operator_id, verificar que el turno sea correcto
+                if ($cashierOperatorId != $operatorIdForShift && $shiftId) {
+                    $shift = Shift::find($shiftId);
+                    if ($shift && $shift->operator_id != $cashierOperatorId) {
+                        // Buscar el turno correcto del nuevo operador
+                        $correctShift = $this->currentShiftService->get($cashierOperatorId, null);
+                        if ($correctShift) {
+                            $shiftId = $correctShift->id;
+                            Log::info('CarWashController: Actualizado shift_id al turno correcto del operador', [
+                                'operator_id' => $cashierOperatorId,
+                                'shift_id' => $shiftId
+                            ]);
+                        }
+                    }
+                }
+            }
+        }
+        
         $wash = CarWash::create([
             'plate' => $plate,
             'car_wash_type_id' => $type->id,
             'session_id' => $request->get('session_id'),
             'operator_id' => $request->get('operator_id'),
+            'cashier_operator_id' => $cashierOperatorId,
+            'shift_id' => $shiftId,
             'status' => $status,
             'amount' => $type->price,
             'duration_minutes' => $type->duration_minutes,
             'performed_at' => $now,
             'paid_at' => $status === 'PAID' ? $now : null,
+            'approval_code' => $request->get('approval_code'),
         ]);
 
         // Buscar y cancelar sesiones activas con la misma patente
@@ -207,13 +283,135 @@ class CarWashController extends Controller
             $wash->amount = $request->get('amount');
             Log::info('CarWashController::update - Setting amount:', ['amount' => $request->get('amount')]);
         }
+        
+        // Si se actualiza a PAID, asegurar que siempre tenga shift_id y cashier_operator_id
+        if ($newStatus === 'PAID') {
+            // Determinar el operador que está realizando el pago:
+            // 1. Prioridad: cashier_operator_id del request (operador que está pagando)
+            // 2. Fallback: cashier_operator_id existente en el lavado
+            // 3. Último recurso: operator_id original (solo si no hay cashier_operator_id)
+            $operatorIdForShift = null;
+            if ($request->filled('cashier_operator_id')) {
+                // El operador que está realizando el pago viene en el request
+                $operatorIdForShift = $request->get('cashier_operator_id');
+            } elseif ($wash->cashier_operator_id) {
+                // Ya existe un cashier_operator_id en el lavado
+                $operatorIdForShift = $wash->cashier_operator_id;
+            } elseif ($wash->operator_id) {
+                // Usar el operator_id original como último recurso
+                $operatorIdForShift = $wash->operator_id;
+            }
+            
+            // Si tenemos un operador identificado, obtener su turno activo
+            if ($operatorIdForShift) {
+                // Si no se proporcionó shift_id en el request, obtenerlo del turno activo del operador
+                if (!$request->filled('shift_id')) {
+                    $shift = $this->currentShiftService->get($operatorIdForShift, null);
+                    if ($shift) {
+                        $wash->shift_id = $shift->id;
+                        Log::info('CarWashController::update - Asignando shift_id automáticamente del turno activo del operador', [
+                            'operator_id' => $operatorIdForShift,
+                            'shift_id' => $shift->id,
+                            'shift_operator_id' => $shift->operator_id
+                        ]);
+                        
+                        // Verificar que el turno pertenece al operador correcto
+                        if ($shift->operator_id != $operatorIdForShift) {
+                            Log::warning('CarWashController::update - El turno no pertenece al operador esperado', [
+                                'operator_id_esperado' => $operatorIdForShift,
+                                'operator_id_del_turno' => $shift->operator_id,
+                                'shift_id' => $shift->id
+                            ]);
+                        }
+                    } else {
+                        Log::warning('CarWashController::update - No se encontró turno activo para asignar shift_id', [
+                            'operator_id' => $operatorIdForShift
+                        ]);
+                    }
+                }
+                
+                // Si no se proporcionó cashier_operator_id en el request, asignarlo automáticamente
+                if (!$request->filled('cashier_operator_id')) {
+                    $wash->cashier_operator_id = $operatorIdForShift;
+                    Log::info('CarWashController::update - Asignando cashier_operator_id automáticamente', [
+                        'cashier_operator_id' => $operatorIdForShift
+                    ]);
+                }
+            } else {
+                Log::warning('CarWashController::update - No se pudo determinar el operador para asignar turno', [
+                    'car_wash_id' => $wash->id,
+                    'request_cashier_operator_id' => $request->get('cashier_operator_id'),
+                    'wash_cashier_operator_id' => $wash->cashier_operator_id,
+                    'wash_operator_id' => $wash->operator_id
+                ]);
+            }
+        }
+        
+        // Si se proporcionan explícitamente en el request, usar esos valores (sobrescribir lo anterior)
+        // Pero validar que el shift_id pertenezca al operador correcto
         if ($request->filled('cashier_operator_id')) {
-            $wash->cashier_operator_id = $request->get('cashier_operator_id');
-            Log::info('CarWashController::update - Setting cashier_operator_id:', ['cashier_operator_id' => $request->get('cashier_operator_id')]);
+            $requestedCashierOperatorId = $request->get('cashier_operator_id');
+            $wash->cashier_operator_id = $requestedCashierOperatorId;
+            Log::info('CarWashController::update - Setting cashier_operator_id desde request:', ['cashier_operator_id' => $requestedCashierOperatorId]);
+            
+            // Si se cambió el cashier_operator_id y hay un shift_id, verificar que el turno sea correcto
+            if ($wash->shift_id) {
+                $shift = Shift::find($wash->shift_id);
+                if ($shift && $shift->operator_id != $requestedCashierOperatorId) {
+                    // Buscar el turno correcto del nuevo operador
+                    $correctShift = $this->currentShiftService->get($requestedCashierOperatorId, null);
+                    if ($correctShift) {
+                        $wash->shift_id = $correctShift->id;
+                        Log::info('CarWashController::update - Actualizado shift_id al turno correcto del operador', [
+                            'operator_id' => $requestedCashierOperatorId,
+                            'shift_id' => $correctShift->id
+                        ]);
+                    } else {
+                        Log::warning('CarWashController::update - El shift_id no pertenece al cashier_operator_id y no se encontró turno alternativo', [
+                            'shift_id' => $wash->shift_id,
+                            'cashier_operator_id' => $requestedCashierOperatorId,
+                            'shift_operator_id' => $shift->operator_id
+                        ]);
+                    }
+                }
+            }
         }
         if ($request->filled('shift_id')) {
-            $wash->shift_id = $request->get('shift_id');
-            Log::info('CarWashController::update - Setting shift_id:', ['shift_id' => $request->get('shift_id')]);
+            $requestedShiftId = $request->get('shift_id');
+            // Verificar que el turno pertenezca al operador correcto
+            $requestedShift = Shift::find($requestedShiftId);
+            $currentOperatorId = $wash->cashier_operator_id ?? $wash->operator_id;
+            
+            if ($requestedShift) {
+                if ($requestedShift->operator_id == $currentOperatorId) {
+                    $wash->shift_id = $requestedShiftId;
+                    Log::info('CarWashController::update - Setting shift_id desde request (validado):', [
+                        'shift_id' => $requestedShiftId,
+                        'operator_id' => $currentOperatorId
+                    ]);
+                } else {
+                    Log::warning('CarWashController::update - El shift_id proporcionado no pertenece al operador', [
+                        'shift_id_proporcionado' => $requestedShiftId,
+                        'operator_id_esperado' => $currentOperatorId,
+                        'operator_id_del_turno' => $requestedShift->operator_id
+                    ]);
+                    // Intentar obtener el turno correcto del operador
+                    if ($currentOperatorId) {
+                        $correctShift = $this->currentShiftService->get($currentOperatorId, null);
+                        if ($correctShift) {
+                            $wash->shift_id = $correctShift->id;
+                            Log::info('CarWashController::update - Usando turno correcto del operador en lugar del proporcionado', [
+                                'shift_id_correcto' => $correctShift->id,
+                                'operator_id' => $currentOperatorId
+                            ]);
+                        }
+                    }
+                }
+            } else {
+                Log::warning('CarWashController::update - El shift_id proporcionado no existe', [
+                    'shift_id' => $requestedShiftId
+                ]);
+            }
         }
         if ($request->filled('approval_code')) {
             $wash->approval_code = $request->get('approval_code');
