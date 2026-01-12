@@ -761,62 +761,137 @@ class ReportController extends Controller
                                       ->with(['sector', 'street'])
                                       ->get();
 
-        // Sesiones completadas dentro del período de trabajo
-        $todaySessions = ParkingSession::where('status', 'COMPLETED')
-                                      ->where('started_at', '>=', $periodStart)
-                                      ->where('started_at', '<=', $periodEnd)
-                                      ->with(['sector', 'payments'])
-                                      ->get();
-
-        // Calcular total de ventas del período (suma de payments completados)
-        $todaySalesTotal = 0;
-        $todaySalesBySector = [];
+        // Obtener todos los turnos del día seleccionado (abiertos y cerrados, excluyendo cancelados)
+        // Esto asegura que los totales del dashboard coincidan con la suma de los turnos individuales
+        $todayShifts = Shift::whereDate('opened_at', $dateCarbon->format('Y-m-d'))
+                            ->whereIn('status', [Shift::STATUS_OPEN, Shift::STATUS_CLOSED])
+                            ->get();
         
-        foreach ($todaySessions as $session) {
-            $sessionTotal = 0;
-            foreach ($session->payments as $payment) {
-                if ($payment->status === 'COMPLETED') {
-                    $sessionTotal += (float) $payment->amount;
-                    $todaySalesTotal += (float) $payment->amount;
-                }
-            }
-            
-            if ($sessionTotal > 0 && $session->sector) {
-                $sectorName = $session->sector->name;
-                if (!isset($todaySalesBySector[$sectorName])) {
-                    $todaySalesBySector[$sectorName] = ['count' => 0, 'total' => 0];
-                }
-                $todaySalesBySector[$sectorName]['count']++;
-                $todaySalesBySector[$sectorName]['total'] += $sessionTotal;
-            }
+        $todayShiftIds = $todayShifts->pluck('id')->toArray();
+
+        // Obtener todas las ventas que tienen pagos en los turnos de hoy
+        $salesWithPaymentsInShifts = [];
+        if (!empty($todayShiftIds)) {
+            $salesWithPaymentsInShifts = DB::table('payments')
+                ->whereIn('shift_id', $todayShiftIds)
+                ->where('status', 'COMPLETED')
+                ->whereNotNull('sale_id')
+                ->distinct()
+                ->pluck('sale_id')
+                ->toArray();
         }
 
-        // Pagos de sesiones creadas dentro del período de trabajo (turnos de hoy)
-        // Solo incluir pagos de turnos que fueron creados hoy, no pagos creados hoy de turnos anteriores
+        // De esas ventas, identificar cuáles están completamente pagadas
+        $closedSalesIds = [];
+        if (!empty($salesWithPaymentsInShifts)) {
+            $closedSalesIds = DB::table('sales')
+                ->select('sales.id')
+                ->whereIn('sales.id', $salesWithPaymentsInShifts)
+                ->join('payments', 'sales.id', '=', 'payments.sale_id')
+                ->where('payments.status', 'COMPLETED')
+                ->groupBy('sales.id', 'sales.total')
+                ->havingRaw('SUM(payments.amount) >= sales.total')
+                ->pluck('sales.id')
+                ->toArray();
+        }
+
+        // Obtener todos los pagos completados de los turnos de hoy
         $todayPayments = collect();
-        foreach ($todaySessions as $session) {
-            foreach ($session->payments as $payment) {
-                if ($payment->status === 'COMPLETED') {
-                    $todayPayments->push($payment);
+        $todaySalesTotal = 0;
+        $todaySalesBySector = [];
+        $todaySessionsCount = 0;
+        
+        if (!empty($todayShiftIds)) {
+            // Obtener pagos de sesiones de estacionamiento y ventas cerradas
+            $payments = Payment::whereIn('shift_id', $todayShiftIds)
+                ->where('status', 'COMPLETED')
+                ->where(function($query) use ($closedSalesIds) {
+                    // Incluir pagos de sesiones de estacionamiento
+                    $query->whereNotNull('session_id')
+                          // O pagos de ventas cerradas (completamente pagadas)
+                          ->orWhere(function($subQuery) use ($closedSalesIds) {
+                              $subQuery->whereNotNull('sale_id');
+                              if (!empty($closedSalesIds)) {
+                                  $subQuery->whereIn('sale_id', $closedSalesIds);
+                              } else {
+                                  // Si no hay ventas cerradas, excluir pagos de ventas
+                                  $subQuery->whereRaw('1 = 0');
+                              }
+                          });
+                })
+                ->with(['parkingSession.sector', 'sale'])
+                ->get();
+
+            $todayPayments = $payments;
+
+            // Contar sesiones únicas de estacionamiento
+            $uniqueSessionIds = $payments->whereNotNull('session_id')
+                ->pluck('session_id')
+                ->unique()
+                ->count();
+            $todaySessionsCount = $uniqueSessionIds;
+
+            // Calcular totales por sector
+            foreach ($payments as $payment) {
+                $sectorName = null;
+                
+                // Intentar obtener el sector desde la sesión de estacionamiento
+                if ($payment->session_id && $payment->parkingSession && $payment->parkingSession->sector) {
+                    $sectorName = $payment->parkingSession->sector->name;
                 }
+                // Si no hay sesión, intentar obtener el sector desde la venta
+                elseif ($payment->sale_id && $payment->sale && $payment->sale->parkingSession && $payment->sale->parkingSession->sector) {
+                    $sectorName = $payment->sale->parkingSession->sector->name;
+                }
+
+                if ($sectorName) {
+                    if (!isset($todaySalesBySector[$sectorName])) {
+                        $todaySalesBySector[$sectorName] = ['count' => 0, 'total' => 0];
+                    }
+                    $todaySalesBySector[$sectorName]['count']++;
+                    $todaySalesBySector[$sectorName]['total'] += (float) $payment->amount;
+                }
+
+                $todaySalesTotal += (float) $payment->amount;
             }
         }
 
         // Deudas pendientes (mantener todas, no filtrar por período)
         $pendingDebts = Debt::pending()->get();
 
-        // Lavados de autos del período (filtrados por performed_at)
-        $todayCarWashes = CarWash::where('performed_at', '>=', $periodStart)
-            ->where('performed_at', '<=', $periodEnd)
-            ->with(['carWashType'])
-            ->get();
+        // Lavados de autos de los turnos de hoy (filtrados por shift_id en lugar de performed_at)
+        $todayCarWashes = collect();
+        $carWashesTotal = 0;
+        $carWashesCount = 0;
+        $carWashesPendingCount = 0;
+        $carWashesCashTotal = 0;
+        $carWashesCardTotal = 0;
 
-        // Estadísticas de lavados de autos
-        $carWashesTotal = $todayCarWashes->where('status', 'PAID')->sum('amount');
-        $carWashesCount = $todayCarWashes->where('status', 'PAID')->count();
-        $carWashesPendingCount = $todayCarWashes->where('status', 'PENDING')->count();
-        $carWashesCashTotal = $todayCarWashes->where('status', 'PAID')->whereNull('approval_code')->sum('amount');
-        $carWashesCardTotal = $todayCarWashes->where('status', 'PAID')->whereNotNull('approval_code')->sum('amount');
+        if (!empty($todayShiftIds)) {
+            $todayCarWashes = CarWash::whereIn('shift_id', $todayShiftIds)
+                ->with(['carWashType'])
+                ->get();
+
+            // Estadísticas de lavados de autos
+            $carWashesTotal = $todayCarWashes->where('status', 'PAID')->sum('amount');
+            $carWashesCount = $todayCarWashes->where('status', 'PAID')->count();
+            $carWashesPendingCount = $todayCarWashes->where('status', 'PENDING')->count();
+            
+            // Usar payment_type si está disponible, si no usar approval_code como fallback
+            $carWashesCashTotal = $todayCarWashes->where('status', 'PAID')
+                ->filter(function($carWash) {
+                    return $carWash->payment_type === 'cash' || 
+                           ($carWash->payment_type === null && $carWash->approval_code === null);
+                })
+                ->sum('amount');
+            
+            $carWashesCardTotal = $todayCarWashes->where('status', 'PAID')
+                ->filter(function($carWash) {
+                    return $carWash->payment_type === 'card' || 
+                           ($carWash->payment_type === null && $carWash->approval_code !== null);
+                })
+                ->sum('amount');
+        }
 
         // Sesiones activas por hora dentro del horario de trabajo
         $hourlyData = [];
@@ -896,13 +971,13 @@ class ReportController extends Controller
             ],
             'sessions_by_hour' => $hourlyData,
             'today_sales' => [
-                'count' => $todaySessions->count(),
+                'count' => $todaySessionsCount,
                 'total_amount' => $todaySalesTotal,
                 'by_sector' => $todaySalesBySector,
             ],
             'today_payments' => [
                 'count' => $todayPayments->count(),
-                'total_amount' => $todayPayments->sum('amount'),
+                'total_amount' => $todaySalesTotal, // Usar el total calculado previamente para consistencia
                 'by_method' => $todayPayments->groupBy('method')->map(function($group) {
                     return [
                         'count' => $group->count(),
