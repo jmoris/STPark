@@ -328,32 +328,67 @@ class ParkingSessionService
                 if ($discount->minute_value) {
                     $minDurationUsed = $discount->minimum_duration ?? 0;
                     $minAmountValue = $discount->min_amount ?? null;
+                    $minimumSessionDuration = $discount->minimum_session_duration ?? 0;
                     
                     $newAmount = 0;
                     
-                    // Si hay duración mínima y monto mínimo, aplicar como base (similar a min_amount_is_base)
-                    if ($minDurationUsed > 0 && $minAmountValue && $durationMinutes >= $minDurationUsed) {
-                        // Aplicar el monto mínimo como base por el tiempo mínimo
-                        $newAmount += (float)$minAmountValue;
-                        
-                        // Calcular minutos restantes después del tiempo mínimo
-                        $remainingMinutes = $durationMinutes - $minDurationUsed;
-                        
-                        // Si hay minutos restantes, cobrarlos al precio por minuto
-                        if ($remainingMinutes > 0) {
-                            $newAmount += $remainingMinutes * (float)$discount->minute_value;
+                    // Si hay duración mínima de tarifa (minimum_duration) y monto mínimo
+                    if ($minDurationUsed > 0 && $minAmountValue) {
+                        // Si la duración está entre minimum_session_duration y minimum_duration: cobrar solo el monto mínimo
+                        if ($minimumSessionDuration > 0 && $durationMinutes >= $minimumSessionDuration && $durationMinutes < $minDurationUsed) {
+                            // Entre el tiempo mínimo de sesión y la duración mínima de tarifa: cobrar solo el monto mínimo
+                            $newAmount = (float)$minAmountValue;
+                            
+                            \Log::info('PRICING_PROFILE discount calculation: entre minimum_session_duration y minimum_duration, aplicando solo min_amount', [
+                                'discount_id' => $discount->id,
+                                'discount_name' => $discount->name,
+                                'duration_minutes' => $durationMinutes,
+                                'minimum_session_duration' => $minimumSessionDuration,
+                                'minimum_duration' => $minDurationUsed,
+                                'min_amount' => $minAmountValue,
+                                'calculated_new_amount' => $newAmount,
+                            ]);
+                        } elseif ($durationMinutes >= $minDurationUsed) {
+                            // Si la duración es >= minimum_duration: aplicar monto mínimo + minutos restantes
+                            $newAmount += (float)$minAmountValue;
+                            
+                            // Calcular minutos restantes después del tiempo mínimo
+                            $remainingMinutes = $durationMinutes - $minDurationUsed;
+                            
+                            // Si hay minutos restantes, cobrarlos al precio por minuto
+                            if ($remainingMinutes > 0) {
+                                $newAmount += $remainingMinutes * (float)$discount->minute_value;
+                            }
+                            
+                            \Log::info('PRICING_PROFILE discount calculation con duración mínima como base', [
+                                'discount_id' => $discount->id,
+                                'discount_name' => $discount->name,
+                                'duration_minutes' => $durationMinutes,
+                                'minimum_duration' => $minDurationUsed,
+                                'min_amount' => $minAmountValue,
+                                'remaining_minutes' => $remainingMinutes,
+                                'minute_value' => $discount->minute_value,
+                                'calculated_new_amount' => $newAmount,
+                            ]);
+                        } else {
+                            // Si la duración es menor a minimum_session_duration, calcular normalmente
+                            // (aunque esto no debería pasar porque ya se valida antes de llamar a este método)
+                            $newAmount = $durationMinutes * (float)$discount->minute_value;
+                            
+                            // Aplicar monto mínimo si el cálculo es menor
+                            if ($newAmount < (float)$minAmountValue) {
+                                $newAmount = (float)$minAmountValue;
+                            }
+                            
+                            \Log::info('PRICING_PROFILE discount calculation: duración menor a minimum_session_duration', [
+                                'discount_id' => $discount->id,
+                                'discount_name' => $discount->name,
+                                'duration_minutes' => $durationMinutes,
+                                'minimum_session_duration' => $minimumSessionDuration,
+                                'minute_value' => $discount->minute_value,
+                                'calculated_new_amount' => $newAmount,
+                            ]);
                         }
-                        
-                        \Log::info('PRICING_PROFILE discount calculation con duración mínima como base', [
-                            'discount_id' => $discount->id,
-                            'discount_name' => $discount->name,
-                            'duration_minutes' => $durationMinutes,
-                            'minimum_duration' => $minDurationUsed,
-                            'min_amount' => $minAmountValue,
-                            'remaining_minutes' => $remainingMinutes,
-                            'minute_value' => $discount->minute_value,
-                            'calculated_new_amount' => $newAmount,
-                        ]);
                     } else if ($minDurationUsed > 0 && !$minAmountValue) {
                         // Solo hay duración mínima sin monto mínimo: usar como duración efectiva
                         $effectiveDuration = max($durationMinutes, $minDurationUsed);
@@ -386,6 +421,7 @@ class ParkingSessionService
                         'discount_id' => $discount->id,
                         'discount_name' => $discount->name,
                         'duration_minutes' => $durationMinutes,
+                        'minimum_session_duration' => $discount->minimum_session_duration,
                         'minimum_duration' => $discount->minimum_duration,
                         'min_amount' => $discount->min_amount,
                         'minute_value' => $discount->minute_value,
