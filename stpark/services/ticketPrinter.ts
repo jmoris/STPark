@@ -72,6 +72,13 @@ export interface ShiftCloseTicketData {
   }>;
   previousShiftsCardTotal?: number;
   previousShiftsCardCount?: number;
+  // Datos separados de sesiones y lavado de autos
+  parkingSalesTotal?: number;
+  parkingSessionsCount?: number;
+  carWashesTotal?: number;
+  carWashesCount?: number;
+  carWashesCashTotal?: number;
+  carWashesCardTotal?: number;
 }
 
 export interface CarWashTicketData {
@@ -418,13 +425,42 @@ class TicketPrinterService {
       await TuuPrinter.addTextLine('', {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('RESUMEN DE TRANSACCIONES:', {align: 0, size: 24, bold: true, italic: false});
       
+      // Calcular métodos de pago de sesiones (restando los de lavado de los totales)
+      let sessionsCashTotal = 0;
+      let sessionsCardTotal = 0;
+      
       if (data.paymentsByMethod && data.paymentsByMethod.length > 0) {
-        for (const payment of data.paymentsByMethod) {
-          const methodName = payment.method === 'CASH' ? 'Efectivo' : 
-                            payment.method === 'CARD' ? 'Tarjeta' : 
-                            payment.method;
-          await TuuPrinter.addTextLine(`${methodName}: ${this.formatAmount(payment.collected)} (${payment.count} trans.)`, {align: 0, size: 24, bold: false, italic: false});
+        const cashPayment = data.paymentsByMethod.find(p => p.method === 'CASH');
+        const cardPayment = data.paymentsByMethod.find(p => p.method === 'CARD');
+        
+        sessionsCashTotal = (cashPayment?.collected || 0) - (data.carWashesCashTotal || 0);
+        sessionsCardTotal = (cardPayment?.collected || 0) - (data.carWashesCardTotal || 0);
+      }
+      
+      // Mostrar SESIONES DE ESTACIONAMIENTO
+      await TuuPrinter.addTextLine('', {align: 0, size: 24, bold: false, italic: false});
+      await TuuPrinter.addTextLine('SESIONES:', {align: 0, size: 24, bold: true, italic: false});
+      await TuuPrinter.addTextLine(`Total: ${this.formatAmount(data.parkingSalesTotal || 0)}`, {align: 0, size: 24, bold: false, italic: false});
+      if (sessionsCashTotal > 0) {
+        await TuuPrinter.addTextLine(`Efectivo: ${this.formatAmount(sessionsCashTotal)}`, {align: 0, size: 24, bold: false, italic: false});
+      }
+      if (sessionsCardTotal > 0) {
+        await TuuPrinter.addTextLine(`Tarjeta: ${this.formatAmount(sessionsCardTotal)}`, {align: 0, size: 24, bold: false, italic: false});
+      }
+      await TuuPrinter.addTextLine(`Cantidad: ${data.parkingSessionsCount || 0} sesiones`, {align: 0, size: 24, bold: false, italic: false});
+      
+      // Mostrar LAVADO DE AUTOS (solo si hay lavados)
+      if (data.carWashesTotal && data.carWashesTotal > 0) {
+        await TuuPrinter.addTextLine('', {align: 0, size: 24, bold: false, italic: false});
+        await TuuPrinter.addTextLine('LAVADO DE AUTOS:', {align: 0, size: 24, bold: true, italic: false});
+        await TuuPrinter.addTextLine(`Total: ${this.formatAmount(data.carWashesTotal)}`, {align: 0, size: 24, bold: false, italic: false});
+        if (data.carWashesCashTotal && data.carWashesCashTotal > 0) {
+          await TuuPrinter.addTextLine(`Efectivo: ${this.formatAmount(data.carWashesCashTotal)}`, {align: 0, size: 24, bold: false, italic: false});
         }
+        if (data.carWashesCardTotal && data.carWashesCardTotal > 0) {
+          await TuuPrinter.addTextLine(`Tarjeta: ${this.formatAmount(data.carWashesCardTotal)}`, {align: 0, size: 24, bold: false, italic: false});
+        }
+        await TuuPrinter.addTextLine(`Cantidad: ${data.carWashesCount || 0} lavados`, {align: 0, size: 24, bold: false, italic: false});
       }
       
       // Mostrar monto de tarjeta de turnos anteriores del mismo día si existe
@@ -433,12 +469,6 @@ class TicketPrinterService {
         await TuuPrinter.addTextLine('Tarjeta (turnos anteriores):', {align: 0, size: 24, bold: false, italic: false});
         await TuuPrinter.addTextLine(`${this.formatAmount(data.previousShiftsCardTotal)} (${data.previousShiftsCardCount || 0} trans.)`, {align: 0, size: 24, bold: false, italic: false});
       }
-      
-      let totalTransactions = data.totalTransactions || 0;
-      if (totalTransactions === 0 && data.paymentsByMethod && data.paymentsByMethod.length > 0) {
-        totalTransactions = data.paymentsByMethod.reduce((sum, payment) => sum + (payment.count || 0), 0);
-      }
-      await TuuPrinter.addTextLine(`Total Transacciones: ${totalTransactions}`, {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('', {align: 0, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('=============================', {align: 1, size: 24, bold: false, italic: false});
       await TuuPrinter.addTextLine('FIN DE TURNO', {align: 1, size: 24, bold: false, italic: false});
@@ -770,20 +800,50 @@ Efectivo Contado: ${this.formatAmount(data.cashDeclared)}
 RESUMEN DE TRANSACCIONES:
 `;
 
-    // Calcular total de transacciones sumando los count de cada método de pago
-    let totalTransactions = data.totalTransactions || 0;
-    if (totalTransactions === 0 && data.paymentsByMethod && data.paymentsByMethod.length > 0) {
-      totalTransactions = data.paymentsByMethod.reduce((sum, payment) => sum + (payment.count || 0), 0);
-    }
-
+    // Calcular métodos de pago de sesiones (restando los de lavado de los totales)
+    let sessionsCashTotal = 0;
+    let sessionsCardTotal = 0;
+    
     if (data.paymentsByMethod && data.paymentsByMethod.length > 0) {
-      data.paymentsByMethod.forEach((payment) => {
-        const methodName = payment.method === 'CASH' ? 'Efectivo' : 
-                          payment.method === 'CARD' ? 'Tarjeta' : 
-                          payment.method;
-        ticket += `${methodName}: ${this.formatAmount(payment.collected)} (${payment.count} trans.)
+      const cashPayment = data.paymentsByMethod.find(p => p.method === 'CASH');
+      const cardPayment = data.paymentsByMethod.find(p => p.method === 'CARD');
+      
+      sessionsCashTotal = (cashPayment?.collected || 0) - (data.carWashesCashTotal || 0);
+      sessionsCardTotal = (cardPayment?.collected || 0) - (data.carWashesCardTotal || 0);
+    }
+    
+    // Mostrar SESIONES DE ESTACIONAMIENTO
+    ticket += `
+SESIONES:
+Total: ${this.formatAmount(data.parkingSalesTotal || 0)}
 `;
-      });
+    if (sessionsCashTotal > 0) {
+      ticket += `Efectivo: ${this.formatAmount(sessionsCashTotal)}
+`;
+    }
+    if (sessionsCardTotal > 0) {
+      ticket += `Tarjeta: ${this.formatAmount(sessionsCardTotal)}
+`;
+    }
+    ticket += `Cantidad: ${data.parkingSessionsCount || 0} sesiones
+`;
+    
+    // Mostrar LAVADO DE AUTOS (solo si hay lavados)
+    if (data.carWashesTotal && data.carWashesTotal > 0) {
+      ticket += `
+LAVADO DE AUTOS:
+Total: ${this.formatAmount(data.carWashesTotal)}
+`;
+      if (data.carWashesCashTotal && data.carWashesCashTotal > 0) {
+        ticket += `Efectivo: ${this.formatAmount(data.carWashesCashTotal)}
+`;
+      }
+      if (data.carWashesCardTotal && data.carWashesCardTotal > 0) {
+        ticket += `Tarjeta: ${this.formatAmount(data.carWashesCardTotal)}
+`;
+      }
+      ticket += `Cantidad: ${data.carWashesCount || 0} lavados
+`;
     }
 
     // Mostrar monto de tarjeta de turnos anteriores del mismo día si existe
@@ -794,8 +854,6 @@ Tarjeta (turnos anteriores): ${this.formatAmount(data.previousShiftsCardTotal)} 
     }
 
     ticket += `
-Total Transacciones: ${totalTransactions}
-
 ================================
           FIN DE TURNO
 ================================

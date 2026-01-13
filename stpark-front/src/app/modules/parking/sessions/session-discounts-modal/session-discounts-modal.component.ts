@@ -77,6 +77,10 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
       min_amount: [null],
       minimum_duration: [null],
       minimum_session_duration: [null],
+      night_time_start: [null],
+      night_time_end: [null],
+      night_minute_value: [null],
+      night_min_amount: [null],
       is_active: [true],
       priority: [0],
       valid_from: [null],
@@ -164,6 +168,10 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
       min_amount: null,
       minimum_duration: null,
       minimum_session_duration: null,
+      night_time_start: null,
+      night_time_end: null,
+      night_minute_value: null,
+      night_min_amount: null,
       is_active: true,
       priority: 0,
       valid_from: null,
@@ -189,6 +197,10 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
       formData.minute_value = discount.minute_value || null;
       formData.min_amount = discount.min_amount || null;
       formData.minimum_duration = discount.minimum_duration || null;
+      formData.night_time_start = discount.night_time_start || null;
+      formData.night_time_end = discount.night_time_end || null;
+      formData.night_minute_value = discount.night_minute_value || null;
+      formData.night_min_amount = discount.night_min_amount || null;
     }
     
     // minimum_session_duration aplica a todos los tipos de descuento
@@ -228,6 +240,20 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
       payload.minute_value = formValue.minute_value ? Number(formValue.minute_value) : undefined;
       payload.min_amount = formValue.min_amount ? Number(formValue.min_amount) : undefined;
       payload.minimum_duration = formValue.minimum_duration ? Number(formValue.minimum_duration) : undefined;
+      
+      // Campos de horario nocturno
+      if (formValue.night_time_start) {
+        payload.night_time_start = String(formValue.night_time_start).trim();
+      }
+      if (formValue.night_time_end) {
+        payload.night_time_end = String(formValue.night_time_end).trim();
+      }
+      if (formValue.night_minute_value) {
+        payload.night_minute_value = Number(formValue.night_minute_value);
+      }
+      if (formValue.night_min_amount) {
+        payload.night_min_amount = Number(formValue.night_min_amount);
+      }
     }
     
     // minimum_session_duration aplica a todos los tipos de descuento
@@ -356,6 +382,9 @@ export class SessionDiscountsModalComponent implements OnInit, OnDestroy {
       }
       if (discount.minimum_session_duration) {
         parts.push(`Tpo mín sesión: ${discount.minimum_session_duration} min`);
+      }
+      if (discount.night_time_start && discount.night_time_end && discount.night_minute_value) {
+        parts.push(`Nocturno: ${discount.night_time_start}-${discount.night_time_end} (${this.formatAmount(discount.night_minute_value)}/min)`);
       }
       return parts.length > 0 ? parts.join(', ') : 'Perfil personalizado';
     }

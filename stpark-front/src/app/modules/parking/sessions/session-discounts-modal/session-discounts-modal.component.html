@@ -99,6 +99,49 @@
               La duración mínima debe ser mayor o igual a 0
             </mat-error>
           </mat-form-field>
+
+          <!-- Sección de Horario Nocturno -->
+          <div class="border-t border-gray-200 pt-4 mt-2">
+            <h4 class="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+              <mat-icon class="mr-2 text-gray-500" style="font-size: 18px; width: 18px; height: 18px;">nights_stay</mat-icon>
+              Horario Nocturno (Opcional)
+            </h4>
+            <p class="text-xs text-gray-500 mb-3">Configure un valor diferente por minuto para horario nocturno</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <mat-form-field appearance="outline">
+                <mat-label>Hora inicio nocturno</mat-label>
+                <input matInput type="time" formControlName="night_time_start" placeholder="22:00" />
+                <mat-hint>Ej: 22:00</mat-hint>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Hora fin nocturno</mat-label>
+                <input matInput type="time" formControlName="night_time_end" placeholder="06:00" />
+                <mat-hint>Ej: 06:00</mat-hint>
+              </mat-form-field>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+              <mat-form-field appearance="outline">
+                <mat-label>Valor minuto nocturno (CLP)</mat-label>
+                <input matInput type="number" formControlName="night_minute_value" placeholder="Ej: 33" />
+                <mat-hint>Valor por minuto en horario nocturno</mat-hint>
+                <mat-error *ngIf="discountForm.get('night_minute_value')?.hasError('min')">
+                  El valor debe ser mayor o igual a 0
+                </mat-error>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Monto mínimo nocturno (CLP)</mat-label>
+                <input matInput type="number" formControlName="night_min_amount" placeholder="Opcional" />
+                <mat-hint>Monto mínimo en horario nocturno</mat-hint>
+                <mat-error *ngIf="discountForm.get('night_min_amount')?.hasError('min')">
+                  El monto mínimo debe ser mayor o igual a 0
+                </mat-error>
+              </mat-form-field>
+            </div>
+          </div>
         </div>
 
         <!-- Duración mínima de sesión (aplica a todos los tipos) -->

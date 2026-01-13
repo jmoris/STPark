@@ -227,7 +227,7 @@ class ParkingSessionService
                         $discountId = null;
                     } else {
                         $discountId = $discount->id;
-                        $discountResult = $this->calculateDiscountAmount($discount, $quote['total'], $duration);
+                        $discountResult = $this->calculateDiscountAmount($discount, $quote['total'], $duration, $startTime, $endTime);
                         
                         // Para PRICING_PROFILE, el resultado es un array con newAmount y discountAmount
                         // Para otros tipos, es solo el discountAmount
@@ -317,11 +317,92 @@ class ParkingSessionService
     }
 
     /**
+     * Calcular cuántos minutos de la sesión están en horario nocturno
+     * 
+     * @param Carbon $startTime Hora de inicio de la sesión
+     * @param Carbon $endTime Hora de fin de la sesión
+     * @param string $nightTimeStart Hora de inicio del horario nocturno (formato H:i, ej: "22:00")
+     * @param string $nightTimeEnd Hora de fin del horario nocturno (formato H:i, ej: "06:00")
+     * @return int Número de minutos en horario nocturno
+     */
+    private function calculateNightMinutes(Carbon $startTime, Carbon $endTime, string $nightTimeStart, string $nightTimeEnd): int
+    {
+        $nightMinutes = 0;
+        
+        // Parsear horas de inicio y fin del horario nocturno
+        [$nightStartHour, $nightStartMinute] = explode(':', $nightTimeStart);
+        [$nightEndHour, $nightEndMinute] = explode(':', $nightTimeEnd);
+        
+        $nightStartHour = (int)$nightStartHour;
+        $nightStartMinute = (int)$nightStartMinute;
+        $nightEndHour = (int)$nightEndHour;
+        $nightEndMinute = (int)$nightEndMinute;
+        
+        // Calcular duración total en minutos
+        $totalMinutes = (int)$startTime->diffInMinutes($endTime);
+        
+        // Si no hay minutos, retornar 0
+        if ($totalMinutes <= 0) {
+            return 0;
+        }
+        
+        // Crear iterador de minutos desde startTime hasta endTime
+        $current = $startTime->copy();
+        $end = $endTime->copy();
+        
+        while ($current < $end) {
+            $currentHour = (int)$current->format('H');
+            $currentMinute = (int)$current->format('i');
+            $currentTimeMinutes = $currentHour * 60 + $currentMinute;
+            
+            $nightStartTimeMinutes = $nightStartHour * 60 + $nightStartMinute;
+            $nightEndTimeMinutes = $nightEndHour * 60 + $nightEndMinute;
+            
+            // Determinar si estamos en horario nocturno
+            $isNightTime = false;
+            
+            if ($nightStartTimeMinutes > $nightEndTimeMinutes) {
+                // Horario nocturno cruza medianoche (ej: 22:00 a 06:00)
+                $isNightTime = $currentTimeMinutes >= $nightStartTimeMinutes || $currentTimeMinutes < $nightEndTimeMinutes;
+            } else {
+                // Horario nocturno no cruza medianoche (ej: 22:00 a 23:59)
+                $isNightTime = $currentTimeMinutes >= $nightStartTimeMinutes && $currentTimeMinutes < $nightEndTimeMinutes;
+            }
+            
+            if ($isNightTime) {
+                $nightMinutes++;
+            }
+            
+            // Avanzar un minuto
+            $current->addMinute();
+        }
+        
+        // Log para debugging
+        \Log::info('calculateNightMinutes resultado', [
+            'start_time' => $startTime->toDateTimeString(),
+            'end_time' => $endTime->toDateTimeString(),
+            'night_time_start' => $nightTimeStart,
+            'night_time_end' => $nightTimeEnd,
+            'total_minutes' => $totalMinutes,
+            'night_minutes' => $nightMinutes,
+            'day_minutes' => $totalMinutes - $nightMinutes
+        ]);
+        
+        return $nightMinutes;
+    }
+
+    /**
      * Calcular el monto de descuento según el tipo de descuento
      * Para PRICING_PROFILE, retorna un array con 'new_amount' y 'discount_amount'
      * Para otros tipos, retorna solo el discountAmount (float)
+     * 
+     * @param SessionDiscount $discount
+     * @param float $grossAmount
+     * @param int $durationMinutes
+     * @param Carbon|null $startTime Hora de inicio de la sesión (para calcular horarios nocturnos)
+     * @param Carbon|null $endTime Hora de fin de la sesión (para calcular horarios nocturnos)
      */
-    private function calculateDiscountAmount(SessionDiscount $discount, float $grossAmount, int $durationMinutes)
+    private function calculateDiscountAmount(SessionDiscount $discount, float $grossAmount, int $durationMinutes, ?Carbon $startTime = null, ?Carbon $endTime = null)
     {
         $discountAmount = 0;
         
@@ -350,86 +431,216 @@ class ParkingSessionService
                     $minAmountValue = $discount->min_amount ?? null;
                     $minimumSessionDuration = $discount->minimum_session_duration ?? 0;
                     
+                    // Verificar si hay configuración de horario nocturno
+                    $hasNightTime = $discount->night_time_start && $discount->night_time_end && $discount->night_minute_value;
+                    
+                    // Calcular minutos en horario diurno y nocturno si hay configuración de horario nocturno
+                    $dayMinutes = $durationMinutes;
+                    $nightMinutes = 0;
+                    
+                    if ($hasNightTime && $startTime && $endTime) {
+                        $nightMinutes = $this->calculateNightMinutes($startTime, $endTime, $discount->night_time_start, $discount->night_time_end);
+                        $dayMinutes = $durationMinutes - $nightMinutes;
+                        
+                        \Log::info('Horario nocturno detectado en PRICING_PROFILE', [
+                            'discount_id' => $discount->id,
+                            'night_time_start' => $discount->night_time_start,
+                            'night_time_end' => $discount->night_time_end,
+                            'total_minutes' => $durationMinutes,
+                            'day_minutes' => $dayMinutes,
+                            'night_minutes' => $nightMinutes,
+                        ]);
+                    }
+                    
                     $newAmount = 0;
                     
-                    // Si hay duración mínima de tarifa (minimum_duration) y monto mínimo
-                    if ($minDurationUsed > 0 && $minAmountValue) {
-                        // Si la duración está entre minimum_session_duration y minimum_duration: cobrar solo el monto mínimo
-                        if ($minimumSessionDuration > 0 && $durationMinutes >= $minimumSessionDuration && $durationMinutes < $minDurationUsed) {
-                            // Entre el tiempo mínimo de sesión y la duración mínima de tarifa: cobrar solo el monto mínimo
-                            $newAmount = (float)$minAmountValue;
-                            
-                            \Log::info('PRICING_PROFILE discount calculation: entre minimum_session_duration y minimum_duration, aplicando solo min_amount', [
-                                'discount_id' => $discount->id,
-                                'discount_name' => $discount->name,
-                                'duration_minutes' => $durationMinutes,
-                                'minimum_session_duration' => $minimumSessionDuration,
-                                'minimum_duration' => $minDurationUsed,
-                                'min_amount' => $minAmountValue,
-                                'calculated_new_amount' => $newAmount,
-                            ]);
-                        } elseif ($durationMinutes >= $minDurationUsed) {
-                            // Si la duración es >= minimum_duration: aplicar monto mínimo + minutos restantes
-                            $newAmount += (float)$minAmountValue;
-                            
-                            // Calcular minutos restantes después del tiempo mínimo
-                            $remainingMinutes = $durationMinutes - $minDurationUsed;
-                            
-                            // Si hay minutos restantes, cobrarlos al precio por minuto
-                            if ($remainingMinutes > 0) {
-                                $newAmount += $remainingMinutes * (float)$discount->minute_value;
+                    // Si hay horario nocturno configurado, calcular por separado minutos diurnos y nocturnos
+                    if ($hasNightTime && ($nightMinutes > 0 || $dayMinutes > 0)) {
+                        // La duración mínima y monto mínimo se aplican a la sesión completa
+                        // Si hay duración mínima (minimum_duration) y monto mínimo (min_amount)
+                        if ($minDurationUsed > 0 && $minAmountValue) {
+                            // Si la duración total es menor a la duración mínima: cobrar solo el monto mínimo
+                            if ($durationMinutes < $minDurationUsed) {
+                                $newAmount = (float)$minAmountValue;
+                                
+                                \Log::info('PRICING_PROFILE con horario nocturno: duración menor a mínima, aplicando solo min_amount', [
+                                    'discount_id' => $discount->id,
+                                    'discount_name' => $discount->name,
+                                    'total_minutes' => $durationMinutes,
+                                    'minimum_duration' => $minDurationUsed,
+                                    'min_amount' => $minAmountValue,
+                                    'calculated_new_amount' => $newAmount,
+                                ]);
+                            } else {
+                                // Si la duración es >= minimum_duration: aplicar monto mínimo + minutos restantes
+                                $newAmount = (float)$minAmountValue;
+                                
+                                // Calcular minutos restantes después del tiempo mínimo
+                                $remainingMinutes = $durationMinutes - $minDurationUsed;
+                                
+                                if ($remainingMinutes > 0 && $startTime && $endTime) {
+                                    // Calcular los minutos restantes desde después del tiempo mínimo
+                                    $startTimeAfterMin = $startTime->copy()->addMinutes($minDurationUsed);
+                                    
+                                    // Calcular cuántos minutos restantes son nocturnos y cuántos diurnos
+                                    $remainingNightMinutes = $this->calculateNightMinutes($startTimeAfterMin, $endTime, $discount->night_time_start, $discount->night_time_end);
+                                    $remainingDayMinutes = $remainingMinutes - $remainingNightMinutes;
+                                    
+                                    // Cobrar minutos diurnos restantes
+                                    if ($remainingDayMinutes > 0) {
+                                        $newAmount += $remainingDayMinutes * (float)$discount->minute_value;
+                                    }
+                                    
+                                    // Cobrar minutos nocturnos restantes
+                                    if ($remainingNightMinutes > 0) {
+                                        $newAmount += $remainingNightMinutes * (float)$discount->night_minute_value;
+                                    }
+                                    
+                                    \Log::info('PRICING_PROFILE: Calculando minutos restantes desde después del tiempo mínimo', [
+                                        'discount_id' => $discount->id,
+                                        'start_time' => $startTime->toDateTimeString(),
+                                        'end_time' => $endTime->toDateTimeString(),
+                                        'start_time_after_min' => $startTimeAfterMin->toDateTimeString(),
+                                        'min_duration' => $minDurationUsed,
+                                        'remaining_minutes' => $remainingMinutes,
+                                        'remaining_day_minutes' => $remainingDayMinutes,
+                                        'remaining_night_minutes' => $remainingNightMinutes,
+                                        'day_minute_value' => $discount->minute_value,
+                                        'night_minute_value' => $discount->night_minute_value,
+                                        'day_amount' => $remainingDayMinutes > 0 ? ($remainingDayMinutes * (float)$discount->minute_value) : 0,
+                                        'night_amount' => $remainingNightMinutes > 0 ? ($remainingNightMinutes * (float)$discount->night_minute_value) : 0,
+                                        'total_remaining_amount' => ($remainingDayMinutes > 0 ? ($remainingDayMinutes * (float)$discount->minute_value) : 0) + ($remainingNightMinutes > 0 ? ($remainingNightMinutes * (float)$discount->night_minute_value) : 0),
+                                    ]);
+                                }
+                                
+                                \Log::info('PRICING_PROFILE con horario nocturno: duración >= mínima, aplicando min_amount + minutos restantes', [
+                                    'discount_id' => $discount->id,
+                                    'discount_name' => $discount->name,
+                                    'total_minutes' => $durationMinutes,
+                                    'minimum_duration' => $minDurationUsed,
+                                    'min_amount' => $minAmountValue,
+                                    'remaining_minutes' => $remainingMinutes,
+                                    'remaining_day_minutes' => isset($remainingDayMinutes) ? $remainingDayMinutes : 0,
+                                    'remaining_night_minutes' => isset($remainingNightMinutes) ? $remainingNightMinutes : 0,
+                                    'minute_value' => $discount->minute_value,
+                                    'night_minute_value' => $discount->night_minute_value,
+                                    'calculated_new_amount' => $newAmount,
+                                ]);
+                            }
+                        } else {
+                            // No hay duración mínima: calcular normalmente por separado
+                            $dayAmount = 0;
+                            if ($dayMinutes > 0) {
+                                $dayAmount = $dayMinutes * (float)$discount->minute_value;
+                                if ($minAmountValue && $dayAmount < (float)$minAmountValue) {
+                                    $dayAmount = (float)$minAmountValue;
+                                }
                             }
                             
-                            \Log::info('PRICING_PROFILE discount calculation con duración mínima como base', [
+                            $nightAmount = 0;
+                            if ($nightMinutes > 0) {
+                                $nightAmount = $nightMinutes * (float)$discount->night_minute_value;
+                                if ($discount->night_min_amount && $nightAmount < (float)$discount->night_min_amount) {
+                                    $nightAmount = (float)$discount->night_min_amount;
+                                }
+                            }
+                            
+                            $newAmount = $dayAmount + $nightAmount;
+                            
+                            \Log::info('PRICING_PROFILE con horario nocturno: sin duración mínima, cálculo normal', [
+                                'discount_id' => $discount->id,
+                                'discount_name' => $discount->name,
+                                'total_minutes' => $durationMinutes,
+                                'day_minutes' => $dayMinutes,
+                                'night_minutes' => $nightMinutes,
+                                'day_amount' => $dayAmount,
+                                'night_amount' => $nightAmount,
+                                'minute_value' => $discount->minute_value,
+                                'night_minute_value' => $discount->night_minute_value,
+                                'calculated_new_amount' => $newAmount,
+                            ]);
+                        }
+                    } else {
+                        // Lógica original sin horario nocturno
+                        // Si hay duración mínima de tarifa (minimum_duration) y monto mínimo
+                        if ($minDurationUsed > 0 && $minAmountValue) {
+                            // Si la duración está entre minimum_session_duration y minimum_duration: cobrar solo el monto mínimo
+                            if ($minimumSessionDuration > 0 && $durationMinutes >= $minimumSessionDuration && $durationMinutes < $minDurationUsed) {
+                                // Entre el tiempo mínimo de sesión y la duración mínima de tarifa: cobrar solo el monto mínimo
+                                $newAmount = (float)$minAmountValue;
+                                
+                                \Log::info('PRICING_PROFILE discount calculation: entre minimum_session_duration y minimum_duration, aplicando solo min_amount', [
+                                    'discount_id' => $discount->id,
+                                    'discount_name' => $discount->name,
+                                    'duration_minutes' => $durationMinutes,
+                                    'minimum_session_duration' => $minimumSessionDuration,
+                                    'minimum_duration' => $minDurationUsed,
+                                    'min_amount' => $minAmountValue,
+                                    'calculated_new_amount' => $newAmount,
+                                ]);
+                            } elseif ($durationMinutes >= $minDurationUsed) {
+                                // Si la duración es >= minimum_duration: aplicar monto mínimo + minutos restantes
+                                $newAmount += (float)$minAmountValue;
+                                
+                                // Calcular minutos restantes después del tiempo mínimo
+                                $remainingMinutes = $durationMinutes - $minDurationUsed;
+                                
+                                // Si hay minutos restantes, cobrarlos al precio por minuto
+                                if ($remainingMinutes > 0) {
+                                    $newAmount += $remainingMinutes * (float)$discount->minute_value;
+                                }
+                                
+                                \Log::info('PRICING_PROFILE discount calculation con duración mínima como base', [
+                                    'discount_id' => $discount->id,
+                                    'discount_name' => $discount->name,
+                                    'duration_minutes' => $durationMinutes,
+                                    'minimum_duration' => $minDurationUsed,
+                                    'min_amount' => $minAmountValue,
+                                    'remaining_minutes' => $remainingMinutes,
+                                    'minute_value' => $discount->minute_value,
+                                    'calculated_new_amount' => $newAmount,
+                                ]);
+                            } else {
+                                // Si la duración es menor a minimum_session_duration, calcular normalmente
+                                // (aunque esto no debería pasar porque ya se valida antes de llamar a este método)
+                                $newAmount = $durationMinutes * (float)$discount->minute_value;
+                                
+                                // Aplicar monto mínimo si el cálculo es menor
+                                if ($newAmount < (float)$minAmountValue) {
+                                    $newAmount = (float)$minAmountValue;
+                                }
+                                
+                                \Log::info('PRICING_PROFILE discount calculation: duración menor a minimum_session_duration', [
+                                    'discount_id' => $discount->id,
+                                    'discount_name' => $discount->name,
+                                    'duration_minutes' => $durationMinutes,
+                                    'minimum_session_duration' => $minimumSessionDuration,
+                                    'minute_value' => $discount->minute_value,
+                                    'calculated_new_amount' => $newAmount,
+                                ]);
+                            }
+                        } else if ($minDurationUsed > 0 && !$minAmountValue) {
+                            // Solo hay duración mínima sin monto mínimo: usar como duración efectiva
+                            $effectiveDuration = max($durationMinutes, $minDurationUsed);
+                            $newAmount = $effectiveDuration * (float)$discount->minute_value;
+                            
+                            \Log::info('PRICING_PROFILE discount calculation con duración mínima forzada', [
                                 'discount_id' => $discount->id,
                                 'discount_name' => $discount->name,
                                 'duration_minutes' => $durationMinutes,
                                 'minimum_duration' => $minDurationUsed,
-                                'min_amount' => $minAmountValue,
-                                'remaining_minutes' => $remainingMinutes,
+                                'effective_duration' => $effectiveDuration,
                                 'minute_value' => $discount->minute_value,
                                 'calculated_new_amount' => $newAmount,
                             ]);
                         } else {
-                            // Si la duración es menor a minimum_session_duration, calcular normalmente
-                            // (aunque esto no debería pasar porque ya se valida antes de llamar a este método)
+                            // No hay duración mínima: calcular normalmente
                             $newAmount = $durationMinutes * (float)$discount->minute_value;
                             
-                            // Aplicar monto mínimo si el cálculo es menor
-                            if ($newAmount < (float)$minAmountValue) {
+                            // Aplicar monto mínimo tradicional si existe (solo si no hay duración mínima como base)
+                            if ($minAmountValue && $newAmount < (float)$minAmountValue) {
                                 $newAmount = (float)$minAmountValue;
                             }
-                            
-                            \Log::info('PRICING_PROFILE discount calculation: duración menor a minimum_session_duration', [
-                                'discount_id' => $discount->id,
-                                'discount_name' => $discount->name,
-                                'duration_minutes' => $durationMinutes,
-                                'minimum_session_duration' => $minimumSessionDuration,
-                                'minute_value' => $discount->minute_value,
-                                'calculated_new_amount' => $newAmount,
-                            ]);
-                        }
-                    } else if ($minDurationUsed > 0 && !$minAmountValue) {
-                        // Solo hay duración mínima sin monto mínimo: usar como duración efectiva
-                        $effectiveDuration = max($durationMinutes, $minDurationUsed);
-                        $newAmount = $effectiveDuration * (float)$discount->minute_value;
-                        
-                        \Log::info('PRICING_PROFILE discount calculation con duración mínima forzada', [
-                            'discount_id' => $discount->id,
-                            'discount_name' => $discount->name,
-                            'duration_minutes' => $durationMinutes,
-                            'minimum_duration' => $minDurationUsed,
-                            'effective_duration' => $effectiveDuration,
-                            'minute_value' => $discount->minute_value,
-                            'calculated_new_amount' => $newAmount,
-                        ]);
-                    } else {
-                        // No hay duración mínima: calcular normalmente
-                        $newAmount = $durationMinutes * (float)$discount->minute_value;
-                        
-                        // Aplicar monto mínimo tradicional si existe (solo si no hay duración mínima como base)
-                        if ($minAmountValue && $newAmount < (float)$minAmountValue) {
-                            $newAmount = (float)$minAmountValue;
                         }
                     }
                     
@@ -570,7 +781,10 @@ class ParkingSessionService
                         $discountAmount = 0;
                     } else {
                         $discountIdToSave = $discount->id;
-                        $discountResult = $this->calculateDiscountAmount($discount, $grossAmount, $durationForDiscount);
+                        // Obtener startTime y endTime para calcular horarios nocturnos
+                        $startTimeForDiscount = Carbon::parse($session->started_at, 'UTC')->setTimezone('America/Santiago');
+                        $endTimeForDiscount = $endTime;
+                        $discountResult = $this->calculateDiscountAmount($discount, $grossAmount, $durationForDiscount, $startTimeForDiscount, $endTimeForDiscount);
                         
                         // Para PRICING_PROFILE, el resultado es un array con newAmount y discountAmount
                         // Para otros tipos, es solo el discountAmount

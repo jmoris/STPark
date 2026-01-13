@@ -702,6 +702,7 @@ export class CheckoutComponent implements OnInit, OnDestroy {
 
   // Estado del desglose de reglas
   breakdownExpanded = false;
+  breakdownAfterDiscountExpanded = false;
 
   /**
    * Alternar la expansión del desglose de reglas
@@ -709,6 +710,122 @@ export class CheckoutComponent implements OnInit, OnDestroy {
   toggleBreakdown(): void {
     this.breakdownExpanded = !this.breakdownExpanded;
     console.log('Breakdown expanded:', this.breakdownExpanded);
+  }
+
+  /**
+   * Alternar la expansión del desglose después del descuento
+   */
+  toggleBreakdownAfterDiscount(): void {
+    this.breakdownAfterDiscountExpanded = !this.breakdownAfterDiscountExpanded;
+  }
+
+  /**
+   * Calcular el desglose después del descuento
+   */
+  getBreakdownAfterDiscount(): Array<{label: string, amount: number}> {
+    if (!this.quote || !this.selectedDiscount) {
+      return [];
+    }
+
+    const breakdown: Array<{label: string, amount: number}> = [];
+    
+    // Para descuentos PRICING_PROFILE, el net_amount ya está calculado con la tarifa personalizada
+    if (this.selectedDiscount.discount_type === 'PRICING_PROFILE') {
+      // Calcular cómo se distribuye el net_amount
+      const duration = this.quote.duration_minutes || 0;
+      const minDuration = this.selectedDiscount.minimum_duration || 0;
+      const minAmount = this.selectedDiscount.min_amount || 0;
+      const netAmount = this.quote.net_amount || 0;
+      
+      if (minDuration > 0 && minAmount > 0 && duration >= minDuration) {
+        // Hay tiempo mínimo: mostrar tiempo mínimo + minutos restantes
+        const remainingMinutes = duration - minDuration;
+        const remainingAmount = netAmount - minAmount;
+        
+        breakdown.push({
+          label: `${this.selectedDiscount.name} - Tiempo mínimo (${minDuration} min)`,
+          amount: minAmount
+        });
+        
+        if (remainingMinutes > 0 && remainingAmount > 0) {
+          // Verificar si hay horario nocturno configurado
+          const hasNightTime = this.selectedDiscount.night_time_start && 
+                               this.selectedDiscount.night_time_end && 
+                               this.selectedDiscount.night_minute_value;
+          
+          if (hasNightTime) {
+            // Calcular minutos nocturnos y diurnos en los restantes
+            const nightMinuteValue = this.selectedDiscount.night_minute_value || 0;
+            const dayMinuteValue = this.selectedDiscount.minute_value || 0;
+            
+            // Resolver el sistema de ecuaciones:
+            // remainingAmount = (nightMinutes * nightMinuteValue) + (dayMinutes * dayMinuteValue)
+            // remainingMinutes = nightMinutes + dayMinutes
+            // Despejando: nightMinutes = (remainingAmount - (remainingMinutes * dayMinuteValue)) / (nightMinuteValue - dayMinuteValue)
+            
+            if (nightMinuteValue !== dayMinuteValue && nightMinuteValue > 0 && dayMinuteValue > 0) {
+              const nightMinutes = Math.round((remainingAmount - (remainingMinutes * dayMinuteValue)) / (nightMinuteValue - dayMinuteValue));
+              const dayMinutes = remainingMinutes - nightMinutes;
+              
+              // Asegurar que los valores sean válidos
+              const validNightMinutes = Math.max(0, Math.min(nightMinutes, remainingMinutes));
+              const validDayMinutes = remainingMinutes - validNightMinutes;
+              
+              if (validNightMinutes > 0) {
+                const nightAmount = validNightMinutes * nightMinuteValue;
+                breakdown.push({
+                  label: `${this.selectedDiscount.name} - Minutos nocturnos adicionales (${validNightMinutes} min × ${this.formatAmount(nightMinuteValue)}/min)`,
+                  amount: nightAmount
+                });
+              }
+              
+              if (validDayMinutes > 0) {
+                const dayAmount = validDayMinutes * dayMinuteValue;
+                breakdown.push({
+                  label: `${this.selectedDiscount.name} - Minutos diurnos adicionales (${validDayMinutes} min × ${this.formatAmount(dayMinuteValue)}/min)`,
+                  amount: dayAmount
+                });
+              }
+            } else {
+              // Si las tarifas son iguales o no se puede calcular, mostrar el total
+              breakdown.push({
+                label: `${this.selectedDiscount.name} - Minutos adicionales (${remainingMinutes} min)`,
+                amount: remainingAmount
+              });
+            }
+          } else {
+            // No hay horario nocturno, todos los minutos adicionales usan la tarifa diurna
+            breakdown.push({
+              label: `${this.selectedDiscount.name} - Minutos adicionales (${remainingMinutes} min × ${this.formatAmount(this.selectedDiscount.minute_value || 0)}/min)`,
+              amount: remainingAmount
+            });
+          }
+        }
+      } else {
+        // No hay tiempo mínimo o duración menor al mínimo
+        breakdown.push({
+          label: `${this.selectedDiscount.name} (${duration} min)`,
+          amount: netAmount
+        });
+      }
+    } else {
+      // Para otros tipos de descuento, mostrar el desglose original con el descuento aplicado proporcionalmente
+      if (this.quote.breakdown && this.quote.breakdown.length > 0) {
+        const totalOriginal = this.quote.gross_amount || 0;
+        const discountAmount = this.quote.discount_amount || 0;
+        const discountRatio = totalOriginal > 0 ? (1 - (discountAmount / totalOriginal)) : 1;
+        
+        this.quote.breakdown.forEach((rule: any) => {
+          const discountedAmount = rule.amount * discountRatio;
+          breakdown.push({
+            label: `${rule.rule_name} (${rule.minutes} min)`,
+            amount: discountedAmount
+          });
+        });
+      }
+    }
+    
+    return breakdown;
   }
 
   /**

@@ -119,6 +119,12 @@ export default function TurnosScreen() {
             paymentsByMethod: response.data.totals?.payments_by_method,
             previousShiftsCardTotal: response.data.totals?.previous_shifts_card_total,
             previousShiftsCardCount: response.data.totals?.previous_shifts_card_count,
+            parkingSalesTotal: response.data.totals?.parking_sales_total,
+            parkingSessionsCount: response.data.totals?.tickets_count,
+            carWashesTotal: response.data.totals?.car_washes_total,
+            carWashesCount: response.data.totals?.car_washes_count,
+            carWashesCashTotal: response.data.totals?.car_washes_cash_total,
+            carWashesCardTotal: response.data.totals?.car_washes_card_total,
           };
 
           const printed = await ticketPrinterService.printShiftCloseTicket(ticketData);

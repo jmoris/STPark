@@ -111,67 +111,120 @@ class PricingService
         $minAmountApplied = false;
         $minDurationUsed = 0;
         $minAmountValue = null;
+        $ruleWithMinBase = null;
         
-        // Si la primera regla tiene tarifa mínima base, preparar para aplicarla
-        if ($firstRule && $firstRule->min_amount_is_base && $firstRule->min_amount) {
-            $minDurationUsed = $firstRule->min_duration_minutes ?? 0;
-            $minAmountValue = $firstRule->min_amount;
+        // Buscar en todas las reglas la que tiene tarifa mínima base configurada
+        // Priorizar la regla que aplica al horario de entrada, pero si no tiene, buscar en otras
+        foreach ($pricingRules as $rule) {
+            // Buscar reglas con min_amount_is_base O con min_amount y min_duration_minutes
+            $hasMinBase = $rule->min_amount_is_base && $rule->min_amount && $rule->min_duration_minutes;
+            $hasMinDuration = $rule->min_amount && $rule->min_duration_minutes;
+            
+            if ($hasMinBase || $hasMinDuration) {
+                // Si es la primera regla o no hemos encontrado ninguna, usar esta
+                // Priorizar min_amount_is_base sobre solo min_duration
+                if (!$ruleWithMinBase || 
+                    ($rule->id === $firstRule->id) || 
+                    ($hasMinBase && (!$ruleWithMinBase->min_amount_is_base))) {
+                    $ruleWithMinBase = $rule;
+                    $minDurationUsed = $rule->min_duration_minutes;
+                    $minAmountValue = $rule->min_amount;
+                }
+            }
         }
+        
+        Log::info('Buscando regla con tiempo mínimo', [
+            'first_rule_id' => $firstRule ? $firstRule->id : null,
+            'first_rule_name' => $firstRule ? $firstRule->name : null,
+            'rule_with_min_base_id' => $ruleWithMinBase ? $ruleWithMinBase->id : null,
+            'rule_with_min_base_name' => $ruleWithMinBase ? $ruleWithMinBase->name : null,
+            'min_duration_used' => $minDurationUsed,
+            'min_amount_value' => $minAmountValue
+        ]);
         
         // PASO 1: Aplicar tiempo mínimo una vez al inicio si existe
         $remainingMinutes = $durationMinutes;
-        if ($minDurationUsed > 0 && $minAmountValue && $durationMinutes >= $minDurationUsed) {
-            // Aplicar el monto mínimo por el tiempo mínimo
-            $totalAmount += $minAmountValue;
-            $minAmountApplied = true;
-            $remainingMinutes = $durationMinutes - $minDurationUsed;
-            
-            Log::info('Aplicando tiempo mínimo al inicio', [
-                'min_duration' => $minDurationUsed,
-                'min_amount' => $minAmountValue,
-                'total_duration' => $durationMinutes,
-                'remaining_minutes' => $remainingMinutes
+        if ($minDurationUsed > 0 && $minAmountValue) {
+            if ($durationMinutes < $minDurationUsed) {
+                // Si la duración es menor al tiempo mínimo, cobrar solo el monto mínimo
+                $totalAmount = $minAmountValue;
+                $minAmountApplied = true;
+                $remainingMinutes = 0;
+                
+                Log::info('Duración menor al tiempo mínimo, cobrando solo monto mínimo', [
+                    'min_duration' => $minDurationUsed,
+                    'min_amount' => $minAmountValue,
+                    'total_duration' => $durationMinutes,
+                    'total_amount' => $totalAmount,
+                    'rule_name' => $ruleWithMinBase ? $ruleWithMinBase->name : 'N/A'
+                ]);
+            } else {
+                // Si la duración es >= tiempo mínimo, aplicar monto mínimo + minutos restantes
+                $totalAmount += $minAmountValue;
+                $minAmountApplied = true;
+                $remainingMinutes = $durationMinutes - $minDurationUsed;
+                
+                Log::info('Aplicando tiempo mínimo al inicio', [
+                    'min_duration' => $minDurationUsed,
+                    'min_amount' => $minAmountValue,
+                    'total_duration' => $durationMinutes,
+                    'remaining_minutes' => $remainingMinutes,
+                    'rule_name' => $ruleWithMinBase ? $ruleWithMinBase->name : 'N/A',
+                    'total_amount_after_min' => $totalAmount
+                ]);
+            }
+        } else {
+            Log::info('No se aplicó tiempo mínimo', [
+                'min_duration_used' => $minDurationUsed,
+                'min_amount_value' => $minAmountValue,
+                'has_rule_with_min_base' => $ruleWithMinBase ? 'yes' : 'no'
             ]);
         }
         
-        // PASO 2: Distribuir los minutos restantes entre las reglas según sus horarios
-        // Primero calcular cuántos minutos corresponden a cada regla
-        $ruleMinutes = [];
-        foreach ($pricingRules as $rule) {
-            $minutes = $this->calculateMinutesInRule($startTime, $endTime, $rule);
-            if ($minutes > 0) {
-                $ruleMinutes[$rule->id] = [
-                    'rule' => $rule,
-                    'total_minutes' => $minutes
-                ];
+        // Si ya se cobró solo el monto mínimo (duración < tiempo mínimo), no calcular minutos adicionales
+        if ($remainingMinutes > 0) {
+            // PASO 2: Calcular cuántos minutos corresponden a cada regla en la sesión completa
+            $ruleMinutes = [];
+            foreach ($pricingRules as $rule) {
+                $minutes = $this->calculateMinutesInRule($startTime, $endTime, $rule);
+                if ($minutes > 0) {
+                    $ruleMinutes[$rule->id] = [
+                        'rule' => $rule,
+                        'total_minutes' => $minutes
+                    ];
+                }
             }
-        }
-        
-        // PASO 3: Descontar el tiempo mínimo de los minutos de las reglas
-        // Distribuir el tiempo mínimo proporcionalmente entre las reglas que aplican
-        $remainingMinDuration = $minDurationUsed;
-        foreach ($ruleMinutes as $ruleId => $ruleData) {
-            $rule = $ruleData['rule'];
-            $totalRuleMinutes = $ruleData['total_minutes'];
             
-            // Si todavía hay tiempo mínimo por descontar
-            if ($remainingMinDuration > 0 && $totalRuleMinutes > 0) {
-                // Descontar el tiempo mínimo de esta regla
-                $minutesToDiscount = min($totalRuleMinutes, $remainingMinDuration);
-                $ruleMinutes[$ruleId]['minutes_to_charge'] = max(0, $totalRuleMinutes - $minutesToDiscount);
-                $remainingMinDuration -= $minutesToDiscount;
+            // PASO 3: Calcular los minutos restantes que deben cobrarse después del tiempo mínimo
+            // Necesitamos calcular cuántos minutos de los restantes caen en cada regla
+            // Para esto, calculamos los minutos de cada regla desde (startTime + minDuration) hasta endTime
+            if ($minDurationUsed > 0) {
+                // Calcular minutos de cada regla desde después del tiempo mínimo
+                $startTimeAfterMin = $startTime->copy()->addMinutes($minDurationUsed);
                 
-                Log::info('Descontando tiempo mínimo de regla', [
-                    'rule_name' => $rule->name,
-                    'total_minutes' => $totalRuleMinutes,
-                    'minutes_discounted' => $minutesToDiscount,
-                    'minutes_to_charge' => $ruleMinutes[$ruleId]['minutes_to_charge'],
-                    'remaining_min_duration' => $remainingMinDuration
-                ]);
+                foreach ($ruleMinutes as $ruleId => $ruleData) {
+                    $rule = $ruleData['rule'];
+                    // Calcular minutos de esta regla desde después del tiempo mínimo hasta el fin
+                    $minutesAfterMin = $this->calculateMinutesInRule($startTimeAfterMin, $endTime, $rule);
+                    $ruleMinutes[$ruleId]['minutes_to_charge'] = $minutesAfterMin;
+                    
+                    Log::info('Calculando minutos después del tiempo mínimo para regla', [
+                        'rule_name' => $rule->name,
+                        'total_minutes_in_session' => $ruleData['total_minutes'],
+                        'minutes_after_min_duration' => $minutesAfterMin,
+                        'min_duration' => $minDurationUsed,
+                        'remaining_minutes' => $remainingMinutes
+                    ]);
+                }
             } else {
-                // No hay tiempo mínimo pendiente, cobrar todos los minutos
-                $ruleMinutes[$ruleId]['minutes_to_charge'] = $totalRuleMinutes;
+                // No hay tiempo mínimo, cobrar todos los minutos de cada regla
+                foreach ($ruleMinutes as $ruleId => $ruleData) {
+                    $ruleMinutes[$ruleId]['minutes_to_charge'] = $ruleData['total_minutes'];
+                }
             }
+        } else {
+            // No hay minutos restantes, no calcular reglas
+            $ruleMinutes = [];
         }
         
         // PASO 4: Calcular el costo para cada regla con los minutos restantes
@@ -212,12 +265,12 @@ class PricingService
         }
         
         // Si se aplicó tiempo mínimo, agregarlo al breakdown
-        if ($minAmountApplied && $minDurationUsed > 0) {
+        if ($minAmountApplied && $minDurationUsed > 0 && $ruleWithMinBase) {
             // Insertar al inicio del breakdown
             array_unshift($breakdown, [
-                'rule_name' => $firstRule->name,
+                'rule_name' => $ruleWithMinBase->name,
                 'minutes' => $minDurationUsed,
-                'rate_per_minute' => $firstRule->price_per_min,
+                'rate_per_minute' => $ruleWithMinBase->price_per_min,
                 'amount' => $minAmountValue,
                 'base_amount' => $minAmountValue,
                 'min_amount' => $minAmountValue,

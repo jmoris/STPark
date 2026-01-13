@@ -20,6 +20,7 @@ import { CommonModule } from '@angular/common';
 import { AuthService } from 'app/core/services/auth.service';
 import { FacturAPIConfigModalComponent } from 'app/modules/central-admin/facturapi-config/facturapi-config-modal.component';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { environment } from 'environments/environment';
 
 @Component({
     selector: 'classic-layout',
@@ -67,6 +68,13 @@ export class ClassicLayoutComponent implements OnInit, OnDestroy {
      */
     get currentYear(): number {
         return new Date().getFullYear();
+    }
+
+    /**
+     * Getter for app version
+     */
+    get appVersion(): string {
+        return environment.appVersion;
     }
 
     // -----------------------------------------------------------------------------------------------------
