@@ -19,6 +19,7 @@ use App\Http\Controllers\ShiftController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\CarWashTypeController;
 use App\Http\Controllers\CarWashController;
+use App\Http\Controllers\CarWashDiscountController;
 use App\Http\Controllers\SessionDiscountController;
 use Stancl\Tenancy\Middleware\InitializeTenancyByRequestData;
 
@@ -74,6 +75,16 @@ Route::middleware([
         Route::get('/', [CarWashController::class, 'index']); // Listar lavados
         Route::post('/', [CarWashController::class, 'store']); // Crear lavado
         Route::put('/{id}', [CarWashController::class, 'update']); // Actualizar lavado (estado)
+        Route::post('/{id}/quote', [CarWashController::class, 'getQuote']); // Obtener cotización con descuento
+    });
+
+    // Rutas de descuentos de lavados de autos
+    Route::prefix('car-wash-discounts')->group(function () {
+        Route::get('/', [CarWashDiscountController::class, 'index']); // Listar descuentos
+        Route::post('/', [CarWashDiscountController::class, 'store']); // Crear descuento
+        Route::get('/{id}', [CarWashDiscountController::class, 'show']); // Obtener descuento por ID
+        Route::put('/{id}', [CarWashDiscountController::class, 'update']); // Actualizar descuento
+        Route::delete('/{id}', [CarWashDiscountController::class, 'destroy']); // Eliminar descuento
     });
 
     // Rutas de descuentos de sesiones

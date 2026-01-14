@@ -13,6 +13,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { CarWashService } from 'app/core/services/car-wash.service';
 import { CarWashStatus, CarWashType, CarWash } from 'app/interfaces/car-wash.interface';
+import { MatDialog } from '@angular/material/dialog';
+import { CarWashPaymentModalComponent } from '../car-wash-payment-modal/car-wash-payment-modal.component';
 
 export interface CarWashFormData {
   carWash?: CarWash;
@@ -54,7 +56,8 @@ export class CarWashFormModalComponent {
     @Inject(MAT_DIALOG_DATA) public data: CarWashFormData,
     private fb: FormBuilder,
     private carWashService: CarWashService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private dialog: MatDialog
   ) {
     this.isEdit = data?.isEdit || false;
     this.washTypes = (data?.washTypes || []).filter(t => t.is_active !== false);
@@ -94,8 +97,42 @@ export class CarWashFormModalComponent {
       return;
     }
 
+    const status = this.form.value.status as CarWashStatus;
+
+    // Si se selecciona PAGADO y no es edición, abrir modal de pago
+    if (status === 'PAID' && !this.isEdit) {
+      const plate = String(this.form.value.plate).trim().toUpperCase();
+      const car_wash_type_id = Number(this.form.value.car_wash_type_id);
+
+      // Validar que los campos requeridos estén presentes
+      if (!plate || !car_wash_type_id) {
+        this.form.markAllAsTouched();
+        return;
+      }
+
+      // Cerrar el modal de formulario y abrir el modal de pago
+      this.dialogRef.close(false);
+      
+      const paymentDialogRef = this.dialog.open(CarWashPaymentModalComponent, {
+        width: '520px',
+        maxWidth: '95vw',
+        data: {
+          newCarWashData: {
+            plate: plate,
+            car_wash_type_id: car_wash_type_id
+          }
+        }
+      });
+
+      paymentDialogRef.afterClosed().subscribe((result) => {
+        // El resultado se maneja en el componente padre (car-washes.component.ts)
+        // que escucha el cierre del modal de pago
+      });
+      return;
+    }
+
     const payload: any = {
-      status: this.form.value.status as CarWashStatus
+      status: status
     };
 
     // Solo incluir plate y car_wash_type_id si no es edición

@@ -9,6 +9,7 @@ import {
   Alert,
   Linking,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { apiService } from '@/services/api';
@@ -45,6 +46,14 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
   const [processingPayment, setProcessingPayment] = useState(false);
   const [useTuuPosPayment, setUseTuuPosPayment] = useState<boolean>(false);
   const tuuPaymentProcessedRef = React.useRef(false);
+  const [availableDiscounts, setAvailableDiscounts] = useState<any[]>([]);
+  const [selectedDiscountId, setSelectedDiscountId] = useState<number | null>(null);
+  const [selectedDiscount, setSelectedDiscount] = useState<any | null>(null);
+  const [loadingDiscounts, setLoadingDiscounts] = useState(false);
+  const [discountCode, setDiscountCode] = useState('');
+  const [loadingQuote, setLoadingQuote] = useState(false);
+  const [estimatedAmount, setEstimatedAmount] = useState<number | null>(null);
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
 
   // Cargar configuración de POS TUU al montar el componente
   useEffect(() => {
@@ -109,26 +118,195 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
       setAmountPaid('');
       setApprovalCode('');
       tuuPaymentProcessedRef.current = false;
+      setSelectedDiscountId(null);
+      setSelectedDiscount(null);
+      setDiscountCode('');
+      setEstimatedAmount(null);
+      setShowDiscountModal(false);
       console.log('CarWashPaymentModal: Modal cerrado, reseteando estado');
     } else if (carWash) {
       console.log('CarWashPaymentModal: Modal abierto, reseteando tuuPaymentProcessed');
       tuuPaymentProcessedRef.current = false;
+      // Cargar descuentos y obtener cotización cuando se abre el modal
+      loadDiscounts();
+      getEstimatedQuote();
       // Siempre mostrar el modal de método de pago primero
       setShowPaymentMethod(true);
     }
   }, [visible, carWash]);
+
+  // Función para cargar descuentos disponibles
+  const loadDiscounts = async () => {
+    setLoadingDiscounts(true);
+    try {
+      const response = await apiService.getCarWashDiscounts();
+      if (response.success && response.data) {
+        // Filtrar solo descuentos activos y vigentes (los descuentos de lavados solo son AMOUNT y PERCENTAGE)
+        const now = new Date();
+        const validDiscounts = (response.data || []).filter((discount: any) => {
+          if (!discount.is_active) return false;
+          if (discount.valid_from && new Date(discount.valid_from) > now) return false;
+          if (discount.valid_until && new Date(discount.valid_until) < now) return false;
+          return true;
+        });
+        setAvailableDiscounts(validDiscounts);
+      }
+    } catch (error) {
+      console.error('CarWashPaymentModal: Error cargando descuentos:', error);
+    } finally {
+      setLoadingDiscounts(false);
+    }
+  };
+
+  // Función para obtener cotización estimada
+  const getEstimatedQuote = async (discountIdOverride?: number | null, discountCodeOverride?: string) => {
+    if (!carWash?.id) {
+      // Para nuevos lavados, calcular el descuento manualmente
+      const baseAmount = parseFloat(carWash?.amount || carWash?.car_wash_type?.price || '0');
+      const activeDiscountId = discountIdOverride !== undefined ? discountIdOverride : selectedDiscountId;
+      const activeDiscountCode = discountCodeOverride !== undefined ? discountCodeOverride : discountCode;
+      
+      let discountAmount = 0;
+      if (activeDiscountId) {
+        const discount = availableDiscounts.find((d: any) => d.id === activeDiscountId);
+        if (discount) {
+          if (discount.discount_type === 'AMOUNT') {
+            discountAmount = Math.min(discount.value || 0, baseAmount);
+          } else if (discount.discount_type === 'PERCENTAGE') {
+            const percentage = (discount.value || 0) / 100;
+            discountAmount = baseAmount * percentage;
+            if (discount.max_amount && discountAmount > discount.max_amount) {
+              discountAmount = discount.max_amount;
+            }
+          }
+        }
+      }
+      
+      const netAmount = Math.max(0, baseAmount - discountAmount);
+      console.log('CarWashPaymentModal: Calculando descuento para nuevo lavado, baseAmount:', baseAmount, 'discountAmount:', discountAmount, 'netAmount:', netAmount);
+      setEstimatedAmount(netAmount);
+      return;
+    }
+    
+    setLoadingQuote(true);
+    try {
+      const activeDiscountId = discountIdOverride !== undefined ? discountIdOverride : selectedDiscountId;
+      const activeDiscountCode = discountCodeOverride !== undefined ? discountCodeOverride : discountCode;
+      
+      const quoteParams: any = {};
+      if (activeDiscountId) {
+        quoteParams.discount_id = activeDiscountId;
+      } else if (activeDiscountCode) {
+        quoteParams.discount_code = activeDiscountCode;
+      }
+      
+      const response = await apiService.getCarWashQuote(carWash.id, quoteParams);
+      
+      if (response.success && response.data) {
+        const amount = response.data.net_amount || response.data.gross_amount || 0;
+        console.log('CarWashPaymentModal: Cotización recibida, net_amount:', amount, 'gross_amount:', response.data.gross_amount, 'discount_amount:', response.data.discount_amount);
+        setEstimatedAmount(amount);
+        // Actualizar el monto del lavado con el net_amount si tiene id
+        if (carWash?.id && response.data.net_amount) {
+          carWash.amount = response.data.net_amount;
+        }
+      } else {
+        const baseAmount = parseFloat(carWash?.amount || carWash?.car_wash_type?.price || '0');
+        console.log('CarWashPaymentModal: Sin respuesta de cotización, usando monto base:', baseAmount);
+        setEstimatedAmount(baseAmount);
+      }
+    } catch (error) {
+      console.error('CarWashPaymentModal: Error obteniendo cotización:', error);
+      const baseAmount = parseFloat(carWash?.amount || carWash?.car_wash_type?.price || '0');
+      setEstimatedAmount(baseAmount);
+    } finally {
+      setLoadingQuote(false);
+    }
+  };
+
+  // Función para formatear el valor del descuento
+  const getDiscountDisplayValue = (discount: any): string => {
+    const formatCurrency = (value: number) => {
+      return Math.round(value).toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    };
+    
+    const parts: string[] = [];
+    
+    if (discount.discount_type === 'AMOUNT') {
+      parts.push(`$${formatCurrency(discount.value || 0)}`);
+    } else if (discount.discount_type === 'PERCENTAGE') {
+      parts.push(`${discount.value || 0}%`);
+      if (discount.max_amount) {
+        parts.push(`(máx: $${formatCurrency(discount.max_amount)})`);
+      }
+    }
+    
+    return parts.length > 0 ? parts.join(', ') : '-';
+  };
+
+  // Función para manejar cambio de descuento
+  const handleDiscountChange = (discountId: number | null) => {
+    console.log('CarWashPaymentModal: Cambiando descuento a:', discountId);
+    
+    // Actualizar estado
+    setSelectedDiscountId(discountId);
+    if (discountId) {
+      const discount = availableDiscounts.find((d: any) => d.id === discountId);
+      setSelectedDiscount(discount || null);
+      setDiscountCode(''); // Limpiar código si se selecciona un descuento
+      console.log('CarWashPaymentModal: Descuento seleccionado:', discount);
+    } else {
+      setSelectedDiscount(null);
+      console.log('CarWashPaymentModal: Descuento removido');
+    }
+    
+    // Cerrar modal de descuentos
+    setShowDiscountModal(false);
+    
+    // Recalcular cotización con el nuevo descuento (pasar directamente el discountId para evitar problemas de timing)
+    getEstimatedQuote(discountId, undefined);
+  };
+
+  // Función para aplicar código de descuento
+  const handleApplyDiscountCode = () => {
+    const code = discountCode.trim();
+    if (code) {
+      console.log('CarWashPaymentModal: Aplicando código de descuento:', code);
+      setSelectedDiscountId(null);
+      setSelectedDiscount(null);
+      // Cerrar modal de descuentos
+      setShowDiscountModal(false);
+      // Recalcular cotización con el código (pasar directamente el código para evitar problemas de timing)
+      setTimeout(() => {
+        getEstimatedQuote(null, code);
+      }, 100);
+    }
+  };
+
+  // Función para quitar descuento
+  const handleRemoveDiscount = () => {
+    console.log('CarWashPaymentModal: Quitando descuento');
+    setSelectedDiscountId(null);
+    setSelectedDiscount(null);
+    setDiscountCode('');
+    // Recalcular cotización sin descuento
+    getEstimatedQuote(null, undefined);
+  };
 
   // Función para manejar método de pago
   const handlePaymentMethod = (method: 'CASH' | 'CARD') => {
     setSelectedPaymentMethod(method);
     setShowPaymentMethod(false);
     
+    // Usar estimatedAmount si está disponible (tiene descuento aplicado), sino usar el monto base
+    const baseAmount = parseFloat(carWash?.amount || carWash?.car_wash_type?.price || '0');
+    const washAmount = estimatedAmount !== null ? estimatedAmount : baseAmount;
+    
     if (method === 'CASH') {
       // Para efectivo, usar el flujo normal con modal de monto
       setShowAmountModal(true);
     } else if (method === 'CARD') {
       // Para tarjeta, verificar si debemos usar TUU o el flujo normal
-      const washAmount = parseFloat(carWash?.amount || carWash?.car_wash_type?.price || '0');
       if (useTuuPosPayment && washAmount > 0) {
         // Usar TUU para procesar el pago con tarjeta
         console.log('CarWashPaymentModal: Iniciando pago con TUU para tarjeta, monto:', washAmount);
@@ -271,6 +449,11 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
         if (approvalCodeValue) {
           createData.approval_code = approvalCodeValue;
         }
+        if (selectedDiscountId) {
+          createData.discount_id = selectedDiscountId;
+        } else if (discountCode) {
+          createData.discount_code = discountCode;
+        }
         console.log('CarWashPaymentModal: Creando lavado como PAID con datos:', JSON.stringify(createData, null, 2));
         response = await apiService.createCarWash(createData);
       } else {
@@ -288,6 +471,11 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
         }
         if (approvalCodeValue) {
           updateData.approval_code = approvalCodeValue;
+        }
+        if (selectedDiscountId) {
+          updateData.discount_id = selectedDiscountId;
+        } else if (discountCode) {
+          updateData.discount_code = discountCode;
         }
         console.log('CarWashPaymentModal: Actualizando lavado con datos:', JSON.stringify(updateData, null, 2));
         response = await apiService.updateCarWash(carWash.id, updateData);
@@ -518,14 +706,15 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
         console.error('Error obteniendo turno activo:', error);
       }
 
-      const washAmount = parseFloat(carWash?.amount || carWash?.car_wash_type?.price || '0');
+      const finalAmount = estimatedAmount || parseFloat(carWash?.amount || carWash?.car_wash_type?.price || '0');
 
       console.log('CarWashPaymentModal (efectivo): Valores antes de construir updateData:', {
         operatorId: operator?.id,
         activeShiftId: activeShiftId,
         carWashId: carWash?.id,
         paidAmount: paidAmountValue,
-        washAmount: washAmount,
+        finalAmount: finalAmount,
+        estimatedAmount: estimatedAmount,
       });
 
       // Si el lavado no existe (no tiene id), crearlo directamente como PAID
@@ -539,7 +728,7 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
           plate: carWash.plate,
           car_wash_type_id: carWash.car_wash_type_id,
           status: 'PAID',
-          amount: washAmount, // Precio del lavado, no el monto recibido
+          amount: finalAmount, // Precio del lavado con descuento aplicado
           performed_at: performedAt,
           payment_type: 'cash',
           cash_amount_received: paidAmountValue, // Monto entregado en efectivo
@@ -551,13 +740,18 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
         if (activeShiftId) {
           createData.shift_id = activeShiftId;
         }
+        if (selectedDiscountId) {
+          createData.discount_id = selectedDiscountId;
+        } else if (discountCode) {
+          createData.discount_code = discountCode;
+        }
         console.log('CarWashPaymentModal: Creando lavado como PAID con datos (efectivo):', JSON.stringify(createData, null, 2));
         response = await apiService.createCarWash(createData);
       } else {
         // Actualizar el lavado existente a PAID
         const updateData: any = {
           status: 'PAID',
-          amount: washAmount, // Precio del lavado, no el monto recibido
+          amount: finalAmount, // Precio del lavado con descuento aplicado
           payment_type: 'cash',
           cash_amount_received: paidAmountValue, // Monto entregado en efectivo
         };
@@ -566,6 +760,11 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
         }
         if (activeShiftId) {
           updateData.shift_id = activeShiftId;
+        }
+        if (selectedDiscountId) {
+          updateData.discount_id = selectedDiscountId;
+        } else if (discountCode) {
+          updateData.discount_code = discountCode;
         }
         console.log('CarWashPaymentModal: Actualizando lavado con datos (efectivo):', JSON.stringify(updateData, null, 2));
         response = await apiService.updateCarWash(carWash.id, updateData);
@@ -580,7 +779,7 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
           plate: plateValue.toUpperCase(),
           washTypeName: washTypeName,
           performedAt: response.data?.performed_at || carWash.performed_at,
-          amount: washAmount,
+          amount: finalAmount,
           status: 'PAID',
           operatorName: operator?.name,
           paymentMethod: 'CASH',
@@ -629,9 +828,9 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
     }
 
     const paidAmountValue = parseFloat(amountPaid);
-    const washAmount = parseFloat(carWash?.amount || carWash?.car_wash_type?.price || '0');
+    const finalAmount = estimatedAmount || parseFloat(carWash?.amount || carWash?.car_wash_type?.price || '0');
 
-    if (paidAmountValue < washAmount) {
+    if (paidAmountValue < finalAmount) {
       Alert.alert('Error', 'El monto pagado debe ser mayor o igual al monto del lavado');
       return;
     }
@@ -640,7 +839,7 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
     setShowAmountModal(false);
 
     // Calcular vuelto
-    const change = paidAmountValue - washAmount;
+    const change = paidAmountValue - finalAmount;
     
     // Primero procesar el pago y imprimir el ticket
     // Luego, si hay vuelto, mostrar el modal de vuelto
@@ -672,13 +871,15 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
         console.error('Error obteniendo turno activo:', error);
       }
 
-      const washAmount = parseFloat(carWash?.amount || carWash?.car_wash_type?.price || '0');
+      const finalAmount = estimatedAmount || parseFloat(carWash?.amount || carWash?.car_wash_type?.price || '0');
 
       console.log('CarWashPaymentModal (tarjeta manual): Valores antes de construir updateData:', {
         operatorId: operator?.id,
         activeShiftId: activeShiftId,
         approvalCode: approvalCode,
         carWashId: carWash?.id,
+        finalAmount: finalAmount,
+        estimatedAmount: estimatedAmount,
       });
 
       // Si el lavado no existe (no tiene id), crearlo directamente como PAID
@@ -692,7 +893,7 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
           plate: carWash.plate,
           car_wash_type_id: carWash.car_wash_type_id,
           status: 'PAID',
-          amount: washAmount,
+          amount: finalAmount,
           performed_at: performedAt,
           payment_type: 'card',
         };
@@ -706,13 +907,18 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
         if (approvalCode.trim()) {
           createData.approval_code = approvalCode.trim();
         }
+        if (selectedDiscountId) {
+          createData.discount_id = selectedDiscountId;
+        } else if (discountCode) {
+          createData.discount_code = discountCode;
+        }
         console.log('CarWashPaymentModal: Creando lavado como PAID con datos (tarjeta manual):', JSON.stringify(createData, null, 2));
         response = await apiService.createCarWash(createData);
       } else {
         // Actualizar el lavado existente a PAID
         const updateData: any = {
           status: 'PAID',
-          amount: washAmount,
+          amount: finalAmount,
           payment_type: 'card',
         };
         if (operator?.id) {
@@ -723,6 +929,11 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
         }
         if (approvalCode.trim()) {
           updateData.approval_code = approvalCode.trim();
+        }
+        if (selectedDiscountId) {
+          updateData.discount_id = selectedDiscountId;
+        } else if (discountCode) {
+          updateData.discount_code = discountCode;
         }
         console.log('CarWashPaymentModal: Actualizando lavado con datos (tarjeta manual):', JSON.stringify(updateData, null, 2));
         response = await apiService.updateCarWash(carWash.id, updateData);
@@ -737,7 +948,7 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
           plate: plateValue.toUpperCase(),
           washTypeName: washTypeName,
           performedAt: response.data?.performed_at || carWash.performed_at,
-          amount: washAmount,
+          amount: finalAmount,
           status: 'PAID',
           operatorName: operator?.name,
           paymentMethod: 'CARD',
@@ -804,7 +1015,9 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
   if (!carWash) return null;
 
   // Obtener información del lavado
-  const washAmount = parseFloat(carWash?.amount || carWash?.car_wash_type?.price || '0');
+  // Usar estimatedAmount si está disponible (tiene descuento aplicado), sino usar el monto base
+  const baseAmount = parseFloat(carWash?.amount || carWash?.car_wash_type?.price || '0');
+  const washAmount = estimatedAmount !== null ? estimatedAmount : baseAmount;
   const washTypeName = carWash?.car_wash_type?.name || 'N/A';
   const plateValue = carWash?.plate || 'N/A';
 
@@ -842,9 +1055,50 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
                 </View>
                 <View style={styles.sessionSummaryRow}>
                   <Text style={styles.sessionSummaryLabel}>Monto:</Text>
-                  <Text style={styles.sessionSummaryValue}>${washAmount.toLocaleString('es-CL')}</Text>
+                  <Text style={styles.sessionSummaryValue}>
+                    {loadingQuote ? 'Calculando...' : 
+                     estimatedAmount !== null ? `$${estimatedAmount.toLocaleString('es-CL')}` : 
+                     `$${baseAmount.toLocaleString('es-CL')}`}
+                  </Text>
                 </View>
               </View>
+
+              {/* Botón para aplicar descuento */}
+              <TouchableOpacity
+                style={styles.discountButton}
+                onPress={() => setShowDiscountModal(true)}
+              >
+                <IconSymbol name="tag.fill" size={18} color="#007bff" />
+                <Text style={styles.discountButtonText}>
+                  {selectedDiscount || discountCode ? 'Cambiar descuento' : 'Aplicar descuento'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Mostrar descuento aplicado de forma compacta */}
+              {(selectedDiscount || discountCode) && (
+                <View style={styles.discountAppliedCompact}>
+                  {/* Primera línea: Icono y nombre del descuento */}
+                  <View style={styles.discountAppliedRow}>
+                    <IconSymbol name="checkmark.circle.fill" size={14} color="#28a745" />
+                    <Text style={styles.discountAppliedCompactText} numberOfLines={1}>
+                      {selectedDiscount ? selectedDiscount.name : `Código: ${discountCode}`}
+                    </Text>
+                  </View>
+                  {/* Segunda línea: Valores del descuento */}
+                  {selectedDiscount && (
+                    <Text style={styles.discountAppliedCompactValue} numberOfLines={1}>
+                      {getDiscountDisplayValue(selectedDiscount)}
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {/* Mostrar mensaje de recalculando */}
+              {loadingQuote && (
+                <Text style={styles.discountRecalculatingText}>
+                  Recalculando con descuento...
+                </Text>
+              )}
 
               <Text style={styles.paymentMethodTitle}>Selecciona el método de pago:</Text>
               
@@ -907,7 +1161,7 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
             
             <View style={styles.amountModalContent}>
               <Text style={styles.amountModalLabel}>
-                Monto a pagar: ${washAmount.toLocaleString('es-CL')}
+                Monto a pagar: ${(estimatedAmount !== null ? estimatedAmount : baseAmount).toLocaleString('es-CL')}
               </Text>
               
               <TextInput
@@ -962,7 +1216,7 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
             
             <View style={styles.amountModalContent}>
               <Text style={styles.amountModalLabel}>
-                Monto a pagar: ${washAmount.toLocaleString('es-CL')}
+                Monto a pagar: ${(estimatedAmount !== null ? estimatedAmount : baseAmount).toLocaleString('es-CL')}
               </Text>
               
               <TextInput
@@ -1068,6 +1322,137 @@ export const CarWashPaymentModal: React.FC<CarWashPaymentModalProps> = ({
               >
                 <Text style={styles.printTicketButtonText}>Imprimir Ahora</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Descuentos */}
+      <Modal
+        visible={showDiscountModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDiscountModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Aplicar Descuento</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowDiscountModal(false)}
+              >
+                <IconSymbol size={24} name="xmark.circle.fill" color="#6c757d" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalContent}>
+              {loadingDiscounts ? (
+                <Text style={styles.discountLoadingText}>Cargando descuentos...</Text>
+              ) : (
+                <>
+                  {/* Selector de descuentos */}
+                  <View style={styles.discountSelectorContainer}>
+                    <Text style={styles.discountLabel}>Seleccionar descuento:</Text>
+                    <ScrollView style={styles.discountList} nestedScrollEnabled>
+                      <TouchableOpacity
+                        style={[
+                          styles.discountOption,
+                          selectedDiscountId === null && styles.discountOptionSelected
+                        ]}
+                        onPress={() => handleDiscountChange(null)}
+                      >
+                        <Text style={[
+                          styles.discountOptionText,
+                          selectedDiscountId === null && styles.discountOptionTextSelected
+                        ]}>
+                          Ninguno
+                        </Text>
+                        {selectedDiscountId === null && (
+                          <IconSymbol name="checkmark.circle.fill" size={20} color="#28a745" />
+                        )}
+                      </TouchableOpacity>
+                      {availableDiscounts.map((discount: any) => (
+                        <TouchableOpacity
+                          key={discount.id}
+                          style={[
+                            styles.discountOption,
+                            selectedDiscountId === discount.id && styles.discountOptionSelected
+                          ]}
+                          onPress={() => handleDiscountChange(discount.id)}
+                        >
+                          <View style={styles.discountOptionContent}>
+                            <Text style={[
+                              styles.discountOptionText,
+                              selectedDiscountId === discount.id && styles.discountOptionTextSelected
+                            ]}>
+                              {discount.name}
+                            </Text>
+                            {discount.description && (
+                              <Text style={styles.discountOptionDescription}>
+                                {discount.description}
+                              </Text>
+                            )}
+                            <Text style={styles.discountOptionSubtext}>
+                              {getDiscountDisplayValue(discount)}
+                            </Text>
+                          </View>
+                          {selectedDiscountId === discount.id && (
+                            <IconSymbol name="checkmark.circle.fill" size={20} color="#28a745" />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+
+                  {/* Separador */}
+                  <View style={styles.discountDivider}>
+                    <View style={styles.discountDividerLine} />
+                    <Text style={styles.discountDividerText}>O</Text>
+                    <View style={styles.discountDividerLine} />
+                  </View>
+
+                  {/* Campo para código de descuento */}
+                  <View style={styles.discountCodeContainer}>
+                    <Text style={styles.discountLabel}>Ingresar código de descuento:</Text>
+                    <View style={styles.discountCodeInputContainer}>
+                      <TextInput
+                        style={styles.discountCodeInput}
+                        value={discountCode}
+                        onChangeText={setDiscountCode}
+                        placeholder="Ingresa código"
+                        placeholderTextColor="#6c757d"
+                        autoCapitalize="characters"
+                      />
+                      <TouchableOpacity
+                        style={[
+                          styles.discountCodeButton,
+                          discountCode.trim() && styles.discountCodeButtonActive
+                        ]}
+                        onPress={handleApplyDiscountCode}
+                        disabled={!discountCode.trim()}
+                      >
+                        <IconSymbol 
+                          name="checkmark" 
+                          size={18} 
+                          color={discountCode.trim() ? "#fff" : "#6c757d"} 
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Botón para quitar descuento si hay uno aplicado */}
+                  {(selectedDiscount || discountCode) && (
+                    <TouchableOpacity
+                      style={styles.removeDiscountButton}
+                      onPress={handleRemoveDiscount}
+                    >
+                      <IconSymbol name="xmark.circle.fill" size={18} color="#dc3545" />
+                      <Text style={styles.removeDiscountButtonText}>Quitar descuento</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
             </View>
           </View>
         </View>
@@ -1285,6 +1670,210 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
     textAlign: 'center',
+  },
+  discountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#007bff',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  discountButtonText: {
+    color: '#007bff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  removeDiscountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#dc3545',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  removeDiscountButtonText: {
+    color: '#dc3545',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  discountSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#043476',
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  discountItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+  },
+  discountItemSelected: {
+    borderColor: '#28a745',
+    backgroundColor: '#f0f9f4',
+  },
+  discountItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#043476',
+    marginBottom: 4,
+  },
+  discountItemDescription: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginBottom: 4,
+  },
+  discountItemValue: {
+    fontSize: 12,
+    color: '#28a745',
+    fontWeight: '600',
+  },
+  // Estilos para el modal de descuentos (igual que PaymentModal)
+  discountSelectorContainer: {
+    marginBottom: 12,
+  },
+  discountList: {
+    maxHeight: 300,
+    marginBottom: 8,
+  },
+  discountOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  discountOptionSelected: {
+    backgroundColor: '#e7f3ff',
+    borderColor: '#007bff',
+    borderWidth: 2,
+  },
+  discountOptionContent: {
+    flex: 1,
+  },
+  discountOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#043476',
+    marginBottom: 4,
+  },
+  discountOptionTextSelected: {
+    color: '#007bff',
+  },
+  discountOptionSubtext: {
+    fontSize: 12,
+    color: '#6c757d',
+  },
+  discountOptionDescription: {
+    fontSize: 12,
+    color: '#6c757d',
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  discountDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  discountDividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#dee2e6',
+  },
+  discountDividerText: {
+    marginHorizontal: 12,
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
+  },
+  discountCodeContainer: {
+    marginTop: 12,
+  },
+  discountCodeInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  discountCodeInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    backgroundColor: '#fff',
+  },
+  discountCodeButton: {
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#f8f9fa',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+  },
+  discountCodeButtonActive: {
+    backgroundColor: '#28a745',
+  },
+  discountLoadingText: {
+    fontSize: 14,
+    color: '#6c757d',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  // Estilos compactos para descuento aplicado
+  discountAppliedCompact: {
+    flexDirection: 'column',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#d4edda',
+    borderWidth: 1,
+    borderColor: '#28a745',
+    marginBottom: 8,
+    gap: 4,
+  },
+  discountAppliedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  discountAppliedCompactText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#155724',
+  },
+  discountAppliedCompactValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#155724',
+    marginLeft: 18, // Alinear con el texto de arriba (icono 14px + gap 4px)
+  },
+  discountRecalculatingText: {
+    fontSize: 12,
+    color: '#007bff',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 8,
   },
 });
 

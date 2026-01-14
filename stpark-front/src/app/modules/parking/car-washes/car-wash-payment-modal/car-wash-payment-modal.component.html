@@ -21,11 +21,76 @@
     <!-- Total a Pagar -->
     <div class="bg-primary-50 border border-primary-200 rounded-lg p-6 mb-6 text-center">
       <h3 class="text-lg font-semibold text-primary-700 mb-2">Total a Pagar</h3>
-      <p class="text-4xl font-bold text-primary-900">{{ formatAmount(carWash.amount || 0) }}</p>
+      <p class="text-4xl font-bold text-primary-900">{{ formatAmount(quote?.net_amount || carWash.amount || 0) }}</p>
+      <div *ngIf="quote?.discount_amount && quote.discount_amount > 0" class="mt-2">
+        <p class="text-sm text-green-600">
+          Descuento aplicado: -{{ formatAmount(quote.discount_amount) }}
+        </p>
+        <p *ngIf="selectedDiscount" class="text-xs text-blue-600 mt-1">
+          {{ selectedDiscount.name }}
+        </p>
+      </div>
+      <p *ngIf="quote?.gross_amount && quote.gross_amount !== quote?.net_amount" class="text-xs text-gray-500 mt-1">
+        Monto original: {{ formatAmount(quote.gross_amount) }}
+      </p>
     </div>
 
     <!-- Formulario de Pago -->
     <form [formGroup]="paymentForm" (ngSubmit)="onSubmit()" class="space-y-6">
+      
+      <!-- Descuentos -->
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <h4 class="text-sm font-semibold text-gray-700 mb-3">Descuentos</h4>
+        
+        <!-- Selector de descuento -->
+        <mat-form-field appearance="outline" class="w-full mb-3">
+          <mat-label>Seleccionar descuento</mat-label>
+          <mat-select formControlName="discount_id" (selectionChange)="onDiscountChange()">
+            <mat-option [value]="null">Sin descuento</mat-option>
+            <mat-option *ngFor="let discount of availableDiscounts" [value]="discount.id">
+              {{ discount.name }} 
+              <span *ngIf="discount.discount_type === 'PERCENTAGE'">
+                ({{ discount.value }}%)
+              </span>
+              <span *ngIf="discount.discount_type === 'AMOUNT'">
+                (-{{ formatAmount(discount.value || 0) }})
+              </span>
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Código de descuento -->
+        <div class="flex gap-2">
+          <mat-form-field appearance="outline" class="flex-1">
+            <mat-label>Código de descuento</mat-label>
+            <input matInput formControlName="discount_code" placeholder="Ingresa código">
+          </mat-form-field>
+          <button 
+            type="button"
+            mat-stroked-button 
+            (click)="onApplyDiscountCode()"
+            [disabled]="!paymentForm.get('discount_code')?.value">
+            Aplicar
+          </button>
+        </div>
+
+        <!-- Mostrar descuento seleccionado -->
+        <div *ngIf="selectedDiscount" class="mt-3 p-2 bg-blue-50 border border-blue-200 rounded flex items-center justify-between">
+          <div>
+            <span class="text-sm font-semibold text-blue-800">{{ selectedDiscount.name }}</span>
+            <p *ngIf="selectedDiscount.description" class="text-xs text-blue-600 mt-1">
+              {{ selectedDiscount.description }}
+            </p>
+          </div>
+          <button 
+            type="button"
+            mat-icon-button 
+            (click)="onRemoveDiscount()"
+            class="text-blue-600">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+      </div>
       
       <!-- Método de Pago -->
       <mat-form-field appearance="outline" class="w-full">

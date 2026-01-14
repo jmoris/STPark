@@ -42,6 +42,8 @@ export interface UpdateCarWashRequest {
   approval_code?: string;
   payment_type?: 'cash' | 'card';
   cash_amount_received?: number;
+  discount_id?: number | null;
+  discount_code?: string;
 }
 
 @Injectable({
@@ -89,6 +91,13 @@ export class CarWashService {
 
   updateCarWash(id: number, payload: UpdateCarWashRequest): Observable<ApiResponse<CarWash>> {
     return this.http.put<ApiResponse<CarWash>>(`${this.baseUrl}/car-washes/${id}`, payload);
+  }
+
+  /**
+   * Obtener cotización de un lavado con descuento aplicado
+   */
+  getCarWashQuote(id: number, params?: { discount_id?: number; discount_code?: string }): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(`${this.baseUrl}/car-washes/${id}/quote`, params || {});
   }
 }
 

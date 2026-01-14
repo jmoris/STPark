@@ -6,6 +6,10 @@
       <p class="text-gray-600">Gestiona los lavados de autos ofrecidos en el estacionamiento</p>
     </div>
     <div class="flex gap-2">
+      <button mat-raised-button color="accent" class="rounded-sm" (click)="openDiscountsModal()">
+        <mat-icon>local_offer</mat-icon>
+        Descuentos
+      </button>
       <button mat-stroked-button class="rounded-sm" (click)="openWashTypesModal()">
         <mat-icon>settings</mat-icon>
         Tipos de Lavado

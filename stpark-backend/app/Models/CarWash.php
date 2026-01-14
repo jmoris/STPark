@@ -16,6 +16,8 @@ class CarWash extends Model
         'shift_id',
         'status',
         'amount',
+        'discount_id',
+        'discount_amount',
         'duration_minutes',
         'performed_at',
         'paid_at',
@@ -26,6 +28,7 @@ class CarWash extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
         'cash_amount_received' => 'decimal:2',
         'duration_minutes' => 'integer',
         'performed_at' => 'datetime',
@@ -55,6 +58,11 @@ class CarWash extends Model
     public function shift(): BelongsTo
     {
         return $this->belongsTo(Shift::class);
+    }
+
+    public function discount(): BelongsTo
+    {
+        return $this->belongsTo(CarWashDiscount::class, 'discount_id');
     }
 
     /**

@@ -401,6 +401,24 @@ class ApiService {
     }
   }
 
+  // Obtener descuentos de lavados de autos
+  async getCarWashDiscounts(): Promise<ApiResponse<any[]>> {
+    try {
+      const response = await makeRequest(`/car-wash-discounts`, {
+        method: 'GET',
+        headers: await this.getHeaders(),
+      });
+
+      return await response.json();
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+        data: [],
+      };
+    }
+  }
+
   // Buscar deudas por placa
   async getDebtsByPlate(plate: string): Promise<ApiResponse<any[]>> {
     try {
@@ -1049,6 +1067,8 @@ class ApiService {
       cashier_operator_id?: number;
       shift_id?: string;
       approval_code?: string;
+      discount_id?: number | null;
+      discount_code?: string;
     }
   ): Promise<ApiResponse<any>> {
     try {
@@ -1105,6 +1125,38 @@ class ApiService {
       return result;
     } catch (error) {
       console.error('API: Error obteniendo lavados de autos:', error);
+      return {
+        success: false,
+        message: 'Error de conexión con el servidor',
+      };
+    }
+  }
+
+  /**
+   * Obtener cotización de un lavado con descuento aplicado
+   */
+  async getCarWashQuote(carWashId: number, params?: { discount_id?: number; discount_code?: string }): Promise<ApiResponse<any>> {
+    try {
+      const body: any = {};
+      if (params?.discount_id) {
+        body.discount_id = params.discount_id;
+      }
+      if (params?.discount_code) {
+        body.discount_code = params.discount_code;
+      }
+      
+      const response = await makeRequest(`/car-washes/${carWashId}/quote`, {
+        method: 'POST',
+        headers: {
+          ...await this.getHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
       return {
         success: false,
         message: 'Error de conexión con el servidor',

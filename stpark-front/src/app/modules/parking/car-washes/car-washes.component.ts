@@ -28,6 +28,7 @@ import { CarWashTypesModalComponent } from './car-wash-types-modal/car-wash-type
 import { CarWashFormModalComponent, CarWashFormData } from './car-wash-form-modal/car-wash-form-modal.component';
 import { ViewModalComponent, ViewModalData, ViewModalField } from 'app/shared/components/view-modal/view-modal.component';
 import { CarWashPaymentModalComponent, CarWashPaymentModalData } from './car-wash-payment-modal/car-wash-payment-modal.component';
+import { CarWashDiscountsModalComponent } from './car-wash-discounts-modal/car-wash-discounts-modal.component';
 
 @Component({
   selector: 'app-car-washes',
@@ -340,6 +341,20 @@ export class CarWashesComponent implements OnInit, OnDestroy, AfterViewInit {
     });
   }
 
+  openDiscountsModal(): void {
+    const dialogRef = this.dialog.open(CarWashDiscountsModalComponent, {
+      width: '900px',
+      maxWidth: '95vw',
+      maxHeight: '90vh'
+    });
+
+    dialogRef.afterClosed().subscribe((changed) => {
+      if (changed) {
+        // Los descuentos fueron actualizados
+      }
+    });
+  }
+
   openNewCarWashModal(): void {
     const dialogRef = this.dialog.open(CarWashFormModalComponent, {
       width: '520px',
@@ -352,6 +367,23 @@ export class CarWashesComponent implements OnInit, OnDestroy, AfterViewInit {
 
     dialogRef.afterClosed().subscribe((created) => {
       if (created) {
+        this.loadCarWashes();
+        this.loadMetrics();
+      }
+    });
+  }
+
+  openCarWashPaymentModalForNew(carWashData: { plate: string; car_wash_type_id: number }): void {
+    const dialogRef = this.dialog.open(CarWashPaymentModalComponent, {
+      width: '520px',
+      maxWidth: '95vw',
+      data: {
+        newCarWashData: carWashData
+      } as CarWashPaymentModalData
+    });
+
+    dialogRef.afterClosed().subscribe((result) => {
+      if (result?.success) {
         this.loadCarWashes();
         this.loadMetrics();
       }

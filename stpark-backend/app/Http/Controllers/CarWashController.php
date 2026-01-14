@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CarWash;
 use App\Models\CarWashType;
+use App\Models\CarWashDiscount;
 use App\Models\ParkingSession;
 use App\Models\Shift;
 use App\Services\CurrentShiftService;
@@ -88,6 +89,8 @@ class CarWashController extends Controller
             'operator_id' => 'nullable|exists:operators,id',
             'payment_type' => 'nullable|in:cash,card',
             'cash_amount_received' => 'nullable|numeric|min:0',
+            'discount_id' => 'nullable|exists:session_discounts,id',
+            'discount_code' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -114,6 +117,24 @@ class CarWashController extends Controller
         $now = Carbon::now('America/Santiago');
 
         $plate = strtoupper(trim((string) $request->get('plate')));
+
+        // Calcular monto con descuento si se proporciona
+        $grossAmount = $type->price;
+        $discountId = null;
+        $discountAmount = 0;
+        
+        if ($request->filled('discount_id')) {
+            $discount = CarWashDiscount::find($request->get('discount_id'));
+            if ($discount && $discount->isValid()) {
+                $discountId = $discount->id;
+                $discountAmount = $this->calculateDiscountAmount($discount, $grossAmount);
+            }
+        } elseif ($request->filled('discount_code')) {
+            // Por ahora, mantener compatibilidad con código de descuento antiguo
+            $discountAmount = $grossAmount * 0.1; // 10% de descuento por código
+        }
+        
+        $netAmount = max(0, $grossAmount - $discountAmount);
         
         // Si se crea como PAID, obtener turno y asignar shift_id y cashier_operator_id
         $shiftId = null;
@@ -195,7 +216,9 @@ class CarWashController extends Controller
             'cashier_operator_id' => $cashierOperatorId,
             'shift_id' => $shiftId,
             'status' => $status,
-            'amount' => $type->price,
+            'amount' => $netAmount, // Monto final con descuento aplicado
+            'discount_id' => $discountId,
+            'discount_amount' => $discountAmount,
             'duration_minutes' => $type->duration_minutes,
             'performed_at' => $now,
             'paid_at' => $status === 'PAID' ? $now : null,
@@ -271,6 +294,8 @@ class CarWashController extends Controller
             'approval_code' => 'nullable|string|max:50',
             'payment_type' => 'nullable|in:cash,card',
             'cash_amount_received' => 'nullable|numeric|min:0',
+            'discount_id' => 'nullable|exists:session_discounts,id',
+            'discount_code' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -284,10 +309,33 @@ class CarWashController extends Controller
         $wash->status = $newStatus;
         $wash->paid_at = $newStatus === 'PAID' ? $now : null;
         
+        // Calcular descuento si se proporciona
+        $discountId = null;
+        $discountAmount = 0;
+        $grossAmount = $wash->carWashType->price;
+        
+        if ($request->filled('discount_id')) {
+            $discount = CarWashDiscount::find($request->get('discount_id'));
+            if ($discount && $discount->isValid()) {
+                $discountId = $discount->id;
+                $discountAmount = $this->calculateDiscountAmount($discount, $grossAmount);
+            }
+        } elseif ($request->filled('discount_code')) {
+            // Por ahora, mantener compatibilidad con código de descuento antiguo
+            $discountAmount = $grossAmount * 0.1; // 10% de descuento por código
+        }
+        
         // Actualizar campos adicionales si se proporcionan y no son null
         if ($request->filled('amount')) {
+            // Si se proporciona amount explícitamente, usar ese valor
             $wash->amount = $request->get('amount');
             Log::info('CarWashController::update - Setting amount:', ['amount' => $request->get('amount')]);
+        } elseif ($discountId || ($request->filled('discount_code'))) {
+            // Si hay descuento y no se proporciona amount, calcular con descuento
+            $netAmount = max(0, $grossAmount - $discountAmount);
+            $wash->amount = $netAmount;
+            $wash->discount_id = $discountId;
+            $wash->discount_amount = $discountAmount;
         }
         
         // Si se actualiza a PAID, asegurar que siempre tenga shift_id y cashier_operator_id
@@ -431,6 +479,14 @@ class CarWashController extends Controller
             $wash->cash_amount_received = $request->get('cash_amount_received');
             Log::info('CarWashController::update - Setting cash_amount_received:', ['cash_amount_received' => $request->get('cash_amount_received')]);
         }
+        if ($request->filled('discount_id') || $request->filled('discount_code')) {
+            $wash->discount_id = $discountId;
+            $wash->discount_amount = $discountAmount;
+            Log::info('CarWashController::update - Setting discount:', [
+                'discount_id' => $discountId,
+                'discount_amount' => $discountAmount
+            ]);
+        }
         
         Log::info('CarWashController::update - CarWash before save:', [
             'cashier_operator_id' => $wash->cashier_operator_id,
@@ -453,9 +509,80 @@ class CarWashController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $wash->fresh()->load(['carWashType', 'cashierOperator', 'shift']),
+            'data' => $wash->fresh()->load(['carWashType', 'cashierOperator', 'shift', 'discount']),
             'message' => 'Lavado actualizado exitosamente',
         ]);
+    }
+
+    /**
+     * Obtener cotización de un lavado con descuento aplicado
+     */
+    public function getQuote(int $id, Request $request): JsonResponse
+    {
+        $wash = CarWash::with(['carWashType'])->findOrFail($id);
+        
+        $grossAmount = $wash->carWashType->price;
+        $discountId = null;
+        $discountAmount = 0;
+        $discount = null;
+        
+        if ($request->filled('discount_id')) {
+            $discount = CarWashDiscount::find($request->get('discount_id'));
+            if ($discount && $discount->isValid()) {
+                $discountId = $discount->id;
+                $discountAmount = $this->calculateDiscountAmount($discount, $grossAmount);
+            }
+        } elseif ($request->filled('discount_code')) {
+            // Por ahora, mantener compatibilidad con código de descuento antiguo
+            $discountAmount = $grossAmount * 0.1; // 10% de descuento por código
+        }
+        
+        $netAmount = max(0, $grossAmount - $discountAmount);
+        
+        $result = [
+            'car_wash_id' => $id,
+            'gross_amount' => $grossAmount,
+            'discount_amount' => $discountAmount,
+            'net_amount' => $netAmount,
+        ];
+        
+        if ($discountId) {
+            $result['discount_id'] = $discountId;
+        }
+        
+        return response()->json([
+            'success' => true,
+            'data' => $result
+        ]);
+    }
+
+    /**
+     * Calcular el monto de descuento para un lavado de auto
+     * Solo soporta AMOUNT y PERCENTAGE
+     */
+    private function calculateDiscountAmount(CarWashDiscount $discount, float $grossAmount): float
+    {
+        $discountAmount = 0;
+        
+        switch ($discount->discount_type) {
+            case 'AMOUNT':
+                // Descuento fijo
+                $discountAmount = min($discount->value ?? 0, $grossAmount);
+                break;
+                
+            case 'PERCENTAGE':
+                // Descuento porcentual
+                $percentage = ($discount->value ?? 0) / 100;
+                $discountAmount = $grossAmount * $percentage;
+                
+                // Aplicar máximo si está definido
+                if ($discount->max_amount && $discountAmount > $discount->max_amount) {
+                    $discountAmount = $discount->max_amount;
+                }
+                break;
+        }
+        
+        return $discountAmount;
     }
 }
 
