@@ -106,6 +106,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   // Date picker
   selectedDate = new Date();
+  isSelectedToday = true;
+  selectedDateLabel = '';
+  comparisonDateLabel = '';
 
   // Charts
   salesChart: any = {};
@@ -145,6 +148,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.updateDateContext();
     this.loadDashboardData();
     this.loadMaxCapacity();
     this.loadConfig();
@@ -174,6 +178,32 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return `${year}-${month}-${day}`;
   }
 
+  private isSameLocalDay(a: Date, b: Date): boolean {
+    return a.getFullYear() === b.getFullYear()
+      && a.getMonth() === b.getMonth()
+      && a.getDate() === b.getDate();
+  }
+
+  private formatDateLabel(date: Date): string {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
+  private updateDateContext(): void {
+    const selected = (this.selectedDate instanceof Date) ? this.selectedDate : new Date(this.selectedDate);
+    const safeSelected = Number.isNaN(selected.getTime()) ? new Date() : selected;
+
+    const today = new Date();
+    this.isSelectedToday = this.isSameLocalDay(safeSelected, today);
+    this.selectedDateLabel = this.formatDateLabel(safeSelected);
+
+    const comparison = new Date(safeSelected);
+    comparison.setDate(comparison.getDate() - 1);
+    this.comparisonDateLabel = this.formatDateLabel(comparison);
+  }
+
   loadDashboardData(): void {
     this.loading = true;
     this.error = null;
@@ -198,6 +228,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   onDateChange(): void {
+    this.updateDateContext();
     this.loadDashboardData();
   }
 
