@@ -98,6 +98,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
   error: string | null = null;
   carWashEnabled = false;
 
+  // Resumen financiero: pagos por método con alcance
+  paymentScope: 'TOTAL' | 'PARKING' | 'WASH' = 'TOTAL';
+  private parkingPaymentsByMethod: Record<string, { total: number }> = {};
+  private washPaymentsByMethod: Record<string, { total: number }> = {};
+  private totalPaymentsByMethod: Record<string, { total: number }> = {};
+
   // Date picker
   selectedDate = new Date();
 
@@ -336,7 +342,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (!this.dashboardData) return;
 
     this.updateSalesChart();
-    this.updatePaymentsChart();
+    this.rebuildPaymentsByMethod();
+    this.refreshPaymentsChart();
     this.updateSessionsChart();
   }
 
@@ -384,23 +391,167 @@ export class DashboardComponent implements OnInit, OnDestroy {
     };
   }
 
-  private updatePaymentsChart(): void {
-    const paymentsByMethod = this.dashboardData!.today_payments.by_method;
-    const series = Object.values(paymentsByMethod).map(data => (data as any).total as number);
-    const labels = Object.keys(paymentsByMethod).map(method =>
-      this.paymentService.getPaymentMethodLabel(method)
-    );
-    const total = series.reduce((acc, v) => acc + (v || 0), 0);
+  private rebuildPaymentsByMethod(): void {
+    if (!this.dashboardData) {
+      this.parkingPaymentsByMethod = {};
+      this.washPaymentsByMethod = {};
+      this.totalPaymentsByMethod = {};
+      return;
+    }
+
+    // Estacionamiento: viene del backend (solo sesiones de parking)
+    const parkingByMethodRaw = (this.dashboardData as any)?.today_payments?.by_method ?? {};
+    this.parkingPaymentsByMethod = this.normalizeByMethod(parkingByMethodRaw);
+
+    // Autolavado: split por efectivo/tarjeta (si hay)
+    const washByMethod: Record<string, { total: number }> = {};
+    const carWashes = (this.dashboardData as any)?.car_washes;
+    if (carWashes) {
+      const cash = Number(carWashes.cash_total || 0);
+      const card = Number(carWashes.card_total || 0);
+      if (cash > 0) washByMethod['CASH'] = { total: cash };
+      if (card > 0) washByMethod['CARD'] = { total: card };
+      // TODO: if backend provides wash count by method in future, include it.
+    }
+    this.washPaymentsByMethod = washByMethod;
+
+    // Total: merge sumando totales por método
+    this.totalPaymentsByMethod = this.mergeByMethodTotals(this.parkingPaymentsByMethod, this.washPaymentsByMethod);
+  }
+
+  onPaymentScopeChange(scope: 'TOTAL' | 'PARKING' | 'WASH'): void {
+    this.paymentScope = scope;
+    this.refreshPaymentsChart();
+  }
+
+  private refreshPaymentsChart(): void {
+    switch (this.paymentScope) {
+      case 'PARKING':
+        this.updatePaymentsChart(this.parkingPaymentsByMethod);
+        return;
+      case 'WASH':
+        this.updatePaymentsChart(this.washPaymentsByMethod);
+        return;
+      default:
+        this.updatePaymentsChart(this.totalPaymentsByMethod);
+        return;
+    }
+  }
+
+  get paymentScopeLabel(): string {
+    switch (this.paymentScope) {
+      case 'PARKING':
+        return 'Estacionamiento';
+      case 'WASH':
+        return 'Autolavado';
+      default:
+        return 'Total';
+    }
+  }
+
+  // KPIs mini (siempre desde TOTAL para mantener consistencia)
+  get totalRevenueToday(): number {
+    const parking = this.dashboardData?.today_sales?.total_amount || 0;
+    const wash = this.dashboardData?.car_washes?.total_amount || 0;
+    return (parking || 0) + (wash || 0);
+  }
+
+  get topMethodTotalText(): string {
+    const { label, pct, total } = this.getTopMethodFrom(this.totalPaymentsByMethod);
+    if (!total || total <= 0) return 'Sin pagos';
+    if (!label) return '—';
+    return `${label} (${pct.toFixed(1)}%)`;
+  }
+
+  get debtText(): string {
+    const debt = this.dashboardData?.pending_debts?.total_amount || 0;
+    if (!debt || debt <= 0) return 'Sin deuda';
+    return this.formatAmount(debt);
+  }
+
+  private normalizeByMethod(input: any): Record<string, { total: number }> {
+    const out: Record<string, { total: number }> = {};
+    if (!input || typeof input !== 'object') return out;
+    for (const [k, v] of Object.entries(input)) {
+      const total = Number((v as any)?.total ?? 0);
+      if (!Number.isFinite(total)) continue;
+      out[String(k)] = { total: total || 0 };
+    }
+    return out;
+  }
+
+  private mergeByMethodTotals(...sources: Array<Record<string, { total: number }>>): Record<string, { total: number }> {
+    const out: Record<string, { total: number }> = {};
+    for (const src of sources) {
+      for (const [method, data] of Object.entries(src || {})) {
+        const prev = out[method]?.total || 0;
+        const add = Number((data as any)?.total || 0);
+        out[method] = { total: prev + (Number.isFinite(add) ? add : 0) };
+      }
+    }
+    return out;
+  }
+
+  private getTopMethodFrom(byMethod: Record<string, { total: number }>): { label: string; pct: number; total: number } {
+    const entries = Object.entries(byMethod || {}).map(([k, v]) => [k, Number(v?.total || 0)] as const);
+    const total = entries.reduce((acc, [, v]) => acc + (Number.isFinite(v) ? v : 0), 0);
+    if (!total || total <= 0) return { label: '', pct: 0, total: 0 };
+
+    let topKey = '';
+    let topVal = -Infinity;
+    for (const [k, v] of entries) {
+      if (!Number.isFinite(v)) continue;
+      if (v > topVal) {
+        topVal = v;
+        topKey = k;
+      }
+    }
+    const label = topKey ? this.paymentService.getPaymentMethodLabel(topKey) : '';
+    const pct = topVal > 0 ? (topVal / total) * 100 : 0;
+    return { label, pct, total };
+  }
+
+  private getMethodOrder(methodKeys: string[]): string[] {
+    const uniq = Array.from(new Set((methodKeys || []).filter(Boolean)));
+    const priority = ['CASH', 'CARD'];
+    const prioritized = priority.filter(k => uniq.includes(k));
+    const rest = uniq.filter(k => !priority.includes(k)).sort((a, b) => a.localeCompare(b));
+    return [...prioritized, ...rest];
+  }
+
+  private getMethodColors(orderedKeys: string[]): string[] {
+    const fallback = ['#8B5CF6', '#F59E0B'];
+    let fi = 0;
+    return orderedKeys.map((k) => {
+      if (k === 'CASH') return '#10B981';
+      if (k === 'CARD') return '#3B82F6';
+      const c = fallback[fi % fallback.length];
+      fi++;
+      return c;
+    });
+  }
+
+  private updatePaymentsChart(byMethod: Record<string, { total: number }>): void {
+    const orderedKeys = this.getMethodOrder(Object.keys(byMethod || {}));
+    const series = orderedKeys.map(k => Number(byMethod?.[k]?.total || 0));
+    const total = series.reduce((acc, v) => acc + (Number.isFinite(v) ? v : 0), 0);
+
+    const hasPayments = total > 0;
+
+    const labels = orderedKeys.map(method => this.paymentService.getPaymentMethodLabel(method));
+    const colors = this.getMethodColors(orderedKeys);
 
     this.paymentsChart = {
-      series,
+      // Mantener render estable aunque total=0
+      series: orderedKeys.length > 0 ? series : [0],
       chart: {
         type: 'donut',
         height: 400
       },
-      labels,
-      colors: ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B'],
+      labels: orderedKeys.length > 0 ? labels : ['Sin pagos'],
+      colors: orderedKeys.length > 0 ? colors : ['#9CA3AF'],
       legend: {
+        show: hasPayments,
         position: 'bottom',
         fontSize: '13px',
         formatter: (seriesName: string, opts: any) => {
@@ -410,7 +561,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         }
       },
       dataLabels: {
-        enabled: true,
+        enabled: hasPayments,
         formatter: (val: number) => `${val.toFixed(1)}%`
       },
       plotOptions: {
@@ -420,8 +571,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
               show: true,
               total: {
                 show: true,
-                label: 'Total',
-                formatter: () => this.formatAmount(total)
+                label: hasPayments ? 'Total' : 'Sin pagos',
+                formatter: () => hasPayments ? this.formatAmount(total) : 'Sin pagos'
               }
             }
           }
