@@ -4,6 +4,50 @@
   width: 100%;
 }
 
+.dashboard-group {
+  .group-header {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 12px;
+    padding: 0 4px;
+  }
+}
+
+.delta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  user-select: none;
+}
+
+.delta-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.delta-positive {
+  background: rgba(16, 185, 129, 0.12);
+  color: rgb(5, 150, 105);
+}
+
+.delta-negative {
+  background: rgba(239, 68, 68, 0.12);
+  color: rgb(220, 38, 38);
+}
+
+.delta-neutral {
+  background: rgba(107, 114, 128, 0.12);
+  color: rgb(75, 85, 99);
+}
+
 .stats-card {
   transition: transform 0.2s ease-in-out;
   

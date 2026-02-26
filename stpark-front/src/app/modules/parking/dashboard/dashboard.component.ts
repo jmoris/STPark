@@ -115,8 +115,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
     carWashesTotal: 0,
     carWashesCount: 0,
     carWashesPendingCount: 0,
-    averageTicket: 0,
+    averageTicket: 0, // Parking
+    carWashAverageTicket: 0,
   };
+
+  // Contexto KPI (vs día anterior). Se mockea de forma estable por fecha.
+  kpiDeltaPct: Record<string, number> = {};
+
+  // Sesiones por hora: contexto de hora pico
+  peakSessions: { hourLabel: string; count: number } | null = null;
 
   // Occupancy
   maxCapacity = 0;
@@ -191,24 +198,92 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private updateStats(): void {
     if (!this.dashboardData) return;
 
-    // Calcular ticket promedio (solo sesiones, sin car washes)
-    const averageTicket = this.dashboardData.today_sales.count > 0
-      ? this.dashboardData.today_sales.total_amount / this.dashboardData.today_sales.count
-      : 0;
+    const averageTicket = this.safeDivide(
+      this.dashboardData.today_sales.total_amount,
+      this.dashboardData.today_sales.count
+    );
+
+    const carWashesTotal = this.dashboardData.car_washes?.total_amount || 0;
+    const carWashesCount = this.dashboardData.car_washes?.count || 0;
+    const carWashAverageTicket = this.safeDivide(carWashesTotal, carWashesCount);
 
     this.stats = {
       totalRevenue: this.dashboardData.today_sales.total_amount,
       totalSessions: this.dashboardData.today_sales.count,
       pendingDebts: this.dashboardData.pending_debts.total_amount,
       activeSessions: this.dashboardData.active_sessions.count,
-      carWashesTotal: this.dashboardData.car_washes?.total_amount || 0,
-      carWashesCount: this.dashboardData.car_washes?.count || 0,
+      carWashesTotal,
+      carWashesCount,
       carWashesPendingCount: this.dashboardData.car_washes?.pending_count || 0,
       averageTicket: averageTicket,
+      carWashAverageTicket,
     };
 
     // Calcular porcentaje de ocupación
     this.calculateOccupancy();
+
+    // Actualizar contexto KPI (mock estable)
+    this.updateKpiDeltaPct();
+  }
+
+  private safeDivide(numerator: number, denominator: number): number {
+    if (!denominator || denominator <= 0) return 0;
+    return numerator / denominator;
+  }
+
+  private updateKpiDeltaPct(): void {
+    const dateKey = this.formatDateLocal(this.selectedDate);
+    const mk = (kpiKey: string) => this.mockDeltaPct(`${kpiKey}:${dateKey}`);
+
+    this.kpiDeltaPct = {
+      revenue: mk('revenue'),
+      sessions: mk('sessions'),
+      occupancy: mk('occupancy'),
+      debts: mk('debts'),
+      activeSessions: mk('activeSessions'),
+      avgTicket: mk('avgTicket'),
+      carWashRevenue: mk('carWashRevenue'),
+      carWashCount: mk('carWashCount'),
+      carWashAvgTicket: mk('carWashAvgTicket'),
+    };
+  }
+
+  /**
+   * Mock estable de variación porcentual vs día anterior.
+   * Rango aprox: -12% .. +12% (sin tocar backend).
+   */
+  private mockDeltaPct(seed: string): number {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+    }
+    const normalized = Math.abs(hash % 2401) / 2400; // 0..1
+    const value = (normalized * 24) - 12; // -12..+12
+    return Math.round(value * 10) / 10; // 1 decimal
+  }
+
+  formatCount(value: number): string {
+    return this.reportService.formatNumber(value || 0);
+  }
+
+  formatDeltaPct(value: number | null | undefined): string {
+    if (value === null || value === undefined || Number.isNaN(value)) return '—';
+    const sign = value > 0 ? '+' : '';
+    return `${sign}${value}%`;
+  }
+
+  getDeltaIcon(value: number | null | undefined): string {
+    if (value === null || value === undefined || Number.isNaN(value)) return 'remove';
+    if (value > 0.1) return 'arrow_upward';
+    if (value < -0.1) return 'arrow_downward';
+    return 'remove';
+  }
+
+  getDeltaBadgeClass(value: number | null | undefined): string {
+    if (value === null || value === undefined || Number.isNaN(value)) return 'delta-neutral';
+    if (value > 0.1) return 'delta-positive';
+    if (value < -0.1) return 'delta-negative';
+    return 'delta-neutral';
   }
 
   private loadMaxCapacity(): void {
@@ -311,28 +386,54 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private updatePaymentsChart(): void {
     const paymentsByMethod = this.dashboardData!.today_payments.by_method;
-    const chartData = Object.entries(paymentsByMethod).map(([method, data]) => ({
-      x: this.paymentService.getPaymentMethodLabel(method),
-      y: (data as any).total
-    }));
+    const series = Object.values(paymentsByMethod).map(data => (data as any).total as number);
+    const labels = Object.keys(paymentsByMethod).map(method =>
+      this.paymentService.getPaymentMethodLabel(method)
+    );
+    const total = series.reduce((acc, v) => acc + (v || 0), 0);
 
     this.paymentsChart = {
-        series: Object.values(paymentsByMethod).map(data => (data as any).total),
+      series,
       chart: {
         type: 'donut',
         height: 400
       },
-      labels: Object.keys(paymentsByMethod).map(method => 
-        this.paymentService.getPaymentMethodLabel(method)
-      ),
+      labels,
       colors: ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B'],
       legend: {
-        position: 'bottom'
+        position: 'bottom',
+        fontSize: '13px',
+        formatter: (seriesName: string, opts: any) => {
+          const value = opts?.w?.globals?.series?.[opts.seriesIndex] ?? 0;
+          const pct = total > 0 ? (value / total) * 100 : 0;
+          return `${seriesName}: ${this.formatAmount(value)} (${pct.toFixed(1)}%)`;
+        }
+      },
+      dataLabels: {
+        enabled: true,
+        formatter: (val: number) => `${val.toFixed(1)}%`
+      },
+      plotOptions: {
+        pie: {
+          donut: {
+            labels: {
+              show: true,
+              total: {
+                show: true,
+                label: 'Total',
+                formatter: () => this.formatAmount(total)
+              }
+            }
+          }
+        }
       },
       tooltip: {
         y: {
           formatter: (value: number) => this.formatAmount(value)
         }
+      },
+      noData: {
+        text: 'Sin datos'
       }
     };
   }
@@ -344,6 +445,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
       x: `${item.hour.toString().padStart(2, '0')}:00`,
       y: item.count
     }));
+
+    const maxCount = hourlyData.length > 0
+      ? Math.max(...hourlyData.map(h => h.count || 0))
+      : 0;
+    const peakIndexes = hourlyData
+      .map((h, idx) => ((h.count || 0) === maxCount && maxCount > 0 ? idx : -1))
+      .filter(idx => idx >= 0);
+    const peakHour = peakIndexes.length > 0
+      ? `${hourlyData[peakIndexes[0]].hour.toString().padStart(2, '0')}:00`
+      : null;
+    this.peakSessions = peakHour
+      ? { hourLabel: peakHour, count: maxCount }
+      : null;
 
     this.sessionsChart = {
       series: [{
@@ -373,6 +487,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       },
       xaxis: {
         categories: hourlyData.map(item => `${item.hour.toString().padStart(2, '0')}:00`),
+        title: {
+          text: 'Hora'
+        },
         labels: {
           rotate: -45,
           rotateAlways: false
@@ -382,11 +499,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
         title: {
           text: 'Sesiones'
         },
-        min: 0
+        min: 0,
+        labels: {
+          formatter: (value: number) => `${Math.round(value)}`
+        }
       },
       colors: ['#3B82F6'],
       markers: {
         size: 4,
+        discrete: peakIndexes.map(idx => ({
+          seriesIndex: 0,
+          dataPointIndex: idx,
+          fillColor: '#F59E0B',
+          strokeColor: '#F59E0B',
+          size: 7
+        })),
         hover: {
           size: 6
         },
@@ -394,6 +521,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
         strokeColors: ['#3B82F6'],
         fillOpacity: 1
       },
+      annotations: peakHour ? {
+        xaxis: [{
+          x: peakHour,
+          borderColor: '#F59E0B',
+          strokeDashArray: 2,
+          label: {
+            text: 'Hora pico',
+            style: { background: '#F59E0B', color: '#111827', fontSize: '12px' }
+          }
+        }]
+      } : {},
       grid: {
         borderColor: '#e5e7eb',
         strokeDashArray: 4
@@ -402,6 +540,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
         y: {
           formatter: (value: number) => `${value} sesiones`
         }
+      },
+      noData: {
+        text: 'Sin datos'
       }
     };
   }
