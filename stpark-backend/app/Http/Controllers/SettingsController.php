@@ -84,7 +84,6 @@ class SettingsController extends Controller
         // Obtener información del plan del tenant desde la conexión central (landlord)
         $planName = 'Sin plan';
         $planId = null;
-        $tenantCentral = null;
         $planFeaturesPayload = [
             'report_type' => 'BASIC',
             'includes_debt_management' => false,
@@ -93,25 +92,28 @@ class SettingsController extends Controller
         try {
             $tenantId = tenant('id');
             if ($tenantId) {
-                // Obtener el tenant desde la conexión central donde está la tabla de planes
+                // Conexión central (landlord) donde viven tenants/plans/plan_features
                 $centralConnection = config('tenancy.database.central_connection', 'central');
-                $tenantCentral = DB::connection($centralConnection)->table('tenants')
-                    ->leftJoin('plans', 'tenants.plan_id', '=', 'plans.id')
-                    ->where('tenants.id', $tenantId)
-                    ->select(
-                        'tenants.id',
-                        'tenants.name',
-                        'tenants.plan_id',
-                        'plans.name as plan_name'
-                    )
-                    ->first();
-                
-                if ($tenantCentral && isset($tenantCentral->plan_name)) {
-                    $planName = $tenantCentral->plan_name;
+
+                // IMPORTANTE:
+                // En tenants, "name" suele vivir en JSON `data` (no como columna), así que evitamos seleccionarlo.
+                // Tomamos plan_id desde el tenant actual (custom column), y si falta, desde la tabla central tenants.
+                $planId = tenant('plan_id');
+                if (!$planId) {
+                    $planId = DB::connection($centralConnection)->table('tenants')
+                        ->where('id', $tenantId)
+                        ->value('plan_id');
                 }
 
-                if ($tenantCentral && isset($tenantCentral->plan_id)) {
-                    $planId = $tenantCentral->plan_id;
+                if ($planId) {
+                    $planNameFromDb = DB::connection($centralConnection)->table('plans')
+                        ->where('id', $planId)
+                        ->value('name');
+
+                    if ($planNameFromDb) {
+                        $planName = $planNameFromDb;
+                    }
+
                     $features = PlanFeature::on($centralConnection)
                         ->where('plan_id', $planId)
                         ->first();
@@ -126,8 +128,8 @@ class SettingsController extends Controller
                 }
 
                 logger()->info('Tenant plan features', [
-                    'tenant' => $tenantCentral->id ?? null,
-                    'tenant_name' => $tenantCentral->name ?? null,
+                    'tenant' => $tenantId,
+                    'tenant_name' => tenant('name') ?? null,
                     'plan_id' => $planId,
                     'plan_name' => $planName,
                     'report_type' => $planFeaturesPayload['report_type'] ?? 'BASIC',
