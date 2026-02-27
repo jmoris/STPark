@@ -11,6 +11,7 @@ use App\Models\Shift;
 use App\Models\PricingProfile;
 use App\Models\PricingRule;
 use App\Models\CarWash;
+use App\Models\Settings;
 use App\Helpers\DatabaseHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -31,6 +32,17 @@ class ReportController extends Controller
         $to = Carbon::parse($dateTo)->endOfDay();
         
         return [$from, $to];
+    }
+
+    private function isCarWashEnabled(): bool
+    {
+        try {
+            $setting = Settings::where('key', 'general')->first();
+            $cfg = $setting?->value;
+            return (bool) ($cfg['car_wash_enabled'] ?? false);
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     /**
@@ -173,39 +185,120 @@ class ReportController extends Controller
         // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
         [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
 
-        // Usar ParkingSession completadas en lugar de Sale
-        // Filtrar por operator_out_id para mostrar sesiones cerradas por el operador
-        $query = ParkingSession::with(['sector', 'operator', 'operatorOut', 'payments'])
-                    ->where('status', 'COMPLETED')
-                    ->whereBetween('started_at', [$dateFrom, $dateTo]);
+        $supportedMethods = [Payment::METHOD_CASH, Payment::METHOD_CARD];
+
+        // Ingresos de estacionamiento: SOLO pagos completados CASH/CARD por paid_at,
+        // y sólo sesiones completadas. Esto evita ruido (WEBPAY/TRANSFER) no funcional.
+        $parkingPaymentsBase = Payment::completed()
+            ->whereIn('method', $supportedMethods)
+            ->whereBetween('paid_at', [$dateFrom, $dateTo])
+            ->whereHas('parkingSession', function ($q) use ($request) {
+                $q->where('status', 'COMPLETED');
+
+                if ($request->filled('sector_id')) {
+                    $q->where('sector_id', $request->sector_id);
+                }
+
+                if ($request->filled('operator_id')) {
+                    // Sesiones cerradas por el operador (operator_out_id), con fallback a operator_in_id
+                    $operatorId = $request->operator_id;
+                    $q->where(function ($qq) use ($operatorId) {
+                        $qq->where('operator_out_id', $operatorId)
+                            ->orWhere(function ($subQ) use ($operatorId) {
+                                $subQ->whereNull('operator_out_id')
+                                    ->where('operator_in_id', $operatorId);
+                            });
+                    });
+                }
+            });
+
+        $parkingCashAmount = (clone $parkingPaymentsBase)
+            ->where('method', Payment::METHOD_CASH)
+            ->sum('amount');
+
+        $parkingCardAmount = (clone $parkingPaymentsBase)
+            ->where('method', Payment::METHOD_CARD)
+            ->sum('amount');
+
+        $parkingTotalAmount = (float) $parkingCashAmount + (float) $parkingCardAmount;
+
+        // Safety net: monto en métodos no soportados (NO se suma a totales)
+        $parkingOtherAmount = Payment::completed()
+            ->whereNotIn('method', $supportedMethods)
+            ->whereBetween('paid_at', [$dateFrom, $dateTo])
+            ->whereHas('parkingSession', function ($q) use ($request) {
+                $q->where('status', 'COMPLETED');
+
+                if ($request->filled('sector_id')) {
+                    $q->where('sector_id', $request->sector_id);
+                }
+
+                if ($request->filled('operator_id')) {
+                    $operatorId = $request->operator_id;
+                    $q->where(function ($qq) use ($operatorId) {
+                        $qq->where('operator_out_id', $operatorId)
+                            ->orWhere(function ($subQ) use ($operatorId) {
+                                $subQ->whereNull('operator_out_id')
+                                    ->where('operator_in_id', $operatorId);
+                            });
+                    });
+                }
+            })
+            ->sum('amount');
+
+        // Sesiones incluidas: sólo aquellas con pagos CASH/CARD en el rango
+        $parkingSessionIds = (clone $parkingPaymentsBase)
+            ->whereNotNull('session_id')
+            ->distinct()
+            ->pluck('session_id');
+
+        $sessions = ParkingSession::with([
+            'sector',
+            'operator',
+            'operatorOut',
+            'payments' => function ($q) use ($supportedMethods, $dateFrom, $dateTo) {
+                $q->where('status', Payment::STATUS_COMPLETED)
+                    ->whereIn('method', $supportedMethods)
+                    ->whereBetween('paid_at', [$dateFrom, $dateTo]);
+            }
+        ])
+            ->whereIn('id', $parkingSessionIds)
+            ->orderBy('started_at', 'desc')
+            ->get();
+
+        // Autolavado: payment_type 'cash'|'card'
+        $carWashesBase = CarWash::query()
+            ->where('status', 'PAID')
+            ->whereBetween('paid_at', [$dateFrom, $dateTo]);
 
         if ($request->filled('sector_id')) {
-            $query->where('sector_id', $request->sector_id);
-        }
-
-        if ($request->filled('operator_id')) {
-            // Usar operator_out_id para obtener sesiones cerradas por el operador
-            // Si no hay operator_out_id, usar operator_in_id como fallback (sesiones antiguas)
-            $query->where(function($q) use ($request) {
-                $q->where('operator_out_id', $request->operator_id)
-                  ->orWhere(function($subQ) use ($request) {
-                      $subQ->whereNull('operator_out_id')
-                           ->where('operator_in_id', $request->operator_id);
-                  });
+            $carWashesBase->whereHas('session', function ($q) use ($request) {
+                $q->where('sector_id', $request->sector_id);
             });
         }
 
-        $sessions = $query->orderBy('started_at', 'desc')->get();
-
-        // Calcular totales manualmente
-        $totalAmount = 0;
-        foreach ($sessions as $session) {
-            foreach ($session->payments as $payment) {
-                if ($payment->status === 'COMPLETED') {
-                    $totalAmount += (float) $payment->amount;
-                }
-            }
+        if ($request->filled('operator_id')) {
+            $operatorId = $request->operator_id;
+            $carWashesBase->where(function ($q) use ($operatorId) {
+                $q->where('cashier_operator_id', $operatorId)
+                    ->orWhere('operator_id', $operatorId);
+            });
         }
+
+        $washCashTotal = (clone $carWashesBase)
+            ->where('payment_type', 'cash')
+            ->sum('amount');
+
+        $washCardTotal = (clone $carWashesBase)
+            ->where('payment_type', 'card')
+            ->sum('amount');
+
+        $washTotalAmount = (float) $washCashTotal + (float) $washCardTotal;
+
+        // Totales generales (CASH + CARD únicamente)
+        $totalCashAmount = (float) $parkingCashAmount + (float) $washCashTotal;
+        $totalCardAmount = (float) $parkingCardAmount + (float) $washCardTotal;
+        $totalAmount = (float) $totalCashAmount + (float) $totalCardAmount;
 
         $summary = [
             'period' => [
@@ -214,14 +307,36 @@ class ReportController extends Controller
             ],
             'total_sales' => $sessions->count(),
             'total_amount' => $totalAmount,
+            'cash_amount' => $totalCashAmount,
+            'card_amount' => $totalCardAmount,
+            'other_amount' => (float) $parkingOtherAmount,
+            'parking' => [
+                'cash_amount' => (float) $parkingCashAmount,
+                'card_amount' => (float) $parkingCardAmount,
+                'total_amount' => (float) $parkingTotalAmount,
+                'other_amount' => (float) $parkingOtherAmount,
+            ],
+            'car_wash' => [
+                'cash_amount' => (float) $washCashTotal,
+                'card_amount' => (float) $washCardTotal,
+                'total_amount' => (float) $washTotalAmount,
+            ],
+            'by_method' => [
+                Payment::METHOD_CASH => [
+                    'total' => (float) $totalCashAmount,
+                    'parking_total' => (float) $parkingCashAmount,
+                    'car_wash_total' => (float) $washCashTotal,
+                ],
+                Payment::METHOD_CARD => [
+                    'total' => (float) $totalCardAmount,
+                    'parking_total' => (float) $parkingCardAmount,
+                    'car_wash_total' => (float) $washCardTotal,
+                ],
+            ],
             'by_sector' => $sessions->groupBy('sector.name')->map(function($group) {
-                $groupTotal = 0;
+                $groupTotal = 0.0;
                 foreach ($group as $session) {
-                    foreach ($session->payments as $payment) {
-                        if ($payment->status === 'COMPLETED') {
-                            $groupTotal += (float) $payment->amount;
-                        }
-                    }
+                    $groupTotal += (float) $session->payments->sum('amount');
                 }
                 return [
                     'count' => $group->count(),
@@ -229,13 +344,9 @@ class ReportController extends Controller
                 ];
             }),
             'by_operator' => $sessions->groupBy('operator.name')->map(function($group) {
-                $groupTotal = 0;
+                $groupTotal = 0.0;
                 foreach ($group as $session) {
-                    foreach ($session->payments as $payment) {
-                        if ($payment->status === 'COMPLETED') {
-                            $groupTotal += (float) $payment->amount;
-                        }
-                    }
+                    $groupTotal += (float) $session->payments->sum('amount');
                 }
                 return [
                     'count' => $group->count(),
@@ -245,13 +356,9 @@ class ReportController extends Controller
             'daily_breakdown' => $sessions->groupBy(function($session) {
                 return $session->started_at->format('Y-m-d');
             })->map(function($group) {
-                $groupTotal = 0;
+                $groupTotal = 0.0;
                 foreach ($group as $session) {
-                    foreach ($session->payments as $payment) {
-                        if ($payment->status === 'COMPLETED') {
-                            $groupTotal += (float) $payment->amount;
-                        }
-                    }
+                    $groupTotal += (float) $session->payments->sum('amount');
                 }
                 return [
                     'count' => $group->count(),
@@ -259,12 +366,7 @@ class ReportController extends Controller
                 ];
             }),
             'sessions' => $sessions->map(function($session) {
-                $sessionTotal = 0;
-                foreach ($session->payments as $payment) {
-                    if ($payment->status === 'COMPLETED') {
-                        $sessionTotal += (float) $payment->amount;
-                    }
-                }
+                $sessionTotal = (float) $session->payments->sum('amount');
                 return [
                     'id' => $session->id,
                     'plate' => $session->plate,
@@ -498,21 +600,29 @@ class ReportController extends Controller
                                  ->with(['sector', 'payments', 'operator', 'operatorOut'])
                                  ->get();
         
-        // Calcular totales de ventas
-        $totalAmount = 0;
-        $cashAmount = 0;
-        $cardAmount = 0;
+        $supportedMethods = [Payment::METHOD_CASH, Payment::METHOD_CARD];
+
+        // Calcular totales de ventas (solo CASH/CARD completados)
+        $totalAmount = 0.0;
+        $cashAmount = 0.0;
+        $cardAmount = 0.0;
         
         foreach ($sessionsForSales as $session) {
             foreach ($session->payments as $payment) {
-                if ($payment->status === 'COMPLETED') {
-                    $totalAmount += (float) $payment->amount;
-                    
-                    if ($payment->method === 'CASH') {
-                        $cashAmount += (float) $payment->amount;
-                    } else {
-                        $cardAmount += (float) $payment->amount;
-                    }
+                if ($payment->status !== Payment::STATUS_COMPLETED) {
+                    continue;
+                }
+
+                if (!in_array($payment->method, $supportedMethods, true)) {
+                    continue;
+                }
+
+                $totalAmount += (float) $payment->amount;
+                
+                if ($payment->method === Payment::METHOD_CASH) {
+                    $cashAmount += (float) $payment->amount;
+                } elseif ($payment->method === Payment::METHOD_CARD) {
+                    $cardAmount += (float) $payment->amount;
                 }
             }
         }
@@ -544,19 +654,25 @@ class ReportController extends Controller
         // Detalle de sesiones de venta
         $sessionDetails = [];
         foreach ($sessionsForSales as $session) {
-            $sessionTotal = 0;
-            $sessionCash = 0;
-            $sessionCard = 0;
+            $sessionTotal = 0.0;
+            $sessionCash = 0.0;
+            $sessionCard = 0.0;
             
             foreach ($session->payments as $payment) {
-                if ($payment->status === 'COMPLETED') {
-                    $sessionTotal += (float) $payment->amount;
-                    
-                    if ($payment->method === 'CASH') {
-                        $sessionCash += (float) $payment->amount;
-                    } else {
-                        $sessionCard += (float) $payment->amount;
-                    }
+                if ($payment->status !== Payment::STATUS_COMPLETED) {
+                    continue;
+                }
+
+                if (!in_array($payment->method, $supportedMethods, true)) {
+                    continue;
+                }
+
+                $sessionTotal += (float) $payment->amount;
+                
+                if ($payment->method === Payment::METHOD_CASH) {
+                    $sessionCash += (float) $payment->amount;
+                } elseif ($payment->method === Payment::METHOD_CARD) {
+                    $sessionCard += (float) $payment->amount;
                 }
             }
             
@@ -1031,67 +1147,182 @@ class ReportController extends Controller
         // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
         [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
 
-        $query = ParkingSession::with(['sector', 'operator', 'payments'])
-                    ->where('status', 'COMPLETED')
-                    ->whereBetween('started_at', [$dateFrom, $dateTo]);
+        $supportedMethods = [Payment::METHOD_CASH, Payment::METHOD_CARD];
+        $carWashEnabled = $this->isCarWashEnabled();
 
-        if ($request->filled('sector_id')) {
-            $query->where('sector_id', $request->sector_id);
+        $parkingPaymentsBase = Payment::completed()
+            ->whereIn('method', $supportedMethods)
+            ->whereBetween('paid_at', [$dateFrom, $dateTo])
+            ->whereHas('parkingSession', function ($q) use ($request) {
+                $q->where('status', 'COMPLETED');
+
+                if ($request->filled('sector_id')) {
+                    $q->where('sector_id', $request->sector_id);
+                }
+
+                if ($request->filled('operator_id')) {
+                    $operatorId = $request->operator_id;
+                    $q->where(function ($qq) use ($operatorId) {
+                        $qq->where('operator_out_id', $operatorId)
+                            ->orWhere(function ($subQ) use ($operatorId) {
+                                $subQ->whereNull('operator_out_id')
+                                    ->where('operator_in_id', $operatorId);
+                            });
+                    });
+                }
+            });
+
+        $parkingCashAmount = (clone $parkingPaymentsBase)
+            ->where('method', Payment::METHOD_CASH)
+            ->sum('amount');
+
+        $parkingCardAmount = (clone $parkingPaymentsBase)
+            ->where('method', Payment::METHOD_CARD)
+            ->sum('amount');
+
+        $parkingTotalAmount = (float) $parkingCashAmount + (float) $parkingCardAmount;
+
+        $parkingOtherAmount = Payment::completed()
+            ->whereNotIn('method', $supportedMethods)
+            ->whereBetween('paid_at', [$dateFrom, $dateTo])
+            ->whereHas('parkingSession', function ($q) use ($request) {
+                $q->where('status', 'COMPLETED');
+
+                if ($request->filled('sector_id')) {
+                    $q->where('sector_id', $request->sector_id);
+                }
+
+                if ($request->filled('operator_id')) {
+                    $operatorId = $request->operator_id;
+                    $q->where(function ($qq) use ($operatorId) {
+                        $qq->where('operator_out_id', $operatorId)
+                            ->orWhere(function ($subQ) use ($operatorId) {
+                                $subQ->whereNull('operator_out_id')
+                                    ->where('operator_in_id', $operatorId);
+                            });
+                    });
+                }
+            })
+            ->sum('amount');
+
+        $parkingSessionIds = (clone $parkingPaymentsBase)
+            ->whereNotNull('session_id')
+            ->distinct()
+            ->pluck('session_id');
+
+        $sessions = ParkingSession::with([
+            'sector',
+            'operator',
+            'operatorOut',
+            'payments' => function ($q) use ($supportedMethods, $dateFrom, $dateTo) {
+                $q->where('status', Payment::STATUS_COMPLETED)
+                    ->whereIn('method', $supportedMethods)
+                    ->whereBetween('paid_at', [$dateFrom, $dateTo]);
+            }
+        ])
+            ->whereIn('id', $parkingSessionIds)
+            ->orderBy('started_at', 'desc')
+            ->get();
+
+        $washCashTotal = 0;
+        $washCardTotal = 0;
+        if ($carWashEnabled) {
+            // Lavado de autos: payment_type 'cash'|'card'
+            $carWashesBase = CarWash::query()
+                ->where('status', 'PAID')
+                ->whereBetween('paid_at', [$dateFrom, $dateTo]);
+
+            if ($request->filled('sector_id')) {
+                $carWashesBase->whereHas('session', function ($q) use ($request) {
+                    $q->where('sector_id', $request->sector_id);
+                });
+            }
+
+            if ($request->filled('operator_id')) {
+                $operatorId = $request->operator_id;
+                $carWashesBase->where(function ($q) use ($operatorId) {
+                    $q->where('cashier_operator_id', $operatorId)
+                        ->orWhere('operator_id', $operatorId);
+                });
+            }
+
+            $washCashTotal = (clone $carWashesBase)
+                ->where('payment_type', 'cash')
+                ->sum('amount');
+
+            $washCardTotal = (clone $carWashesBase)
+                ->where('payment_type', 'card')
+                ->sum('amount');
         }
 
-        if ($request->filled('operator_id')) {
-            $query->where('operator_in_id', $request->operator_id);
-        }
+        $washTotalAmount = (float) $washCashTotal + (float) $washCardTotal;
 
-        $sessions = $query->orderBy('started_at', 'desc')->get();
+        $cashAmount = (float) $parkingCashAmount + (float) $washCashTotal;
+        $cardAmount = (float) $parkingCardAmount + (float) $washCardTotal;
+        $totalAmount = (float) $cashAmount + (float) $cardAmount;
 
-        $totalAmount = 0;
-        $cashAmount = 0;
-        $cardAmount = 0;
-        
-        $sessionDetails = [];
-        
-        foreach ($sessions as $session) {
-            $sessionTotal = 0;
-            $sessionCash = 0;
-            $sessionCard = 0;
-            
-            foreach ($session->payments as $payment) {
-                if ($payment->status === 'COMPLETED') {
-                    $sessionTotal += (float) $payment->amount;
-                    $totalAmount += (float) $payment->amount;
-                    
-                    if ($payment->method === 'CASH') {
-                        $sessionCash += (float) $payment->amount;
-                        $cashAmount += (float) $payment->amount;
-                    } else {
-                        $sessionCard += (float) $payment->amount;
-                        $cardAmount += (float) $payment->amount;
+        // "Generado por": en API REST no hay sesión; intentar resolver por token (Sanctum)
+        $generatedByName = null;
+        if ($request->user()) {
+            $generatedByName = $request->user()->name ?? null;
+        } else {
+            $bearer = $request->bearerToken();
+            if ($bearer) {
+                try {
+                    $pat = \Laravel\Sanctum\PersonalAccessToken::findToken($bearer);
+                    $tokenable = $pat?->tokenable;
+                    if ($tokenable && isset($tokenable->name)) {
+                        $generatedByName = $tokenable->name;
                     }
+                } catch (\Throwable $e) {
+                    // Silencioso: si no se puede resolver, cae en "Sistema"
                 }
             }
-            
-            if ($sessionTotal > 0) {
-                $durationMinutes = $session->started_at && $session->ended_at 
-                    ? \Carbon\Carbon::parse($session->started_at)->diffInMinutes(\Carbon\Carbon::parse($session->ended_at))
-                    : 0;
+        }
+        
+        $includeSessions = $request->boolean('include_sessions');
+        $sessionsLimit = $request->filled('sessions_limit') ? (int) $request->input('sessions_limit') : null;
+        if ($sessionsLimit !== null) {
+            $sessionsLimit = max(50, min(5000, $sessionsLimit));
+        }
+
+        $sessionDetails = [];
+        if ($includeSessions) {
+            foreach ($sessions as $session) {
+                $sessionTotal = (float) $session->payments->sum('amount');
                 
-                $hours = floor((int)$durationMinutes / 60);
-                $minutes = (int)$durationMinutes % 60;
-                $durationFormatted = $hours > 0 ? "{$hours}h {$minutes}m" : "{$minutes}m";
-                
-                $sessionDetails[] = [
-                    'operator' => $session->operator ? $session->operator->name : 'N/A',
-                    'plate' => $session->plate,
-                    'started_at' => $session->started_at,
-                    'ended_at' => $session->ended_at,
-                    'duration' => $durationFormatted,
-                    'amount' => $sessionTotal,
-                ];
+                if ($sessionTotal > 0) {
+                    $durationMinutes = $session->started_at && $session->ended_at 
+                        ? \Carbon\Carbon::parse($session->started_at)->diffInMinutes(\Carbon\Carbon::parse($session->ended_at))
+                        : 0;
+                    
+                    $hours = floor((int)$durationMinutes / 60);
+                    $minutes = (int)$durationMinutes % 60;
+                    $durationFormatted = $hours > 0 ? "{$hours}h {$minutes}m" : "{$minutes}m";
+                    
+                    $sessionDetails[] = [
+                        'operator' => $session->operator ? $session->operator->name : 'N/A',
+                        'plate' => $session->plate,
+                        'started_at' => $session->started_at,
+                        'ended_at' => $session->ended_at,
+                        'duration' => $durationFormatted,
+                        'amount' => $sessionTotal,
+                    ];
+                }
+            }
+
+            if ($sessionsLimit !== null) {
+                $sessionDetails = array_slice($sessionDetails, 0, $sessionsLimit);
             }
         }
 
         $summary = [
+            'meta' => [
+                'include_sessions' => $includeSessions,
+                'sessions_limit_used' => $sessionsLimit,
+                'generated_by' => $generatedByName,
+                'car_wash_enabled' => $carWashEnabled,
+            ],
             'period' => [
                 'from' => $request->date_from,
                 'to' => $request->date_to,
@@ -1100,15 +1331,41 @@ class ReportController extends Controller
             'total_amount' => $totalAmount,
             'cash_amount' => $cashAmount,
             'card_amount' => $cardAmount,
+            'other_amount' => (float) $parkingOtherAmount,
+            'parking_cash' => (float) $parkingCashAmount,
+            'parking_card' => (float) $parkingCardAmount,
+            'parking_total' => (float) $parkingTotalAmount,
+            'wash_cash' => (float) $washCashTotal,
+            'wash_card' => (float) $washCardTotal,
+            'wash_total' => (float) $washTotalAmount,
+            'parking' => [
+                'cash_amount' => (float) $parkingCashAmount,
+                'card_amount' => (float) $parkingCardAmount,
+                'total_amount' => (float) $parkingTotalAmount,
+                'other_amount' => (float) $parkingOtherAmount,
+            ],
+            'car_wash' => [
+                'cash_amount' => (float) $washCashTotal,
+                'card_amount' => (float) $washCardTotal,
+                'total_amount' => (float) $washTotalAmount,
+            ],
+            'by_method' => [
+                Payment::METHOD_CASH => [
+                    'total' => (float) $cashAmount,
+                    'parking_total' => (float) $parkingCashAmount,
+                    'car_wash_total' => (float) $washCashTotal,
+                ],
+                Payment::METHOD_CARD => [
+                    'total' => (float) $cardAmount,
+                    'parking_total' => (float) $parkingCardAmount,
+                    'car_wash_total' => (float) $washCardTotal,
+                ],
+            ],
             'sessions_detail' => $sessionDetails,
             'by_sector' => $sessions->groupBy('sector.name')->map(function($group) {
-                $groupTotal = 0;
+                $groupTotal = 0.0;
                 foreach ($group as $session) {
-                    foreach ($session->payments as $payment) {
-                        if ($payment->status === 'COMPLETED') {
-                            $groupTotal += (float) $payment->amount;
-                        }
-                    }
+                    $groupTotal += (float) $session->payments->sum('amount');
                 }
                 return [
                     'count' => $group->count(),
@@ -1116,13 +1373,9 @@ class ReportController extends Controller
                 ];
             }),
             'by_operator' => $sessions->groupBy('operator.name')->map(function($group) {
-                $groupTotal = 0;
+                $groupTotal = 0.0;
                 foreach ($group as $session) {
-                    foreach ($session->payments as $payment) {
-                        if ($payment->status === 'COMPLETED') {
-                            $groupTotal += (float) $payment->amount;
-                        }
-                    }
+                    $groupTotal += (float) $session->payments->sum('amount');
                 }
                 return [
                     'count' => $group->count(),
@@ -1159,6 +1412,8 @@ class ReportController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        $includeDebtsDetail = $request->boolean('include_debts_detail');
+
         // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
         [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
 
@@ -1181,18 +1436,23 @@ class ReportController extends Controller
         $debts = $query->orderBy('created_at', 'desc')->get();
 
         $debtsDetail = [];
-        foreach ($debts as $debt) {
-            $debtsDetail[] = [
-                'id' => $debt->id,
-                'plate' => $debt->parkingSession ? $debt->parkingSession->plate : 'N/A',
-                'sector' => $debt->parkingSession && $debt->parkingSession->sector ? $debt->parkingSession->sector->name : 'N/A',
-                'principal_amount' => $debt->principal_amount,
-                'status' => $debt->status,
-                'created_at' => $debt->created_at,
-            ];
+        if ($includeDebtsDetail) {
+            foreach ($debts as $debt) {
+                $debtsDetail[] = [
+                    'id' => $debt->id,
+                    'plate' => $debt->parkingSession ? $debt->parkingSession->plate : 'N/A',
+                    'sector' => $debt->parkingSession && $debt->parkingSession->sector ? $debt->parkingSession->sector->name : 'N/A',
+                    'principal_amount' => $debt->principal_amount,
+                    'status' => $debt->status,
+                    'created_at' => $debt->created_at,
+                ];
+            }
         }
 
         $summary = [
+            'meta' => [
+                'include_debts_detail' => $includeDebtsDetail,
+            ],
             'period' => [
                 'from' => $request->date_from,
                 'to' => $request->date_to,
@@ -1231,8 +1491,67 @@ class ReportController extends Controller
             return response()->json(['errors' => 'Error generating report'], 422);
         }
 
-        $pdf = Pdf::loadView('reports.operator', ['data' => $responseData['data']]);
-        return $pdf->download('reporte-operador-' . $responseData['data']['operator']['name'] . '-' . now()->format('Y-m-d') . '.pdf');
+        $includeSessionsDetail = $request->boolean('include_sessions_detail');
+
+        $data = $responseData['data'];
+        $data['meta'] = $data['meta'] ?? [];
+        $data['meta']['include_sessions_detail'] = $includeSessionsDetail;
+
+        if (!$includeSessionsDetail) {
+            $data['sessions_detail'] = [];
+        }
+
+        // Lavado de autos (si está habilitado para el tenant)
+        $carWashEnabled = $this->isCarWashEnabled();
+        $data['meta']['car_wash_enabled'] = $carWashEnabled;
+
+        if ($carWashEnabled) {
+            [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+            $operatorId = (int) $request->operator_id;
+
+            $carWashesBase = CarWash::query()
+                ->where('status', 'PAID')
+                ->whereBetween('paid_at', [$dateFrom, $dateTo])
+                ->where(function ($q) use ($operatorId) {
+                    $q->where('cashier_operator_id', $operatorId)
+                        ->orWhere('operator_id', $operatorId);
+                });
+
+            $washCash = (clone $carWashesBase)->where('payment_type', 'cash')->sum('amount');
+            $washCard = (clone $carWashesBase)->where('payment_type', 'card')->sum('amount');
+            $washTotal = (float) $washCash + (float) $washCard;
+
+            $data['car_wash'] = [
+                'cash_amount' => (float) $washCash,
+                'card_amount' => (float) $washCard,
+                'total_amount' => (float) $washTotal,
+            ];
+
+            // Mantener trazabilidad de parking y sumar lavado al total del PDF
+            $data['parking'] = $data['parking'] ?? [
+                'cash_amount' => (float) ($data['cash_amount'] ?? 0),
+                'card_amount' => (float) ($data['card_amount'] ?? 0),
+                'total_amount' => (float) ($data['total_amount'] ?? 0),
+            ];
+
+            $data['cash_amount'] = (float) ($data['parking']['cash_amount'] ?? 0) + (float) $washCash;
+            $data['card_amount'] = (float) ($data['parking']['card_amount'] ?? 0) + (float) $washCard;
+            $data['total_amount'] = (float) ($data['cash_amount'] ?? 0) + (float) ($data['card_amount'] ?? 0);
+        } else {
+            $data['car_wash'] = [
+                'cash_amount' => 0.0,
+                'card_amount' => 0.0,
+                'total_amount' => 0.0,
+            ];
+            $data['parking'] = $data['parking'] ?? [
+                'cash_amount' => (float) ($data['cash_amount'] ?? 0),
+                'card_amount' => (float) ($data['card_amount'] ?? 0),
+                'total_amount' => (float) ($data['total_amount'] ?? 0),
+            ];
+        }
+
+        $pdf = Pdf::loadView('reports.operator', ['data' => $data]);
+        return $pdf->download('reporte-operador-' . $data['operator']['name'] . '-' . now()->format('Y-m-d') . '.pdf');
     }
 
     /**

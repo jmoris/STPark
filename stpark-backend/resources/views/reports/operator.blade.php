@@ -3,170 +3,44 @@
 <head>
     <meta charset="utf-8">
     <title>Reporte por Operador</title>
-    <style>
-        @page { margin: 15mm; }
-        body { 
-            font-family: 'DejaVu Sans', sans-serif; 
-            font-size: 10pt; 
-            color: #333; 
-            line-height: 1.4;
-        }
-        .header { 
-            background-color: white;
-            color: black; 
-            padding: 15pt; 
-            margin-bottom: 15pt;
-            border: none;
-            text-align: center;
-        }
-        .header-content {
-            display: block;
-        }
-        .logo-container {
-            margin-bottom: 8pt;
-        }
-        .logo-container img {
-            max-width: 85pt;
-            height: auto;
-        }
-        .header-text {
-            display: block;
-        }
-        .header h1 { 
-            font-size: 20pt; 
-            margin-bottom: 5pt; 
-            color: #333;
-        }
-        .header p { 
-            font-size: 8pt; 
-            color: #666;
-        }
-        .info-box { 
-            background: white; 
-            border: 1pt solid #e0e0e0;
-            border-radius: 5pt;
-            padding: 0;
-            margin-bottom: 15pt;
-            overflow: hidden;
-        }
-        .info-box h2 { 
-            font-size: 13pt; 
-            margin: 0;
-            padding: 12pt; 
-            color: white;
-            background-color: #043476;
-            font-weight: bold;
-        }
-        .info-box-content {
-            padding: 12pt;
-        }
-        .info-row { 
-            margin-bottom: 8pt;
-            display: table;
-            width: 100%;
-        }
-        .info-row.last {
-            padding-top: 8pt;
-            margin-top: 8pt;
-            margin-bottom: 0;
-            border-top: 1pt solid #e0e0e0;
-        }
-        .info-label {
-            display: inline-block;
-            width: 140pt;
-            font-weight: bold;
-            color: #666;
-        }
-        .info-value {
-            display: inline-block;
-            color: #333;
-        }
-        .summary-row {
-            width: 100%;
-            display: table;
-            margin-bottom: 20pt;
-        }
-        .summary-card { 
-            background: white; 
-            border: 1pt solid #e0e0e0; 
-            border-radius: 5pt; 
-            padding: 15pt; 
-            text-align: center;
-            display: table-cell;
-            width: 33.33%;
-            vertical-align: middle;
-        }
-        .summary-card .number { 
-            font-size: 18pt; 
-            font-weight: bold; 
-            color: #043476; 
-            margin-bottom: 5pt; 
-        }
-        .summary-card .label { 
-            font-size: 9pt; 
-            color: #666; 
-        }
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin-bottom: 15pt;
-        }
-        th { 
-            background: #043476; 
-            color: white; 
-            padding: 8pt 10pt; 
-            text-align: left; 
-            font-weight: bold; 
-            font-size: 9pt; 
-        }
-        td { 
-            padding: 7pt 10pt; 
-            border-bottom: 1pt solid #e0e0e0; 
-            font-size: 9pt; 
-        }
-        tr:nth-child(even) { 
-            background: #f8f9fa; 
-        }
-        .text-right { 
-            text-align: right; 
-        }
-        .badge {
-            padding: 4pt 8pt;
-            border-radius: 4pt;
-            font-size: 8pt;
-            font-weight: bold;
-            display: inline-block;
-        }
-        .badge-settled {
-            background: #d4edda;
-            color: #155724;
-        }
-        .footer { 
-            margin-top: 25pt; 
-            padding-top: 12pt; 
-            border-top: 2pt solid #043476; 
-            text-align: center; 
-            font-size: 8pt; 
-            color: #666; 
-        }
-        .section-title { 
-            font-size: 14pt; 
-            font-weight: bold; 
-            margin: 18pt 0 8pt 0; 
-            color: #043476; 
-        }
-    </style>
+    @include('reports._styles')
 </head>
 <body>
+    @php
+        $generatedAt = now()->format('d/m/Y H:i');
+        $tenantName = null;
+        try {
+            $t = tenant();
+            if (is_object($t)) {
+                $tenantName = $t->name ?? $t->id ?? null;
+            } else {
+                $tenantName = tenant('name') ?? tenant('id') ?? null;
+            }
+        } catch (\Throwable $e) {
+            $tenantName = null;
+        }
+
+        $totalAmount = (float)($data['total_amount'] ?? 0);
+        $cashAmount = (float)($data['cash_amount'] ?? 0);
+        $cardAmount = (float)($data['card_amount'] ?? 0);
+        $avgTicket = ($data['total_sales'] ?? 0) > 0 ? ($totalAmount / (float)$data['total_sales']) : 0;
+        $cashPct = $totalAmount > 0 ? round(($cashAmount / $totalAmount) * 100, 0) : 0;
+        $cardPct = $totalAmount > 0 ? round(($cardAmount / $totalAmount) * 100, 0) : 0;
+
+        $includeSessions = (bool)($data['meta']['include_sessions_detail'] ?? false);
+        $sessionsCount = count($data['sessions_detail'] ?? []);
+
+        $carWashEnabled = (bool)($data['meta']['car_wash_enabled'] ?? false);
+        $washTotal = (float)($data['car_wash']['total_amount'] ?? 0);
+    @endphp
+
     <div class="header">
-        <div class="header-content">
-            <div class="logo-container">
-                <img src="{{ public_path('images/logo/stpark-blue.png') }}" alt="STPark Logo">
-            </div>
-            <div class="header-text">
-                <h1>Reporte por Operador</h1>
-                <p>Sistema de Gestión de Estacionamiento STPark</p>
-            </div>
+        <div class="header-left">
+            <img src="{{ public_path('images/logo/stpark-blue.png') }}" alt="STPark Logo">
+        </div>
+        <div class="header-right">
+            <h1>Reporte por Operador</h1>
+            <p class="header-subtitle">STPark — Gestión de Estacionamiento</p>
         </div>
     </div>
 
@@ -178,6 +52,10 @@
                 <span class="info-value">{{ $data['operator']['name'] }}</span>
             </div>
             <div class="info-row">
+                <span class="info-label">Estacionamiento:</span>
+                <span class="info-value">{{ $tenantName ?? (tenant('id') ?? 'N/A') }}</span>
+            </div>
+            <div class="info-row">
                 <span class="info-label">Fecha Desde:</span>
                 <span class="info-value">{{ \Carbon\Carbon::parse($data['period']['from'])->format('d/m/Y H:i') }}</span>
             </div>
@@ -187,131 +65,172 @@
             </div>
             <div class="info-row last">
                 <span class="info-label">Generado:</span>
-                <span class="info-value">{{ now()->format('d/m/Y H:i') }}</span>
+                <span class="info-value">{{ $generatedAt }}</span>
             </div>
         </div>
     </div>
 
-    @if(count($data['sessions_detail'] ?? []) > 0)
-    <div class="section-title">Detalle de Ventas (Sesiones Completadas)</div>
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 20%;">Operador</th>
-                <th style="width: 18%;">Ingreso</th>
-                <th style="width: 18%;">Salida</th>
-                <th style="width: 12%;" class="text-right">Duración</th>
-                <th style="width: 12%;" class="text-right">Monto</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($data['sessions_detail'] as $session)
-            <tr>
-                <td>{{ $session['operator'] }}</td>
-                <td>{{ \Carbon\Carbon::parse($session['started_at'])->format('d/m/Y H:i') }}</td>
-                <td>{{ $session['ended_at'] ? \Carbon\Carbon::parse($session['ended_at'])->format('d/m/Y H:i') : 'N/A' }}</td>
-                <td class="text-right">{{ $session['duration'] }}</td>
-                <td class="text-right">${{ number_format($session['amount'], 0, ',', '.') }}</td>
-            </tr>
-            @endforeach
-        </tbody>
-    </table>
-    @endif
+    <div class="section avoid-break">
+        <div class="section-title">Resumen</div>
 
-    <div class="section-title">Resumen de Ventas</div>
-    
-    <div class="summary-row">
-        <div class="summary-card">
-            <div class="number">{{ $data['total_sales'] }}</div>
-            <div class="label">Total Ventas</div>
+        <div class="summary-row">
+            <div class="summary-card">
+                <div class="number">{{ $data['total_sales'] ?? 0 }}</div>
+                <div class="label">Sesiones completadas</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">${{ number_format($totalAmount, 0, ',', '.') }}</div>
+                <div class="label">Total recaudado</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">${{ number_format($avgTicket, 0, ',', '.') }}</div>
+                <div class="label">Ticket promedio</div>
+            </div>
         </div>
-        <div class="summary-card">
-            <div class="number">${{ number_format($data['cash_amount'] ?? 0, 0, ',', '.') }}</div>
-            <div class="label">En Efectivo</div>
-        </div>
-        <div class="summary-card">
-            <div class="number">${{ number_format($data['card_amount'] ?? 0, 0, ',', '.') }}</div>
-            <div class="label">Tarjeta</div>
-        </div>
-    </div>
 
-    <div class="summary-row" style="margin-top: 0;">
-        <div class="summary-card">
-            <div class="number">${{ number_format($data['total_amount'], 0, ',', '.') }}</div>
-            <div class="label">Monto Total</div>
+        <div class="summary-row">
+            <div class="summary-card">
+                <div class="number">${{ number_format($cashAmount, 0, ',', '.') }}</div>
+                <div class="label">Efectivo ({{ $cashPct }}%)</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">${{ number_format($cardAmount, 0, ',', '.') }}</div>
+                <div class="label">Tarjeta ({{ $cardPct }}%)</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">{{ $carWashEnabled ? 'Sí' : 'No' }}</div>
+                <div class="label">Lavado de autos habilitado</div>
+            </div>
         </div>
-        <div class="summary-card">
-            <div class="number">{{ $data['total_amount'] > 0 ? round(($data['cash_amount'] ?? 0) / $data['total_amount'] * 100, 0) : 0 }}%</div>
-            <div class="label">% Efectivo</div>
-        </div>
-        <div class="summary-card">
-            <div class="number">{{ $data['total_amount'] > 0 ? round(($data['card_amount'] ?? 0) / $data['total_amount'] * 100, 0) : 0 }}%</div>
-            <div class="label">% Tarjeta</div>
-        </div>
+
+        @if($carWashEnabled && $washTotal > 0)
+            <table class="table-text">
+                <thead>
+                    <tr>
+                        <th>Origen</th>
+                        <th class="text-right">Efectivo</th>
+                        <th class="text-right">Tarjeta</th>
+                        <th class="text-right">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Parking</td>
+                        <td class="text-right">${{ number_format($data['parking']['cash_amount'] ?? 0, 0, ',', '.') }}</td>
+                        <td class="text-right">${{ number_format($data['parking']['card_amount'] ?? 0, 0, ',', '.') }}</td>
+                        <td class="text-right">${{ number_format($data['parking']['total_amount'] ?? 0, 0, ',', '.') }}</td>
+                    </tr>
+                    <tr>
+                        <td>Lavado de autos</td>
+                        <td class="text-right">${{ number_format($data['car_wash']['cash_amount'] ?? 0, 0, ',', '.') }}</td>
+                        <td class="text-right">${{ number_format($data['car_wash']['card_amount'] ?? 0, 0, ',', '.') }}</td>
+                        <td class="text-right">${{ number_format($data['car_wash']['total_amount'] ?? 0, 0, ',', '.') }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Total</strong></td>
+                        <td class="text-right"><strong>${{ number_format($cashAmount, 0, ',', '.') }}</strong></td>
+                        <td class="text-right"><strong>${{ number_format($cardAmount, 0, ',', '.') }}</strong></td>
+                        <td class="text-right"><strong>${{ number_format($totalAmount, 0, ',', '.') }}</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+        @endif
     </div>
 
     @if(count($data['by_sector']) > 0)
-    <div class="section-title">Ventas por Sector</div>
-    <table>
-        <thead>
-            <tr>
-                <th>Sector</th>
-                <th class="text-right">Cantidad</th>
-                <th class="text-right">Total</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($data['by_sector'] as $sector => $info)
-            <tr>
-                <td>{{ $sector }}</td>
-                <td class="text-right">{{ $info['count'] }}</td>
-                <td class="text-right">${{ number_format($info['total'], 0, ',', '.') }}</td>
-            </tr>
-            @endforeach
-        </tbody>
-    </table>
+    <div class="section avoid-break">
+        <div class="section-title">Ventas por Sector</div>
+        <table class="table-text">
+            <thead>
+                <tr>
+                    <th>Sector</th>
+                    <th class="text-right">Cantidad</th>
+                    <th class="text-right">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($data['by_sector'] as $sector => $info)
+                <tr>
+                    <td>{{ $sector }}</td>
+                    <td class="text-right">{{ $info['count'] ?? 0 }}</td>
+                    <td class="text-right">${{ number_format($info['total'] ?? 0, 0, ',', '.') }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
     @endif
 
     @if(count($data['debts_detail'] ?? []) > 0)
-    <div class="section-title">Deudas Liquidadas</div>
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 15%;">ID</th>
-                <th style="width: 15%;">Placa</th>
-                <th style="width: 20%;">Sector</th>
-                <th style="width: 15%;">Monto</th>
-                <th style="width: 20%;">Fecha Liquidación</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($data['debts_detail'] as $debt)
-            <tr>
-                <td>#{{ $debt['id'] }}</td>
-                <td>{{ $debt['plate'] }}</td>
-                <td>{{ $debt['sector'] }}</td>
-                <td class="text-right">${{ number_format($debt['principal_amount'], 0, ',', '.') }}</td>
-                <td>{{ \Carbon\Carbon::parse($debt['settled_at'])->format('d/m/Y H:i') }}</td>
-            </tr>
-            @endforeach
-        </tbody>
-    </table>
-
-    <div class="section-title">Resumen de Deudas Liquidadas</div>
-    <div class="summary-row">
-        <div class="summary-card">
-            <div class="number">{{ $data['total_debts'] }}</div>
-            <div class="label">Deudas Liquidadas</div>
-        </div>
-        <div class="summary-card">
-            <div class="number">${{ number_format($data['debts_total_amount'], 0, ',', '.') }}</div>
-            <div class="label">Monto Total</div>
-        </div>
+    <div class="section avoid-break">
+        <div class="section-title">Deudas Liquidadas</div>
+        <table class="table-text">
+            <thead>
+                <tr>
+                    <th style="width: 12%;">ID</th>
+                    <th style="width: 14%;">Patente</th>
+                    <th style="width: 26%;">Sector</th>
+                    <th style="width: 16%;" class="text-right">Monto</th>
+                    <th style="width: 32%;">Fecha Liquidación</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($data['debts_detail'] as $debt)
+                <tr>
+                    <td>#{{ $debt['id'] }}</td>
+                    <td>{{ $debt['plate'] }}</td>
+                    <td>{{ $debt['sector'] }}</td>
+                    <td class="text-right">${{ number_format($debt['principal_amount'], 0, ',', '.') }}</td>
+                    <td>{{ \Carbon\Carbon::parse($debt['settled_at'])->format('d/m/Y H:i') }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
     </div>
     @endif
 
+    @if($includeSessions && $sessionsCount > 0)
+        <div class="page-break"></div>
+        <div class="section">
+            <div class="section-title">Anexo A — Detalle de Sesiones</div>
+            <div class="small muted block">
+                Mostrando {{ $sessionsCount }} sesiones
+            </div>
+            <table class="table-text">
+                <thead>
+                    <tr>
+                        <th style="width: 22%;">Ingreso</th>
+                        <th style="width: 22%;">Salida</th>
+                        <th style="width: 14%;" class="text-right">Duración</th>
+                        <th style="width: 14%;" class="text-right">Efectivo</th>
+                        <th style="width: 14%;" class="text-right">Tarjeta</th>
+                        <th style="width: 14%;" class="text-right">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($data['sessions_detail'] as $session)
+                    <tr>
+                        <td>{{ \Carbon\Carbon::parse($session['started_at'])->format('d/m/Y H:i') }}</td>
+                        <td>{{ $session['ended_at'] ? \Carbon\Carbon::parse($session['ended_at'])->format('d/m/Y H:i') : 'N/A' }}</td>
+                        <td class="text-right">{{ $session['duration'] }}</td>
+                        <td class="text-right">${{ number_format($session['cash'] ?? 0, 0, ',', '.') }}</td>
+                        <td class="text-right">${{ number_format($session['card'] ?? 0, 0, ',', '.') }}</td>
+                        <td class="text-right">${{ number_format($session['amount'] ?? 0, 0, ',', '.') }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    @endif
+
     <div class="footer">
-        <p>Este es un documento generado automáticamente. STPark © {{ date('Y') }}</p>
+        Documento generado automáticamente por STPark.
     </div>
+
+    <script type="text/php">
+        if (isset($pdf)) {
+            $pdf->page_text(15, 820, "STPark © " . date('Y') . "  |  Página {PAGE_NUM} de {PAGE_COUNT}", null, 8, array(120,120,120));
+        }
+    </script>
 </body>
 </html>

@@ -12,6 +12,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { Subject, takeUntil } from 'rxjs';
 import { ReportService } from '../../../core/services/report.service';
 import { SectorService } from '../../../core/services/sector.service';
@@ -44,7 +45,8 @@ interface ReportFilters {
     MatSelectModule,
     MatTableModule,
     MatNativeDateModule,
-    MatTooltipModule
+    MatTooltipModule,
+    MatCheckboxModule
   ],
   templateUrl: './reports.component.html',
   styleUrls: ['./reports.component.scss']
@@ -66,6 +68,16 @@ export class ReportsComponent implements OnInit, OnDestroy {
   // Tipo de reporte seleccionado
   selectedReportType: string = 'sales';
 
+  carWashEnabled = false;
+  reportsAdvancedEnabled = false;
+
+  salesReportMode: 'summary' | 'full' = 'summary';
+  includeSessions = false;
+  sessionsLimit = 200;
+  includeWashes = true;
+  includeWashDetails = false;
+  washLimit = 200;
+
   // Datos para filtros
   sectors: Sector[] = [];
   operators: Operator[] = [];
@@ -83,6 +95,11 @@ export class ReportsComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    const cfg = this.getSystemConfig();
+    this.carWashEnabled = cfg?.car_wash_enabled === true;
+    this.reportsAdvancedEnabled = cfg?.reports_advanced_enabled === true;
+    this.normalizeSalesOptions();
+
     this.loadDashboardData();
     this.loadFiltersData();
   }
@@ -173,6 +190,32 @@ export class ReportsComponent implements OnInit, OnDestroy {
     } else {
       return `${year}-${month}-${day} 00:00:00`;
     }
+  }
+
+  private getSystemConfig(): any {
+    const str = sessionStorage.getItem('system_config');
+    if (!str) return null;
+    try { return JSON.parse(str); } catch { return null; }
+  }
+
+  private normalizeSalesOptions(): void {
+    if (!this.reportsAdvancedEnabled) this.salesReportMode = 'summary';
+
+    if (this.salesReportMode === 'summary') {
+      this.includeSessions = false;
+      this.includeWashDetails = false;
+    }
+
+    if (!this.carWashEnabled) {
+      this.includeWashes = false;
+      this.includeWashDetails = false;
+    }
+
+    if (!this.includeWashes) this.includeWashDetails = false;
+
+    const clamp = (v: any, d: number) => Math.min(5000, Math.max(50, Number(v ?? d)));
+    this.sessionsLimit = clamp(this.sessionsLimit, 200);
+    this.washLimit = clamp(this.washLimit, 200);
   }
 
   generateReportFromFilters(): void {
@@ -307,6 +350,19 @@ export class ReportsComponent implements OnInit, OnDestroy {
       filters.operator_id = this.filters.operator_id;
     }
 
+    if (this.currentReportType === 'sales') {
+      this.normalizeSalesOptions();
+      filters.mode = this.salesReportMode;
+      filters.include_sessions = this.includeSessions ? 1 : 0;
+      filters.sessions_limit = this.sessionsLimit;
+
+      if (this.carWashEnabled) {
+        filters.include_washes = this.includeWashes ? 1 : 0;
+        filters.include_wash_details = this.includeWashDetails ? 1 : 0;
+        filters.wash_limit = this.washLimit;
+      }
+    }
+
     // Enviar la petición al backend para generar el PDF
     this.reportService.exportToPdf(this.currentReportType, filters);
   }
@@ -366,7 +422,8 @@ export class ReportsComponent implements OnInit, OnDestroy {
 
   getOperatorCount(): number {
     if (this.currentReport && this.currentReportType === 'operator') {
-      return this.currentReport.sessions?.total || 0;
+      // El reporte por operador usa `total_sales` como total de registros (sesiones completadas)
+      return this.currentReport.total_sales || 0;
     }
     return 0;
   }
