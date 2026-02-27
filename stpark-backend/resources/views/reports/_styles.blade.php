@@ -141,6 +141,23 @@
     }
 
     /* -----------------------------
+     * Charts (dompdf-safe)
+     * ----------------------------- */
+    .chart {
+        border: 1pt solid #e0e0e0;
+        border-radius: 6pt;
+        padding: 10pt;
+        margin-bottom: 12pt;
+    }
+    .chart-row { display: table; width: 100%; margin: 2pt 0; page-break-inside: avoid; }
+    .chart-label { display: table-cell; width: 34pt; font-size: 8pt; color:#666; vertical-align: middle; }
+    .chart-bar-cell { display: table-cell; width: auto; vertical-align: middle; padding: 0 6pt; }
+    .chart-bar-bg { background:#f3f4f6; height: 10pt; border-radius: 6pt; }
+    .chart-bar { background:#043476; height: 10pt; border-radius: 6pt; }
+    .chart-bar.peak { background:#10B981; }
+    .chart-value { display: table-cell; width: 78pt; font-size: 8pt; text-align: right; vertical-align: middle; color:#111; }
+
+    /* -----------------------------
      * Badges (status)
      * ----------------------------- */
     .badge {

@@ -126,7 +126,7 @@
                 <tbody>
                     <tr>
                         <td><strong>Hora pico:</strong></td>
-                        <td>{{ !empty($data['peak_hour']) ? ($data['peak_hour'] . ':00') : 'N/A' }}</td>
+                        <td>{{ isset($data['peak_hour_money']) ? (str_pad((string)$data['peak_hour_money'], 2, '0', STR_PAD_LEFT) . ':00') : 'N/A' }}</td>
                     </tr>
                     <tr>
                         <td><strong>Ticket promedio:</strong></td>
@@ -135,6 +135,51 @@
                 </tbody>
             </table>
         </div>
+
+        @if(!empty($data['hourly_money']))
+            <div class="section">
+                <div class="section-title">Ventas por Hora</div>
+
+                <div class="chart">
+                    <div style="font-size:9pt;color:#666;margin-bottom:6pt;">
+                        Hora pico por monto: {{ str_pad((string)($data['peak_hour_money'] ?? 0), 2, '0', STR_PAD_LEFT) }}:00
+                    </div>
+
+                    @php $max = max(1, (float)($data['hourly_max_total'] ?? 1)); @endphp
+
+                    @foreach($data['hourly_money'] as $hour => $info)
+                        @php
+                            $total = (float)($info['total'] ?? 0);
+                            $pct = min(100, round(($total / $max) * 100));
+                            $isPeak = ((int)$hour === (int)($data['peak_hour_money'] ?? -1));
+                        @endphp
+                        <div class="chart-row">
+                            <div class="chart-label">{{ str_pad((string)$hour, 2, '0', STR_PAD_LEFT) }}</div>
+                            <div class="chart-bar-cell">
+                                <div class="chart-bar-bg">
+                                    <div class="chart-bar {{ $isPeak ? 'peak' : '' }}" style="width: {{ $pct }}%;"></div>
+                                </div>
+                            </div>
+                            <div class="chart-value">${{ number_format($total, 0, ',', '.') }}</div>
+                        </div>
+                    @endforeach
+
+                    @php
+                        $top3 = collect($data['hourly_money'])
+                            ->map(function($v, $k){ return ['hour' => (int)$k, 'total' => (float)($v['total'] ?? 0)]; })
+                            ->sortByDesc('total')
+                            ->take(3)
+                            ->values();
+                    @endphp
+                    <div style="margin-top:8pt;" class="small muted">
+                        Top 3 horas por monto:
+                        @foreach($top3 as $idx => $row)
+                            {{ str_pad((string)$row['hour'], 2, '0', STR_PAD_LEFT) }}:00 (${{ number_format($row['total'], 0, ',', '.') }})@if($idx < 2),@endif
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+        @endif
 
         <div class="section avoid-break">
             <div class="section-title">Distribución de Pagos</div>
@@ -157,30 +202,6 @@
                 </tbody>
             </table>
         </div>
-
-        @if(isset($data['hourly']) && count($data['hourly']) > 0)
-            <div class="section">
-                <div class="section-title">Ventas por Hora</div>
-                <table class="table-text">
-                    <thead>
-                        <tr>
-                            <th>Hora</th>
-                            <th class="text-right">Ventas</th>
-                            <th class="text-right">Monto</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($data['hourly'] as $hour => $info)
-                        <tr>
-                            <td>{{ $hour }}:00</td>
-                            <td class="text-right">{{ $info['count'] ?? 0 }}</td>
-                            <td class="text-right">${{ number_format($info['total'] ?? 0, 0, ',', '.') }}</td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        @endif
     @endif
 
     @if(count($data['by_sector']) > 0)

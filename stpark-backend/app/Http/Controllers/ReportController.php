@@ -1396,18 +1396,38 @@ class ReportController extends Controller
         ];
 
         if ($mode === 'full') {
-            $hourly = $sessions->groupBy(function ($s) {
-                return \Carbon\Carbon::parse($s->started_at)->format('H');
-            })->map(function ($group) {
-                return [
-                    'count' => $group->count(),
-                    'total' => $group->sum(function ($s) {
-                        return (float) $s->payments->sum('amount');
-                    }),
-                ];
-            })->sortKeys();
+            // Base 24 horas (0..23) para gráfico/analítica
+            $hourlyMoney = collect(range(0, 23))->mapWithKeys(function ($h) {
+                return [(int) $h => ['count' => 0, 'total' => 0]];
+            })->toArray();
 
-            $peakHour = $hourly->sortByDesc('count')->keys()->first();
+            $grouped = $sessions->groupBy(function ($s) {
+                return (int) \Carbon\Carbon::parse($s->started_at)->format('G'); // 0..23
+            });
+
+            foreach ($grouped as $hour => $group) {
+                $count = $group->count();
+                $total = 0.0;
+                foreach ($group as $session) {
+                    foreach ($session->payments as $payment) {
+                        if ($payment->status === Payment::STATUS_COMPLETED) {
+                            $total += (float) $payment->amount;
+                        }
+                    }
+                }
+                $hourlyMoney[(int) $hour] = ['count' => $count, 'total' => $total];
+            }
+
+            // Hora pico por MONTO (CLP), no por cantidad
+            $maxTotal = 0.0;
+            $peakHourMoney = 0;
+            foreach ($hourlyMoney as $hour => $info) {
+                $t = (float) ($info['total'] ?? 0);
+                if ($t > $maxTotal) {
+                    $maxTotal = $t;
+                    $peakHourMoney = (int) $hour;
+                }
+            }
 
             $paymentMethods = [
                 'cash' => (float) $cashAmount,
@@ -1416,8 +1436,11 @@ class ReportController extends Controller
 
             $averageTicket = $sessions->count() > 0 ? ((float) $totalAmount / (float) $sessions->count()) : 0;
 
-            $summary['hourly'] = $hourly;
-            $summary['peak_hour'] = $peakHour;
+            $summary['hourly_money'] = $hourlyMoney;
+            $summary['hourly_max_total'] = max(1, $maxTotal);
+            $summary['peak_hour_money'] = $peakHourMoney;
+
+            // Mantener compatibilidad si algo consume peak_hour/hourly antiguos
             $summary['payment_methods'] = $paymentMethods;
             $summary['average_ticket'] = $averageTicket;
         }
