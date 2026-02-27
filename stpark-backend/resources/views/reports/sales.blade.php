@@ -4,6 +4,10 @@
     <meta charset="utf-8">
     <title>Reporte de Ventas</title>
     @include('reports._styles')
+    <style>
+        .page-break { page-break-before: always; }
+        .chart-container { page-break-inside: avoid; }
+    </style>
 </head>
 <body>
     @php
@@ -137,45 +141,51 @@
         </div>
 
         @if(!empty($data['hourly_money']))
+            <div class="page-break"></div>
             <div class="section">
+            
                 <div class="section-title">Ventas por Hora</div>
-
-                <div class="chart">
-                    <div style="font-size:9pt;color:#666;margin-bottom:6pt;">
-                        Hora pico por monto: {{ str_pad((string)($data['peak_hour_money'] ?? 0), 2, '0', STR_PAD_LEFT) }}:00
-                    </div>
-
-                    @php $max = max(1, (float)($data['hourly_max_total'] ?? 1)); @endphp
-
-                    @foreach($data['hourly_money'] as $hour => $info)
-                        @php
-                            $total = (float)($info['total'] ?? 0);
-                            $pct = min(100, round(($total / $max) * 100));
-                            $isPeak = ((int)$hour === (int)($data['peak_hour_money'] ?? -1));
-                        @endphp
-                        <div class="chart-row">
-                            <div class="chart-label">{{ str_pad((string)$hour, 2, '0', STR_PAD_LEFT) }}</div>
-                            <div class="chart-bar-cell">
-                                <div class="chart-bar-bg">
-                                    <div class="chart-bar {{ $isPeak ? 'peak' : '' }}" style="width: {{ $pct }}%;"></div>
-                                </div>
-                            </div>
-                            <div class="chart-value">${{ number_format($total, 0, ',', '.') }}</div>
+                <p class="section-description">
+                    Distribución de ingresos por hora durante el período seleccionado
+                </p>
+                <div class="chart-container">
+                    <div class="chart">
+                        <div style="font-size:9pt;color:#666;margin-bottom:6pt;">
+                            Hora pico por monto: {{ str_pad((string)($data['peak_hour_money'] ?? 0), 2, '0', STR_PAD_LEFT) }}:00
                         </div>
-                    @endforeach
 
-                    @php
-                        $top3 = collect($data['hourly_money'])
-                            ->map(function($v, $k){ return ['hour' => (int)$k, 'total' => (float)($v['total'] ?? 0)]; })
-                            ->sortByDesc('total')
-                            ->take(3)
-                            ->values();
-                    @endphp
-                    <div style="margin-top:8pt;" class="small muted">
-                        Top 3 horas por monto:
-                        @foreach($top3 as $idx => $row)
-                            {{ str_pad((string)$row['hour'], 2, '0', STR_PAD_LEFT) }}:00 (${{ number_format($row['total'], 0, ',', '.') }})@if($idx < 2),@endif
+                        @php $max = max(1, (float)($data['hourly_max_total'] ?? 1)); @endphp
+
+                        @foreach($data['hourly_money'] as $hour => $info)
+                            @php
+                                $total = (float)($info['total'] ?? 0);
+                                $pct = min(100, round(($total / $max) * 100));
+                                $isPeak = ((int)$hour === (int)($data['peak_hour_money'] ?? -1));
+                            @endphp
+                            <div class="chart-row">
+                                <div class="chart-label">{{ str_pad((string)$hour, 2, '0', STR_PAD_LEFT) }}</div>
+                                <div class="chart-bar-cell">
+                                    <div class="chart-bar-bg">
+                                        <div class="chart-bar {{ $isPeak ? 'peak' : '' }}" style="width: {{ $pct }}%;"></div>
+                                    </div>
+                                </div>
+                                <div class="chart-value">${{ number_format($total, 0, ',', '.') }}</div>
+                            </div>
                         @endforeach
+
+                        @php
+                            $top3 = collect($data['hourly_money'])
+                                ->map(function($v, $k){ return ['hour' => (int)$k, 'total' => (float)($v['total'] ?? 0)]; })
+                                ->sortByDesc('total')
+                                ->take(3)
+                                ->values();
+                        @endphp
+                        <div style="margin-top:8pt;" class="small muted">
+                            Top 3 horas por monto:
+                            @foreach($top3 as $idx => $row)
+                                {{ str_pad((string)$row['hour'], 2, '0', STR_PAD_LEFT) }}:00 (${{ number_format($row['total'], 0, ',', '.') }})@if($idx < 2),@endif
+                            @endforeach
+                        </div>
                     </div>
                 </div>
             </div>
