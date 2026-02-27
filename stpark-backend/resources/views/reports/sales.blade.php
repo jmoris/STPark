@@ -22,6 +22,7 @@
             $tenantName = null;
         }
         $carWashEnabled = (bool)($data['meta']['car_wash_enabled'] ?? true);
+        $includeWashes = (bool)($data['meta']['include_washes'] ?? true);
         $washTotal = (float)($data['car_wash']['total_amount'] ?? 0);
     @endphp
 
@@ -30,8 +31,11 @@
             <img src="{{ public_path('images/logo/stpark-blue.png') }}" alt="STPark Logo">
         </div>
         <div class="header-right">
-            <h1>Reporte de Ventas</h1>
+            <h1 style="font-size:16pt;">Reporte de Ventas</h1>
             <p class="header-subtitle">STPark — Gestión de Estacionamiento</p>
+            <p style="font-size:9pt; color:#666; margin: 2pt 0 0 0;">
+                Modo: {{ ($data['mode'] ?? 'summary') === 'full' ? 'Completo (Avanzado)' : 'Resumen' }}
+            </p>
         </div>
     </div>
 
@@ -97,7 +101,7 @@
                     <td class="text-right">${{ number_format($data['parking']['card_amount'] ?? 0, 0, ',', '.') }}</td>
                     <td class="text-right">${{ number_format($data['parking']['total_amount'] ?? 0, 0, ',', '.') }}</td>
                 </tr>
-                @if($carWashEnabled && $washTotal > 0)
+                @if($carWashEnabled && $includeWashes && $washTotal > 0)
                     <tr>
                         <td>Lavado de autos</td>
                         <td class="text-right">${{ number_format($data['car_wash']['cash_amount'] ?? 0, 0, ',', '.') }}</td>
@@ -114,6 +118,70 @@
             </tbody>
         </table>
     </div>
+
+    @if(($data['mode'] ?? 'summary') === 'full')
+        <div class="section avoid-break">
+            <div class="section-title">Análisis Operacional</div>
+            <table class="table-text">
+                <tbody>
+                    <tr>
+                        <td><strong>Hora pico:</strong></td>
+                        <td>{{ !empty($data['peak_hour']) ? ($data['peak_hour'] . ':00') : 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Ticket promedio:</strong></td>
+                        <td>${{ number_format($data['average_ticket'] ?? 0, 0, ',', '.') }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section avoid-break">
+            <div class="section-title">Distribución de Pagos</div>
+            <table class="table-text">
+                <thead>
+                    <tr>
+                        <th>Método</th>
+                        <th class="text-right">Monto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Efectivo</td>
+                        <td class="text-right">${{ number_format($data['payment_methods']['cash'] ?? 0, 0, ',', '.') }}</td>
+                    </tr>
+                    <tr>
+                        <td>Tarjeta</td>
+                        <td class="text-right">${{ number_format($data['payment_methods']['card'] ?? 0, 0, ',', '.') }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        @if(isset($data['hourly']) && count($data['hourly']) > 0)
+            <div class="section">
+                <div class="section-title">Ventas por Hora</div>
+                <table class="table-text">
+                    <thead>
+                        <tr>
+                            <th>Hora</th>
+                            <th class="text-right">Ventas</th>
+                            <th class="text-right">Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($data['hourly'] as $hour => $info)
+                        <tr>
+                            <td>{{ $hour }}:00</td>
+                            <td class="text-right">{{ $info['count'] ?? 0 }}</td>
+                            <td class="text-right">${{ number_format($info['total'] ?? 0, 0, ',', '.') }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
+    @endif
 
     @if(count($data['by_sector']) > 0)
     <div class="section avoid-break">
@@ -163,7 +231,7 @@
     </div>
     @endif
 
-    @if(($data['meta']['include_sessions'] ?? false) && $sessionsCount > 0)
+    @if(!empty($data['sessions_detail']))
         <div class="page-break"></div>
         <div class="section">
         <div class="section-title">Anexo A — Detalle de Sesiones</div>

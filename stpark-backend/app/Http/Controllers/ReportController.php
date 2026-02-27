@@ -1147,8 +1147,17 @@ class ReportController extends Controller
         // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
         [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
 
+        $mode = $request->get('mode', 'summary');
+        if (!in_array($mode, ['summary', 'full'], true)) {
+            $mode = 'summary';
+        }
+
         $supportedMethods = [Payment::METHOD_CASH, Payment::METHOD_CARD];
         $carWashEnabled = $this->isCarWashEnabled();
+        $includeWashes = $request->boolean('include_washes', true);
+        if (!$carWashEnabled) {
+            $includeWashes = false;
+        }
 
         $parkingPaymentsBase = Payment::completed()
             ->whereIn('method', $supportedMethods)
@@ -1226,7 +1235,7 @@ class ReportController extends Controller
 
         $washCashTotal = 0;
         $washCardTotal = 0;
-        if ($carWashEnabled) {
+        if ($includeWashes) {
             // Lavado de autos: payment_type 'cash'|'card'
             $carWashesBase = CarWash::query()
                 ->where('status', 'PAID')
@@ -1322,11 +1331,13 @@ class ReportController extends Controller
                 'sessions_limit_used' => $sessionsLimit,
                 'generated_by' => $generatedByName,
                 'car_wash_enabled' => $carWashEnabled,
+                'include_washes' => $includeWashes,
             ],
             'period' => [
                 'from' => $request->date_from,
                 'to' => $request->date_to,
             ],
+            'mode' => $mode,
             'total_sales' => $sessions->count(),
             'total_amount' => $totalAmount,
             'cash_amount' => $cashAmount,
@@ -1383,6 +1394,33 @@ class ReportController extends Controller
                 ];
             }),
         ];
+
+        if ($mode === 'full') {
+            $hourly = $sessions->groupBy(function ($s) {
+                return \Carbon\Carbon::parse($s->started_at)->format('H');
+            })->map(function ($group) {
+                return [
+                    'count' => $group->count(),
+                    'total' => $group->sum(function ($s) {
+                        return (float) $s->payments->sum('amount');
+                    }),
+                ];
+            })->sortKeys();
+
+            $peakHour = $hourly->sortByDesc('count')->keys()->first();
+
+            $paymentMethods = [
+                'cash' => (float) $cashAmount,
+                'card' => (float) $cardAmount,
+            ];
+
+            $averageTicket = $sessions->count() > 0 ? ((float) $totalAmount / (float) $sessions->count()) : 0;
+
+            $summary['hourly'] = $hourly;
+            $summary['peak_hour'] = $peakHour;
+            $summary['payment_methods'] = $paymentMethods;
+            $summary['average_ticket'] = $averageTicket;
+        }
 
         $pdf = Pdf::loadView('reports.sales', ['data' => $summary]);
         return $pdf->download('reporte-ventas-' . now()->format('Y-m-d') . '.pdf');
