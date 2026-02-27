@@ -164,6 +164,7 @@ export class AuthService {
       localStorage.removeItem('central_admin_mode');
       // Limpiar configuración anterior de sessionStorage antes de cargar la nueva
       sessionStorage.removeItem('system_config');
+      sessionStorage.removeItem('plan_features');
       console.log('Cambiando a tenant:', tenant.id);
       // Cargar configuración cuando se cambia de tenant
       this.configService.loadConfig().subscribe({
@@ -178,6 +179,7 @@ export class AuthService {
       localStorage.removeItem('current_tenant');
       // Limpiar configuración al salir del modo tenant
       sessionStorage.removeItem('system_config');
+      sessionStorage.removeItem('plan_features');
     }
   }
 

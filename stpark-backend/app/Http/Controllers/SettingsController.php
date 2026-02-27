@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Settings;
+use App\Models\PlanFeature;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class SettingsController extends Controller
 {
@@ -79,33 +81,69 @@ class SettingsController extends Controller
             'car_wash_payment_deferred' => false // Permitir pago posterior del lavado de autos (solo visible si car_wash_enabled está activo)
         ];
         
-        // Obtener información del plan del tenant desde la conexión central
+        // Obtener información del plan del tenant desde la conexión central (landlord)
         $planName = 'Sin plan';
+        $planId = null;
+        $tenantCentral = null;
+        $planFeaturesPayload = [
+            'report_type' => 'BASIC',
+            'includes_debt_management' => false,
+            'support_type' => null,
+        ];
         try {
             $tenantId = tenant('id');
             if ($tenantId) {
                 // Obtener el tenant desde la conexión central donde está la tabla de planes
                 $centralConnection = config('tenancy.database.central_connection', 'central');
-                $tenant = DB::connection($centralConnection)->table('tenants')
-                    ->join('plans', 'tenants.plan_id', '=', 'plans.id')
+                $tenantCentral = DB::connection($centralConnection)->table('tenants')
+                    ->leftJoin('plans', 'tenants.plan_id', '=', 'plans.id')
                     ->where('tenants.id', $tenantId)
-                    ->select('plans.name as plan_name')
+                    ->select(
+                        'tenants.id',
+                        'tenants.name',
+                        'tenants.plan_id',
+                        'plans.name as plan_name'
+                    )
                     ->first();
                 
-                if ($tenant && isset($tenant->plan_name)) {
-                    $planName = $tenant->plan_name;
+                if ($tenantCentral && isset($tenantCentral->plan_name)) {
+                    $planName = $tenantCentral->plan_name;
                 }
+
+                if ($tenantCentral && isset($tenantCentral->plan_id)) {
+                    $planId = $tenantCentral->plan_id;
+                    $features = PlanFeature::on($centralConnection)
+                        ->where('plan_id', $planId)
+                        ->first();
+
+                    if ($features) {
+                        $planFeaturesPayload = [
+                            'report_type' => $features->report_type ?: 'BASIC',
+                            'includes_debt_management' => (bool) ($features->includes_debt_management ?? false),
+                            'support_type' => $features->support_type ?? null,
+                        ];
+                    }
+                }
+
+                logger()->info('Tenant plan features', [
+                    'tenant' => $tenantCentral->id ?? null,
+                    'tenant_name' => $tenantCentral->name ?? null,
+                    'plan_id' => $planId,
+                    'plan_name' => $planName,
+                    'report_type' => $planFeaturesPayload['report_type'] ?? 'BASIC',
+                ]);
             }
         } catch (\Exception $e) {
-            \Log::warning('Settings: Error al obtener información del plan del tenant', ['error' => $e->getMessage()]);
+            Log::warning('Settings: Error al obtener información del plan del tenant', ['error' => $e->getMessage()]);
         }
         
         if (!$setting) {
-            \Log::info('Settings: No se encontró configuración general, usando valores por defecto');
+            Log::info('Settings: No se encontró configuración general, usando valores por defecto');
             return response()->json([
                 'success' => true,
                 'data' => array_merge($defaultConfig, [
-                    'plan_name' => $planName
+                    'plan_name' => $planName,
+                    'plan_features' => $planFeaturesPayload,
                 ])
             ]);
         }
@@ -113,7 +151,7 @@ class SettingsController extends Controller
         // Obtener el valor (ya viene como array por el cast del modelo)
         $config = $setting->value;
         
-        \Log::info('Settings: Valor después del cast', [
+        Log::info('Settings: Valor después del cast', [
             'value' => $config,
             'type' => gettype($config),
             'is_array' => is_array($config)
@@ -121,14 +159,15 @@ class SettingsController extends Controller
         
         // Validar que el valor sea un array y tenga los campos requeridos
         if (!is_array($config)) {
-            \Log::warning('Settings: La configuración general no es un array válido', [
+            Log::warning('Settings: La configuración general no es un array válido', [
                 'value' => $config,
                 'type' => gettype($config)
             ]);
             return response()->json([
                 'success' => true,
                 'data' => array_merge($defaultConfig, [
-                    'plan_name' => $planName
+                    'plan_name' => $planName,
+                    'plan_features' => $planFeaturesPayload,
                 ])
             ]);
         }
@@ -142,10 +181,11 @@ class SettingsController extends Controller
             'max_capacity' => isset($config['max_capacity']) ? (int) $config['max_capacity'] : $defaultConfig['max_capacity'],
             'car_wash_enabled' => isset($config['car_wash_enabled']) ? (bool) $config['car_wash_enabled'] : $defaultConfig['car_wash_enabled'],
             'car_wash_payment_deferred' => isset($config['car_wash_payment_deferred']) ? (bool) $config['car_wash_payment_deferred'] : $defaultConfig['car_wash_payment_deferred'],
-            'plan_name' => $planName
+            'plan_name' => $planName,
+            'plan_features' => $planFeaturesPayload,
         ];
         
-        \Log::info('Settings: Configuración general obtenida', [
+        Log::info('Settings: Configuración general obtenida', [
             'name_from_db' => $config['name'] ?? 'NO EXISTE',
             'name_final' => $finalConfig['name'],
             'language' => $finalConfig['language'],
@@ -177,7 +217,7 @@ class SettingsController extends Controller
         $currentConfig = $currentSetting ? $currentSetting->value : [];
         
         // Log del valor ANTES de preservar
-        \Log::info('Settings: Valores ANTES de preservar', [
+        Log::info('Settings: Valores ANTES de preservar', [
             'car_wash_enabled_en_currentConfig' => isset($currentConfig['car_wash_enabled']) ? ($currentConfig['car_wash_enabled'] ? 'true' : 'false') : 'NO_EXISTE',
             'car_wash_payment_deferred_en_request' => $request->has('car_wash_payment_deferred') ? ($request->input('car_wash_payment_deferred') ? 'true' : 'false') : 'NO_ENVIADO',
         ]);
@@ -207,7 +247,7 @@ class SettingsController extends Controller
             $validated['max_capacity'] = (int) $validated['max_capacity'];
         }
 
-        \Log::info('Settings: Guardando configuración general', [
+        Log::info('Settings: Guardando configuración general', [
             'name' => $validated['name'],
             'language' => $validated['language'],
             'pos_tuu' => ($validated['pos_tuu'] ? 'true' : 'false') . ' (preservado, no modificable por usuarios)',
@@ -226,7 +266,7 @@ class SettingsController extends Controller
         // Refrescar el modelo para obtener el valor con el cast aplicado
         $setting->refresh();
 
-        \Log::info('Settings: Configuración general guardada exitosamente', [
+        Log::info('Settings: Configuración general guardada exitosamente', [
             'setting_id' => $setting->id,
             'value' => $setting->value
         ]);

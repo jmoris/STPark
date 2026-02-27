@@ -17,6 +17,7 @@ import { Subject, takeUntil } from 'rxjs';
 import { ReportService } from '../../../core/services/report.service';
 import { SectorService } from '../../../core/services/sector.service';
 import { OperatorService } from '../../../core/services/operator.service';
+import { ConfigService } from '../../../core/services/config.service';
 import { Sector } from '../../../interfaces/parking.interface';
 import { Operator } from '../../../interfaces/parking.interface';
 
@@ -91,13 +92,14 @@ export class ReportsComponent implements OnInit, OnDestroy {
     private reportService: ReportService,
     private sectorService: SectorService,
     private operatorService: OperatorService,
+    private configService: ConfigService,
     private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
     const cfg = this.getSystemConfig();
     this.carWashEnabled = cfg?.car_wash_enabled === true;
-    this.reportsAdvancedEnabled = cfg?.reports_advanced_enabled === true;
+    this.reportsAdvancedEnabled = this.configService.isAdvancedReportsEnabled();
     this.normalizeSalesOptions();
 
     this.loadDashboardData();

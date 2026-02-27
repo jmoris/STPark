@@ -15,6 +15,7 @@ export interface SystemConfig {
   max_capacity?: number; // Capacidad máxima de vehículos en el estacionamiento
   car_wash_enabled?: boolean; // Configuración de módulo de lavado de autos (solo lectura para usuarios, solo administradores pueden cambiar)
   car_wash_payment_deferred?: boolean; // Permitir pago posterior del lavado de autos (solo visible si car_wash_enabled está activo)
+  plan_name?: string; // Display only (no inferencia de features)
 }
 
 @Injectable({ providedIn: 'root' })
@@ -50,26 +51,41 @@ export class ConfigService {
       car_wash_payment_deferred: false
     };
 
-    return this._httpClient.get<{ success: boolean; data: SystemConfig }>(`${environment.apiUrl}/settings/general`)
+    return this._httpClient.get<{ success: boolean; data: any }>(`${environment.apiUrl}/settings/general`)
       .pipe(
         map(response => {
           // El backend devuelve { success: true, data: {...} }
           let config: SystemConfig;
+          const defaultPlanFeatures = { report_type: 'BASIC', includes_debt_management: false, support_type: null };
           
           if (response && response.success && response.data) {
+            const rawData: any = response.data;
+            const planFeatures = rawData?.plan_features ?? null;
+            // Mantener `system_config` sin plan_features por compatibilidad
+            const { plan_features, ...rest } = rawData ?? {};
+
             // Validar que todos los campos estén presentes
-            config = {
-              ...defaultConfig,
-              ...response.data
-            };
+            config = { ...defaultConfig, ...rest };
             
             // Validar que el nombre no esté vacío
             if (!config.name || config.name.trim() === '') {
               config.name = defaultConfig.name;
             }
+
+            try {
+              const stored = planFeatures ?? defaultPlanFeatures;
+              sessionStorage.setItem('plan_features', JSON.stringify(stored));
+            } catch (e) {
+              console.warn('ConfigService: No se pudo guardar plan_features en sessionStorage:', e);
+            }
           } else {
             // Si la respuesta no tiene el formato esperado, usar valores por defecto
             config = defaultConfig;
+            try {
+              sessionStorage.setItem('plan_features', JSON.stringify(defaultPlanFeatures));
+            } catch (e) {
+              // Ignorar
+            }
           }
           
           // Actualizar BehaviorSubject
@@ -98,6 +114,7 @@ export class ConfigService {
           // Guardar también el default en sessionStorage
           try {
             sessionStorage.setItem('system_config', JSON.stringify(defaultConfig));
+            sessionStorage.setItem('plan_features', JSON.stringify({ report_type: 'BASIC', includes_debt_management: false, support_type: null }));
           } catch (e) {
             // Ignorar
           }
@@ -169,5 +186,20 @@ export class ConfigService {
    */
   getLanguage(): string {
     return this._systemConfig.value.language;
+  }
+
+  getReportType(): 'BASIC' | 'ADVANCED' {
+    const str = sessionStorage.getItem('plan_features');
+    if (!str) return 'BASIC';
+    try {
+      const obj = JSON.parse(str);
+      return obj?.report_type === 'ADVANCED' ? 'ADVANCED' : 'BASIC';
+    } catch {
+      return 'BASIC';
+    }
+  }
+
+  isAdvancedReportsEnabled(): boolean {
+    return this.getReportType() === 'ADVANCED';
   }
 }
