@@ -406,6 +406,25 @@ export interface DashboardData {
     cash_total: number;
     card_total: number;
   };
+
+  kpi_compare?: {
+    current: {
+      total_amount_parking: number;
+      total_sessions_parking: number;
+      pending_debts_total_amount: number;
+      active_sessions_count: number;
+      car_wash_total_amount: number;
+      car_wash_count: number;
+    };
+    previous: {
+      total_amount_parking: number;
+      total_sessions_parking: number;
+      pending_debts_total_amount: number;
+      active_sessions_count: number;
+      car_wash_total_amount: number;
+      car_wash_count: number;
+    };
+  };
 }
 
 export interface DebtRequest {

@@ -108,14 +108,14 @@
               <mat-icon class="text-green-600">attach_money</mat-icon>
             </div>
             <div class="ml-4 flex-1">
-              <p class="text-sm font-medium text-gray-600">Ingresos parking (hoy)</p>
+              <p class="text-sm font-medium text-gray-600">Ingresos parking {{ currentDayLabel }}</p>
               <p class="text-2xl font-bold text-gray-900">{{ formatAmount(stats.totalRevenue) }}</p>
               <div class="mt-2">
                 <span class="delta-badge"
-                      [ngClass]="getDeltaBadgeClass(kpiDeltaPct.revenue)"
-                      matTooltip="Variación estimada vs ayer (mock estable por fecha)">
-                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDeltaPct.revenue) }}</mat-icon>
-                  {{ formatDeltaPct(kpiDeltaPct.revenue) }} vs ayer
+                      [ngClass]="getDeltaBadgeClass(kpiDelta.revenue)"
+                      [matTooltip]="deltaTooltip">
+                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDelta.revenue) }}</mat-icon>
+                  {{ formatDelta(kpiDelta.revenue) }} {{ comparisonText }}
                 </span>
               </div>
             </div>
@@ -129,14 +129,14 @@
               <mat-icon class="text-blue-600">directions_car</mat-icon>
             </div>
             <div class="ml-4 flex-1">
-              <p class="text-sm font-medium text-gray-600">Tickets cobrados (hoy)</p>
+              <p class="text-sm font-medium text-gray-600">Tickets cobrados {{ currentDayLabel }}</p>
               <p class="text-2xl font-bold text-gray-900">{{ formatCount(stats.totalSessions) }}</p>
               <div class="mt-2">
                 <span class="delta-badge"
-                      [ngClass]="getDeltaBadgeClass(kpiDeltaPct.sessions)"
-                      matTooltip="Variación estimada vs ayer (mock estable por fecha)">
-                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDeltaPct.sessions) }}</mat-icon>
-                  {{ formatDeltaPct(kpiDeltaPct.sessions) }} vs ayer
+                      [ngClass]="getDeltaBadgeClass(kpiDelta.sessions)"
+                      [matTooltip]="deltaTooltip">
+                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDelta.sessions) }}</mat-icon>
+                  {{ formatDelta(kpiDelta.sessions) }} {{ comparisonText }}
                 </span>
               </div>
             </div>
@@ -159,10 +159,10 @@
               </p>
               <div class="mt-2">
                 <span class="delta-badge"
-                      [ngClass]="getDeltaBadgeClass(kpiDeltaPct.occupancy)"
-                      matTooltip="Variación estimada vs ayer (mock estable por fecha)">
-                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDeltaPct.occupancy) }}</mat-icon>
-                  {{ formatDeltaPct(kpiDeltaPct.occupancy) }} vs ayer
+                      [ngClass]="getDeltaBadgeClass(kpiDelta.occupancy)"
+                      [matTooltip]="deltaTooltip">
+                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDelta.occupancy) }}</mat-icon>
+                  {{ formatDelta(kpiDelta.occupancy) }} {{ comparisonText }}
                 </span>
               </div>
             </div>
@@ -180,10 +180,10 @@
               <p class="text-2xl font-bold text-gray-900">{{ formatAmount(stats.pendingDebts) }}</p>
               <div class="mt-2">
                 <span class="delta-badge"
-                      [ngClass]="getDeltaBadgeClass(kpiDeltaPct.debts)"
-                      matTooltip="Variación estimada vs ayer (mock estable por fecha)">
-                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDeltaPct.debts) }}</mat-icon>
-                  {{ formatDeltaPct(kpiDeltaPct.debts) }} vs ayer
+                      [ngClass]="getDeltaBadgeClass(kpiDelta.debts)"
+                      [matTooltip]="deltaTooltip">
+                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDelta.debts) }}</mat-icon>
+                  {{ formatDelta(kpiDelta.debts) }} {{ comparisonText }}
                 </span>
               </div>
             </div>
@@ -201,10 +201,10 @@
               <p class="text-2xl font-bold text-gray-900">{{ formatCount(stats.activeSessions) }}</p>
               <div class="mt-2">
                 <span class="delta-badge"
-                      [ngClass]="getDeltaBadgeClass(kpiDeltaPct.activeSessions)"
-                      matTooltip="Variación estimada vs ayer (mock estable por fecha)">
-                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDeltaPct.activeSessions) }}</mat-icon>
-                  {{ formatDeltaPct(kpiDeltaPct.activeSessions) }} vs ayer
+                      [ngClass]="getDeltaBadgeClass(kpiDelta.activeSessions)"
+                      [matTooltip]="deltaTooltip">
+                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDelta.activeSessions) }}</mat-icon>
+                  {{ formatDelta(kpiDelta.activeSessions) }} {{ comparisonText }}
                 </span>
               </div>
             </div>
@@ -225,10 +225,10 @@
               </p>
               <div class="mt-2">
                 <span class="delta-badge"
-                      [ngClass]="getDeltaBadgeClass(kpiDeltaPct.avgTicket)"
-                      matTooltip="Variación estimada vs ayer (mock estable por fecha)">
-                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDeltaPct.avgTicket) }}</mat-icon>
-                  {{ formatDeltaPct(kpiDeltaPct.avgTicket) }} vs ayer
+                      [ngClass]="getDeltaBadgeClass(kpiDelta.avgTicket)"
+                      [matTooltip]="deltaTooltip">
+                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDelta.avgTicket) }}</mat-icon>
+                  {{ formatDelta(kpiDelta.avgTicket) }} {{ comparisonText }}
                 </span>
               </div>
             </div>
@@ -265,14 +265,14 @@
               <mat-icon class="text-cyan-600">local_car_wash</mat-icon>
             </div>
             <div class="ml-4 flex-1">
-              <p class="text-sm font-medium text-gray-600">Ingresos autolavado (hoy)</p>
+              <p class="text-sm font-medium text-gray-600">Ingresos autolavado {{ currentDayLabel }}</p>
               <p class="text-2xl font-bold text-gray-900">{{ formatAmount(stats.carWashesTotal) }}</p>
               <div class="mt-2">
                 <span class="delta-badge"
-                      [ngClass]="getDeltaBadgeClass(kpiDeltaPct.carWashRevenue)"
-                      matTooltip="Variación estimada vs ayer (mock estable por fecha)">
-                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDeltaPct.carWashRevenue) }}</mat-icon>
-                  {{ formatDeltaPct(kpiDeltaPct.carWashRevenue) }} vs ayer
+                      [ngClass]="getDeltaBadgeClass(kpiDelta.carWashRevenue)"
+                      [matTooltip]="deltaTooltip">
+                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDelta.carWashRevenue) }}</mat-icon>
+                  {{ formatDelta(kpiDelta.carWashRevenue) }} {{ comparisonText }}
                 </span>
               </div>
             </div>
@@ -286,7 +286,7 @@
               <mat-icon class="text-sky-600">format_list_numbered</mat-icon>
             </div>
             <div class="ml-4 flex-1">
-              <p class="text-sm font-medium text-gray-600">Lavados realizados (hoy)</p>
+              <p class="text-sm font-medium text-gray-600">Lavados realizados {{ currentDayLabel }}</p>
               <p class="text-2xl font-bold text-gray-900">{{ formatCount(stats.carWashesCount) }}</p>
               <p class="text-xs text-gray-500 mt-1">
                 {{ stats.carWashesCount === 1 ? '1 lavado pagado' : (formatCount(stats.carWashesCount) + ' lavados pagados') }}
@@ -296,10 +296,10 @@
               </p>
               <div class="mt-2">
                 <span class="delta-badge"
-                      [ngClass]="getDeltaBadgeClass(kpiDeltaPct.carWashCount)"
-                      matTooltip="Variación estimada vs ayer (mock estable por fecha)">
-                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDeltaPct.carWashCount) }}</mat-icon>
-                  {{ formatDeltaPct(kpiDeltaPct.carWashCount) }} vs ayer
+                      [ngClass]="getDeltaBadgeClass(kpiDelta.carWashCount)"
+                      [matTooltip]="deltaTooltip">
+                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDelta.carWashCount) }}</mat-icon>
+                  {{ formatDelta(kpiDelta.carWashCount) }} {{ comparisonText }}
                 </span>
               </div>
             </div>
@@ -320,10 +320,10 @@
               </p>
               <div class="mt-2">
                 <span class="delta-badge"
-                      [ngClass]="getDeltaBadgeClass(kpiDeltaPct.carWashAvgTicket)"
-                      matTooltip="Variación estimada vs ayer (mock estable por fecha)">
-                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDeltaPct.carWashAvgTicket) }}</mat-icon>
-                  {{ formatDeltaPct(kpiDeltaPct.carWashAvgTicket) }} vs ayer
+                      [ngClass]="getDeltaBadgeClass(kpiDelta.carWashAvgTicket)"
+                      [matTooltip]="deltaTooltip">
+                  <mat-icon class="delta-icon">{{ getDeltaIcon(kpiDelta.carWashAvgTicket) }}</mat-icon>
+                  {{ formatDelta(kpiDelta.carWashAvgTicket) }} {{ comparisonText }}
                 </span>
               </div>
             </div>
@@ -393,7 +393,7 @@
             <!-- KPI mini strip -->
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div class="flex items-baseline justify-between sm:flex-col sm:items-start">
-                <span class="text-xs text-gray-500">Ingresos totales (hoy)</span>
+                <span class="text-xs text-gray-500">Ingresos totales {{ currentDayLabel }}</span>
                 <span class="text-sm font-semibold text-gray-900">{{ formatAmount(totalRevenueToday) }}</span>
               </div>
               <div class="flex items-baseline justify-between sm:flex-col sm:items-start">

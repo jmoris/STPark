@@ -60,6 +60,11 @@ export class CustomDateAdapter extends NativeDateAdapter {
   }
 }
 
+type KpiDelta =
+  | { kind: 'pct'; pct: number }       // % de variación
+  | { kind: 'new' }                    // previous=0 y current>0
+  | { kind: 'na' };                    // no aplica / sin datos
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -129,7 +134,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   };
 
   // Contexto KPI (vs día anterior). Se mockea de forma estable por fecha.
-  kpiDeltaPct: Record<string, number> = {};
+  kpiDelta: Record<string, KpiDelta> = {};
 
   // Sesiones por hora: contexto de hora pico
   peakSessions: { hourLabel: string; count: number } | null = null;
@@ -259,8 +264,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // Calcular porcentaje de ocupación
     this.calculateOccupancy();
 
-    // Actualizar contexto KPI (mock estable)
-    this.updateKpiDeltaPct();
+    // Actualizar contexto KPI (vs día anterior) desde backend
+    this.updateKpiDeltas();
   }
 
   private safeDivide(numerator: number, denominator: number): number {
@@ -268,58 +273,124 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return numerator / denominator;
   }
 
-  private updateKpiDeltaPct(): void {
-    const dateKey = this.formatDateLocal(this.selectedDate);
-    const mk = (kpiKey: string) => this.mockDeltaPct(`${kpiKey}:${dateKey}`);
+  get currentDayLabel(): string {
+    return this.isSelectedToday ? '(hoy)' : `(${this.selectedDateLabel})`;
+  }
 
-    this.kpiDeltaPct = {
-      revenue: mk('revenue'),
-      sessions: mk('sessions'),
-      occupancy: mk('occupancy'),
-      debts: mk('debts'),
-      activeSessions: mk('activeSessions'),
-      avgTicket: mk('avgTicket'),
-      carWashRevenue: mk('carWashRevenue'),
-      carWashCount: mk('carWashCount'),
-      carWashAvgTicket: mk('carWashAvgTicket'),
-    };
+  get comparisonText(): string {
+    return this.isSelectedToday ? 'vs ayer' : `vs ${this.comparisonDateLabel}`;
+  }
+
+  get deltaTooltip(): string {
+    return this.isSelectedToday
+      ? 'Variación vs ayer'
+      : `Variación vs ${this.comparisonDateLabel}`;
+  }
+
+  private round1(value: number): number {
+    return Math.round(value * 10) / 10;
   }
 
   /**
-   * Mock estable de variación porcentual vs día anterior.
-   * Rango aprox: -12% .. +12% (sin tocar backend).
+   * Calcula variación porcentual (o "Nuevo") de forma segura.
+   * Reglas:
+   * - previous === 0 y current === 0 => 0%
+   * - previous === 0 y current > 0 => "Nuevo" (evita infinito)
+   * - previous > 0 => ((current - previous) / previous) * 100
    */
-  private mockDeltaPct(seed: string): number {
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      hash = (hash * 31 + seed.charCodeAt(i)) | 0;
+  private calcDelta(current: number, previous: number): KpiDelta {
+    const cur = Number(current || 0);
+    const prev = Number(previous || 0);
+
+    if (!Number.isFinite(cur) || !Number.isFinite(prev)) return { kind: 'na' };
+    if (prev === 0 && cur === 0) return { kind: 'pct', pct: 0 };
+    if (prev === 0 && cur > 0) return { kind: 'new' };
+    if (prev > 0) return { kind: 'pct', pct: this.round1(((cur - prev) / prev) * 100) };
+    return { kind: 'na' };
+  }
+
+  private updateKpiDeltas(): void {
+    if (!this.dashboardData) {
+      this.kpiDelta = {};
+      return;
     }
-    const normalized = Math.abs(hash % 2401) / 2400; // 0..1
-    const value = (normalized * 24) - 12; // -12..+12
-    return Math.round(value * 10) / 10; // 1 decimal
+
+    const kpiCompare = (this.dashboardData as any)?.kpi_compare;
+    const current = kpiCompare?.current;
+    const previous = kpiCompare?.previous;
+
+    if (!current || !previous) {
+      this.kpiDelta = {};
+      return;
+    }
+
+    const curRevenue = Number(current.total_amount_parking || 0);
+    const prevRevenue = Number(previous.total_amount_parking || 0);
+
+    const curSessions = Number(current.total_sessions_parking || 0);
+    const prevSessions = Number(previous.total_sessions_parking || 0);
+
+    const curDebts = Number(current.pending_debts_total_amount || 0);
+    const prevDebts = Number(previous.pending_debts_total_amount || 0);
+
+    const curActive = Number(current.active_sessions_count || 0);
+    const prevActive = Number(previous.active_sessions_count || 0);
+
+    const curAvgTicket = this.safeDivide(curRevenue, curSessions);
+    const prevAvgTicket = this.safeDivide(prevRevenue, prevSessions);
+
+    const curOccPct = this.maxCapacity > 0 ? this.round1((curActive / this.maxCapacity) * 100) : 0;
+    const prevOccPct = this.maxCapacity > 0 ? this.round1((prevActive / this.maxCapacity) * 100) : 0;
+
+    const curCarWashRevenue = Number(current.car_wash_total_amount || 0);
+    const prevCarWashRevenue = Number(previous.car_wash_total_amount || 0);
+
+    const curCarWashCount = Number(current.car_wash_count || 0);
+    const prevCarWashCount = Number(previous.car_wash_count || 0);
+
+    const curCarWashAvg = this.safeDivide(curCarWashRevenue, curCarWashCount);
+    const prevCarWashAvg = this.safeDivide(prevCarWashRevenue, prevCarWashCount);
+
+    this.kpiDelta = {
+      revenue: this.calcDelta(curRevenue, prevRevenue),
+      sessions: this.calcDelta(curSessions, prevSessions),
+      occupancy: this.calcDelta(curOccPct, prevOccPct),
+      debts: this.calcDelta(curDebts, prevDebts),
+      activeSessions: this.calcDelta(curActive, prevActive),
+      avgTicket: this.calcDelta(curAvgTicket, prevAvgTicket),
+      carWashRevenue: this.calcDelta(curCarWashRevenue, prevCarWashRevenue),
+      carWashCount: this.calcDelta(curCarWashCount, prevCarWashCount),
+      carWashAvgTicket: this.calcDelta(curCarWashAvg, prevCarWashAvg),
+    };
   }
 
   formatCount(value: number): string {
     return this.reportService.formatNumber(value || 0);
   }
 
-  formatDeltaPct(value: number | null | undefined): string {
-    if (value === null || value === undefined || Number.isNaN(value)) return '—';
-    const sign = value > 0 ? '+' : '';
-    return `${sign}${value}%`;
+  formatDelta(delta: KpiDelta | null | undefined): string {
+    if (!delta) return '—';
+    if (delta.kind === 'new') return 'Nuevo';
+    if (delta.kind === 'na') return '—';
+    const sign = delta.pct > 0 ? '+' : '';
+    return `${sign}${delta.pct}%`;
   }
 
-  getDeltaIcon(value: number | null | undefined): string {
-    if (value === null || value === undefined || Number.isNaN(value)) return 'remove';
-    if (value > 0.1) return 'arrow_upward';
-    if (value < -0.1) return 'arrow_downward';
+  getDeltaIcon(delta: KpiDelta | null | undefined): string {
+    if (!delta) return 'remove';
+    if (delta.kind === 'new') return 'new_releases';
+    if (delta.kind === 'na') return 'remove';
+    if (delta.pct > 0.1) return 'arrow_upward';
+    if (delta.pct < -0.1) return 'arrow_downward';
     return 'remove';
   }
 
-  getDeltaBadgeClass(value: number | null | undefined): string {
-    if (value === null || value === undefined || Number.isNaN(value)) return 'delta-neutral';
-    if (value > 0.1) return 'delta-positive';
-    if (value < -0.1) return 'delta-negative';
+  getDeltaBadgeClass(delta: KpiDelta | null | undefined): string {
+    if (!delta) return 'delta-neutral';
+    if (delta.kind === 'new') return 'delta-neutral';
+    if (delta.kind === 'na') return 'delta-neutral';
+    if (delta.pct > 0.1) return 'delta-positive';
+    if (delta.pct < -0.1) return 'delta-negative';
     return 'delta-neutral';
   }
 
@@ -331,6 +402,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
           if (response && response.success && response.data) {
             this.maxCapacity = response.data.max_capacity || 0;
             this.calculateOccupancy();
+            // Recalcular deltas si la ocupación depende de la capacidad
+            this.updateKpiDeltas();
           }
         },
         error: (error) => {

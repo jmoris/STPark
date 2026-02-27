@@ -844,9 +844,13 @@ class ReportController extends Controller
         $workingHours = $this->getWorkingHoursFromPricingProfiles();
         $startHour = $workingHours['start_hour'];
         $endHour = $workingHours['end_hour'];
+
+        $carWashEnabled = $this->isCarWashEnabled();
         
         // Parsear la fecha seleccionada
         $dateCarbon = Carbon::parse($date);
+
+        $previousDateCarbon = $dateCarbon->copy()->subDay();
         
         // Construir rango de fechas basado en el horario de trabajo
         // Si end_hour < start_hour, significa que cruza medianoche
@@ -972,9 +976,6 @@ class ReportController extends Controller
             }
         }
 
-        // Deudas pendientes (mantener todas, no filtrar por período)
-        $pendingDebts = Debt::pending()->get();
-
         // Lavados de autos de los turnos de hoy (filtrados por shift_id en lugar de performed_at)
         $todayCarWashes = collect();
         $carWashesTotal = 0;
@@ -1008,6 +1009,11 @@ class ReportController extends Controller
                 })
                 ->sum('amount');
         }
+
+        // Deudas pendientes (mantener todas, no filtrar por período)
+        // Calcular por query para evitar traer la colección completa
+        $pendingDebtsCount = Debt::pending()->count();
+        $pendingDebtsTotalAmount = (float) Debt::pending()->sum('principal_amount');
 
         // Sesiones activas por hora dentro del horario de trabajo
         $hourlyData = [];
@@ -1102,8 +1108,8 @@ class ReportController extends Controller
                 }),
             ],
             'pending_debts' => [
-                'count' => $pendingDebts->count(),
-                'total_amount' => $pendingDebts->sum('principal_amount'),
+                'count' => $pendingDebtsCount,
+                'total_amount' => $pendingDebtsTotalAmount,
             ],
             'car_washes' => [
                 'total_amount' => $carWashesTotal,
@@ -1113,6 +1119,133 @@ class ReportController extends Controller
                 'card_total' => $carWashesCardTotal,
             ],
         ];
+
+        // =========================
+        // KPI compare: día seleccionado vs día anterior
+        // =========================
+        $computeKpiCompareForDate = function (Carbon $day) use ($carWashEnabled, $startHour, $endHour, $crossesMidnight): array {
+            // Período laboral para contar "sesiones activas del período"
+            $periodStart = $day->copy();
+            [$startH, $startM] = explode(':', $startHour);
+            $periodStart->setTime((int) $startH, (int) $startM, 0);
+
+            $periodEnd = $day->copy();
+            [$endH, $endM] = explode(':', $endHour);
+            if ($crossesMidnight) {
+                $periodEnd->addDay()->setTime((int) $endH, (int) $endM, 59);
+            } else {
+                $periodEnd->setTime((int) $endH, (int) $endM, 59);
+            }
+
+            // Active sessions: solo count (sin arrays)
+            $activeSessionsCount = ParkingSession::active()
+                ->where('started_at', '>=', $periodStart)
+                ->where('started_at', '<=', $periodEnd)
+                ->count();
+
+            // Turnos del día
+            $shifts = Shift::whereDate('opened_at', $day->format('Y-m-d'))
+                ->whereIn('status', [Shift::STATUS_OPEN, Shift::STATUS_CLOSED])
+                ->get(['id']);
+
+            $shiftIds = $shifts->pluck('id')->toArray();
+
+            $totalAmountParking = 0.0;
+            $totalSessionsParking = 0;
+            if (!empty($shiftIds)) {
+                // Ventas con pagos en los turnos
+                $salesWithPaymentsInShifts = DB::table('payments')
+                    ->whereIn('shift_id', $shiftIds)
+                    ->where('status', 'COMPLETED')
+                    ->whereNotNull('sale_id')
+                    ->distinct()
+                    ->pluck('sale_id')
+                    ->toArray();
+
+                $closedSalesIds = [];
+                if (!empty($salesWithPaymentsInShifts)) {
+                    $closedSalesIds = DB::table('sales')
+                        ->select('sales.id')
+                        ->whereIn('sales.id', $salesWithPaymentsInShifts)
+                        ->join('payments', 'sales.id', '=', 'payments.sale_id')
+                        ->where('payments.status', 'COMPLETED')
+                        ->groupBy('sales.id', 'sales.total')
+                        ->havingRaw('SUM(payments.amount) >= sales.total')
+                        ->pluck('sales.id')
+                        ->toArray();
+                }
+
+                $paymentsBase = Payment::whereIn('shift_id', $shiftIds)
+                    ->where('status', 'COMPLETED')
+                    ->where(function ($query) use ($closedSalesIds) {
+                        $query->whereNotNull('session_id')
+                            ->orWhere(function ($subQuery) use ($closedSalesIds) {
+                                $subQuery->whereNotNull('sale_id');
+                                if (!empty($closedSalesIds)) {
+                                    $subQuery->whereIn('sale_id', $closedSalesIds);
+                                } else {
+                                    $subQuery->whereRaw('1 = 0');
+                                }
+                            });
+                    });
+
+                $totalAmountParking = (float) (clone $paymentsBase)->sum('amount');
+                $totalSessionsParking = (int) (clone $paymentsBase)
+                    ->whereNotNull('session_id')
+                    ->distinct()
+                    ->count('session_id');
+            }
+
+            $pendingDebtsTotalAmount = (float) Debt::pending()->sum('principal_amount');
+
+            $carWashTotalAmount = 0.0;
+            $carWashCount = 0;
+            if ($carWashEnabled && !empty($shiftIds)) {
+                $carWashTotalAmount = (float) CarWash::whereIn('shift_id', $shiftIds)
+                    ->where('status', 'PAID')
+                    ->sum('amount');
+                $carWashCount = (int) CarWash::whereIn('shift_id', $shiftIds)
+                    ->where('status', 'PAID')
+                    ->count();
+            }
+
+            if (!$carWashEnabled) {
+                $carWashTotalAmount = 0.0;
+                $carWashCount = 0;
+            }
+
+            return [
+                'total_amount_parking' => (float) $totalAmountParking,
+                'total_sessions_parking' => (int) $totalSessionsParking,
+                'pending_debts_total_amount' => (float) $pendingDebtsTotalAmount,
+                'active_sessions_count' => (int) $activeSessionsCount,
+                'car_wash_total_amount' => (float) $carWashTotalAmount,
+                'car_wash_count' => (int) $carWashCount,
+            ];
+        };
+
+        $dashboard['kpi_compare'] = [
+            'current' => [
+                'total_amount_parking' => (float) $todaySalesTotal,
+                'total_sessions_parking' => (int) $todaySessionsCount,
+                'pending_debts_total_amount' => (float) $pendingDebtsTotalAmount,
+                'active_sessions_count' => (int) $activeSessions->count(),
+                'car_wash_total_amount' => (float) ($carWashEnabled ? $carWashesTotal : 0.0),
+                'car_wash_count' => (int) ($carWashEnabled ? $carWashesCount : 0),
+            ],
+            'previous' => $computeKpiCompareForDate($previousDateCarbon),
+        ];
+
+        if (!$carWashEnabled) {
+            // Mantener respuesta consistente si el módulo no está habilitado
+            $dashboard['car_washes'] = [
+                'total_amount' => 0.0,
+                'count' => 0,
+                'pending_count' => 0,
+                'cash_total' => 0.0,
+                'card_total' => 0.0,
+            ];
+        }
 
         return response()->json([
             'success' => true,
