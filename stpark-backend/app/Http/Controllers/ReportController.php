@@ -16,6 +16,7 @@ use App\Helpers\DatabaseHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -32,6 +33,694 @@ class ReportController extends Controller
         $to = Carbon::parse($dateTo)->endOfDay();
         
         return [$from, $to];
+    }
+
+    /**
+     * Scope de reportes:
+     * - SHIFT (default): filtra por turnos (shift_id) de los días seleccionados (opened_at)
+     * - DATE: modo antiguo por fechas (paid_at/created_at/etc.)
+     */
+    private function getReportScope(Request $request): string
+    {
+        $scope = strtoupper((string) $request->get('scope', 'SHIFT'));
+        return in_array($scope, ['SHIFT', 'DATE'], true) ? $scope : 'SHIFT';
+    }
+
+    /**
+     * Obtiene IDs de turnos incluidos en el rango de fechas (por opened_at).
+     * Incluye turnos OPEN y CLOSED (excluye cancelados).
+     */
+    private function getShiftIdsInDateRange($dateFrom, $dateTo): array
+    {
+        [$from, $to] = $this->normalizeDateRange($dateFrom, $dateTo);
+
+        return Shift::query()
+            ->whereBetween('opened_at', [$from, $to])
+            ->whereIn('status', [Shift::STATUS_OPEN, Shift::STATUS_CLOSED])
+            ->pluck('id')
+            ->toArray();
+    }
+
+    private function buildShiftsMeta(array $shiftIds): array
+    {
+        $count = count($shiftIds);
+        $maxList = 50;
+        $truncated = $count > $maxList;
+
+        return [
+            'shifts_included_count' => $count,
+            'shifts_included' => $truncated ? array_slice($shiftIds, 0, $maxList) : $shiftIds,
+            'shifts_included_truncated' => $truncated,
+        ];
+    }
+
+    private function getClosedSalesIdsForShiftIds(array $shiftIds): array
+    {
+        if (empty($shiftIds)) {
+            return [];
+        }
+
+        $salesWithPaymentsInShifts = DB::table('payments')
+            ->whereIn('shift_id', $shiftIds)
+            ->where('status', Payment::STATUS_COMPLETED)
+            ->whereNotNull('sale_id')
+            ->distinct()
+            ->pluck('sale_id')
+            ->toArray();
+
+        if (empty($salesWithPaymentsInShifts)) {
+            return [];
+        }
+
+        return DB::table('sales')
+            ->select('sales.id')
+            ->whereIn('sales.id', $salesWithPaymentsInShifts)
+            ->join('payments', 'sales.id', '=', 'payments.sale_id')
+            ->where('payments.status', Payment::STATUS_COMPLETED)
+            ->groupBy('sales.id', 'sales.total')
+            ->havingRaw('SUM(payments.amount) >= sales.total')
+            ->pluck('sales.id')
+            ->toArray();
+    }
+
+    private function buildSalesReportData(Request $request, bool $forPdf = false): array
+    {
+        $supportedMethods = [Payment::METHOD_CASH, Payment::METHOD_CARD];
+        $scope = $this->getReportScope($request);
+
+        $mode = $request->get('mode', 'summary');
+        if (!in_array($mode, ['summary', 'full'], true)) {
+            $mode = 'summary';
+        }
+
+        $includeSessionsDetail = $request->boolean('include_sessions_detail', false);
+        // Compatibilidad previa (PDF): algunos clientes mandaban include_sessions
+        if (!$includeSessionsDetail && $request->has('include_sessions')) {
+            $includeSessionsDetail = $request->boolean('include_sessions');
+        }
+
+        $sessionsLimit = $request->filled('sessions_limit') ? (int) $request->input('sessions_limit') : null;
+        if ($sessionsLimit !== null) {
+            $sessionsLimit = max(50, min(5000, $sessionsLimit));
+        }
+
+        $carWashEnabled = $this->isCarWashEnabled();
+        $includeWashes = $request->boolean('include_washes', true);
+        if (!$carWashEnabled) {
+            $includeWashes = false;
+        }
+
+        // Normalizar fechas del request
+        [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+
+        $meta = [
+            'scope' => $scope,
+            'include_sessions_detail' => $includeSessionsDetail,
+            'sessions_limit_used' => $sessionsLimit,
+            'car_wash_enabled' => $carWashEnabled,
+            'include_washes' => $includeWashes,
+        ];
+
+        if ($forPdf) {
+            // "Generado por": en API REST no hay sesión; intentar resolver por token (Sanctum)
+            $generatedByName = null;
+            if ($request->user()) {
+                $generatedByName = $request->user()->name ?? null;
+            } else {
+                $bearer = $request->bearerToken();
+                if ($bearer) {
+                    try {
+                        $pat = \Laravel\Sanctum\PersonalAccessToken::findToken($bearer);
+                        $tokenable = $pat?->tokenable;
+                        if ($tokenable && isset($tokenable->name)) {
+                            $generatedByName = $tokenable->name;
+                        }
+                    } catch (\Throwable $e) {
+                        // Silencioso
+                    }
+                }
+            }
+            $meta['generated_by'] = $generatedByName;
+        }
+
+        // ----------------------------
+        // SCOPE = DATE (modo antiguo)
+        // ----------------------------
+        if ($scope === 'DATE') {
+            $parkingPaymentsBase = Payment::completed()
+                ->whereIn('method', $supportedMethods)
+                ->whereBetween('paid_at', [$dateFrom, $dateTo])
+                ->whereHas('parkingSession', function ($q) use ($request) {
+                    $q->where('status', 'COMPLETED');
+
+                    if ($request->filled('sector_id')) {
+                        $q->where('sector_id', $request->sector_id);
+                    }
+
+                    if ($request->filled('operator_id')) {
+                        $operatorId = (int) $request->operator_id;
+                        $q->where(function ($qq) use ($operatorId) {
+                            $qq->where('operator_out_id', $operatorId)
+                                ->orWhere(function ($subQ) use ($operatorId) {
+                                    $subQ->whereNull('operator_out_id')
+                                        ->where('operator_in_id', $operatorId);
+                                });
+                        });
+                    }
+                });
+
+            $parkingCashAmount = (float) (clone $parkingPaymentsBase)->where('method', Payment::METHOD_CASH)->sum('amount');
+            $parkingCardAmount = (float) (clone $parkingPaymentsBase)->where('method', Payment::METHOD_CARD)->sum('amount');
+            $parkingTotalAmount = (float) $parkingCashAmount + (float) $parkingCardAmount;
+
+            $parkingOtherAmount = (float) Payment::completed()
+                ->whereNotIn('method', $supportedMethods)
+                ->whereBetween('paid_at', [$dateFrom, $dateTo])
+                ->whereHas('parkingSession', function ($q) use ($request) {
+                    $q->where('status', 'COMPLETED');
+
+                    if ($request->filled('sector_id')) {
+                        $q->where('sector_id', $request->sector_id);
+                    }
+
+                    if ($request->filled('operator_id')) {
+                        $operatorId = (int) $request->operator_id;
+                        $q->where(function ($qq) use ($operatorId) {
+                            $qq->where('operator_out_id', $operatorId)
+                                ->orWhere(function ($subQ) use ($operatorId) {
+                                    $subQ->whereNull('operator_out_id')
+                                        ->where('operator_in_id', $operatorId);
+                                });
+                        });
+                    }
+                })
+                ->sum('amount');
+
+            $parkingSessionIds = (clone $parkingPaymentsBase)
+                ->whereNotNull('session_id')
+                ->distinct()
+                ->pluck('session_id');
+
+            $sessions = ParkingSession::with([
+                'sector',
+                'operator',
+                'operatorOut',
+                'payments' => function ($q) use ($supportedMethods, $dateFrom, $dateTo) {
+                    $q->where('status', Payment::STATUS_COMPLETED)
+                        ->whereIn('method', $supportedMethods)
+                        ->whereBetween('paid_at', [$dateFrom, $dateTo]);
+                },
+            ])
+                ->whereIn('id', $parkingSessionIds)
+                ->orderBy('started_at', 'desc')
+                ->get();
+
+            $washCashTotal = 0.0;
+            $washCardTotal = 0.0;
+            $washTotalAmount = 0.0;
+            $washCount = 0;
+            $washPendingCount = 0;
+
+            if ($includeWashes) {
+                $carWashesQuery = CarWash::query()->whereBetween('paid_at', [$dateFrom, $dateTo]);
+
+                if ($request->filled('sector_id')) {
+                    $sectorId = (int) $request->sector_id;
+                    $carWashesQuery->whereHas('session', function ($q) use ($sectorId) {
+                        $q->where('sector_id', $sectorId);
+                    });
+                }
+
+                if ($request->filled('operator_id')) {
+                    $operatorId = (int) $request->operator_id;
+                    $carWashesQuery->where(function ($q) use ($operatorId) {
+                        $q->where('cashier_operator_id', $operatorId)
+                            ->orWhere('operator_id', $operatorId);
+                    });
+                }
+
+                $carWashes = $carWashesQuery->get(['id', 'status', 'amount', 'payment_type', 'approval_code']);
+
+                $washTotalAmount = (float) $carWashes->where('status', 'PAID')->sum('amount');
+                $washCount = (int) $carWashes->where('status', 'PAID')->count();
+                $washPendingCount = (int) $carWashes->where('status', 'PENDING')->count();
+
+                $washCashTotal = (float) $carWashes->where('status', 'PAID')
+                    ->filter(function ($carWash) {
+                        return $carWash->payment_type === 'cash' ||
+                            ($carWash->payment_type === null && $carWash->approval_code === null);
+                    })
+                    ->sum('amount');
+
+                $washCardTotal = (float) $carWashes->where('status', 'PAID')
+                    ->filter(function ($carWash) {
+                        return $carWash->payment_type === 'card' ||
+                            ($carWash->payment_type === null && $carWash->approval_code !== null);
+                    })
+                    ->sum('amount');
+            }
+
+            $cashAmount = (float) $parkingCashAmount + (float) $washCashTotal;
+            $cardAmount = (float) $parkingCardAmount + (float) $washCardTotal;
+            $totalAmount = (float) $cashAmount + (float) $cardAmount;
+
+            $sessionDetails = [];
+            if ($includeSessionsDetail) {
+                foreach ($sessions as $session) {
+                    $sessionTotal = (float) $session->payments->sum('amount');
+                    if ($sessionTotal <= 0) {
+                        continue;
+                    }
+
+                    $durationMinutes = $session->started_at && $session->ended_at
+                        ? Carbon::parse($session->started_at)->diffInMinutes(Carbon::parse($session->ended_at))
+                        : 0;
+                    $hours = floor((int) $durationMinutes / 60);
+                    $minutes = (int) $durationMinutes % 60;
+                    $durationFormatted = $hours > 0 ? "{$hours}h {$minutes}m" : "{$minutes}m";
+
+                    $sessionDetails[] = [
+                        'operator' => $session->operator ? $session->operator->name : 'N/A',
+                        'plate' => $session->plate,
+                        'started_at' => $session->started_at,
+                        'ended_at' => $session->ended_at,
+                        'duration' => $durationFormatted,
+                        'amount' => $sessionTotal,
+                    ];
+                }
+
+                if ($sessionsLimit !== null) {
+                    $sessionDetails = array_slice($sessionDetails, 0, $sessionsLimit);
+                }
+            }
+
+            $byMethod = [];
+            if ($cashAmount > 0) {
+                $byMethod[Payment::METHOD_CASH] = [
+                    'total' => (float) $cashAmount,
+                    'parking_total' => (float) $parkingCashAmount,
+                    'car_wash_total' => (float) $washCashTotal,
+                ];
+            }
+            if ($cardAmount > 0) {
+                $byMethod[Payment::METHOD_CARD] = [
+                    'total' => (float) $cardAmount,
+                    'parking_total' => (float) $parkingCardAmount,
+                    'car_wash_total' => (float) $washCardTotal,
+                ];
+            }
+
+            $result = [
+                'meta' => $meta + $this->buildShiftsMeta([]),
+                'period' => ['from' => $request->date_from, 'to' => $request->date_to],
+                'mode' => $mode,
+                'total_sales' => $sessions->count(),
+                'total_amount' => (float) $totalAmount,
+                'cash_amount' => (float) $cashAmount,
+                'card_amount' => (float) $cardAmount,
+                'other_amount' => (float) $parkingOtherAmount,
+                'parking' => [
+                    'cash_amount' => (float) $parkingCashAmount,
+                    'card_amount' => (float) $parkingCardAmount,
+                    'total_amount' => (float) $parkingTotalAmount,
+                    'other_amount' => (float) $parkingOtherAmount,
+                ],
+                'car_wash' => [
+                    'total_amount' => (float) $washTotalAmount,
+                    'count' => (int) $washCount,
+                    'pending_count' => (int) $washPendingCount,
+                    'cash_amount' => (float) $washCashTotal,
+                    'card_amount' => (float) $washCardTotal,
+                ],
+                'by_method' => $byMethod,
+                'sessions_detail' => $sessionDetails,
+                'by_sector' => $sessions->groupBy('sector.name')->map(function ($group) {
+                    $groupTotal = (float) $group->sum(fn($s) => (float) $s->payments->sum('amount'));
+                    return ['count' => $group->count(), 'total' => $groupTotal];
+                }),
+                'by_operator' => $sessions->groupBy('operator.name')->map(function ($group) {
+                    $groupTotal = (float) $group->sum(fn($s) => (float) $s->payments->sum('amount'));
+                    return ['count' => $group->count(), 'total' => $groupTotal];
+                }),
+            ];
+
+            if ($mode === 'full') {
+                $hourlyMoney = collect(range(0, 23))->mapWithKeys(function ($h) {
+                    return [(int) $h => ['count' => 0, 'total' => 0.0]];
+                })->toArray();
+
+                $grouped = $sessions->groupBy(function ($s) {
+                    return (int) Carbon::parse($s->started_at)->format('G'); // 0..23
+                });
+
+                foreach ($grouped as $hour => $group) {
+                    $count = $group->count();
+                    $total = 0.0;
+                    foreach ($group as $session) {
+                        $total += (float) $session->payments->sum('amount');
+                    }
+                    $hourlyMoney[(int) $hour] = ['count' => $count, 'total' => $total];
+                }
+
+                $maxTotal = 0.0;
+                $peakHourMoney = 0;
+                foreach ($hourlyMoney as $hour => $info) {
+                    $t = (float) ($info['total'] ?? 0);
+                    if ($t > $maxTotal) {
+                        $maxTotal = $t;
+                        $peakHourMoney = (int) $hour;
+                    }
+                }
+
+                $result['hourly_money'] = $hourlyMoney;
+                $result['hourly_max_total'] = max(1, $maxTotal);
+                $result['peak_hour_money'] = $peakHourMoney;
+                $result['payment_methods'] = [
+                    'cash' => (float) $cashAmount,
+                    'card' => (float) $cardAmount,
+                ];
+                $result['average_ticket'] = $result['total_sales'] > 0 ? ((float) $totalAmount / (float) $result['total_sales']) : 0.0;
+            }
+
+            return $result;
+        }
+
+        // ----------------------------
+        // SCOPE = SHIFT (default)
+        // ----------------------------
+        $shiftIds = $this->getShiftIdsInDateRange($request->date_from, $request->date_to);
+        $closedSalesIds = $this->getClosedSalesIdsForShiftIds($shiftIds);
+
+        $operatorSessionFilter = function ($q, int $operatorId) {
+            $q->where(function ($qq) use ($operatorId) {
+                $qq->where('operator_out_id', $operatorId)
+                    ->orWhere(function ($subQ) use ($operatorId) {
+                        $subQ->whereNull('operator_out_id')
+                            ->where('operator_in_id', $operatorId);
+                    });
+            });
+        };
+
+        $paymentsBase = Payment::query()
+            ->whereIn('shift_id', $shiftIds)
+            ->where('status', Payment::STATUS_COMPLETED)
+            ->where(function ($query) use ($closedSalesIds) {
+                $query->whereNotNull('session_id')
+                    ->orWhere(function ($subQuery) use ($closedSalesIds) {
+                        $subQuery->whereNotNull('sale_id');
+                        if (!empty($closedSalesIds)) {
+                            $subQuery->whereIn('sale_id', $closedSalesIds);
+                        } else {
+                            $subQuery->whereRaw('1 = 0');
+                        }
+                    });
+            });
+
+        if ($request->filled('sector_id')) {
+            $sectorId = (int) $request->sector_id;
+            $paymentsBase->where(function ($q) use ($sectorId) {
+                $q->whereHas('parkingSession', function ($qq) use ($sectorId) {
+                    $qq->where('sector_id', $sectorId);
+                })->orWhereHas('sale.parkingSession', function ($qq) use ($sectorId) {
+                    $qq->where('sector_id', $sectorId);
+                });
+            });
+        }
+
+        if ($request->filled('operator_id')) {
+            $operatorId = (int) $request->operator_id;
+            $paymentsBase->where(function ($q) use ($operatorId, $operatorSessionFilter) {
+                $q->whereHas('parkingSession', function ($qq) use ($operatorId, $operatorSessionFilter) {
+                    $operatorSessionFilter($qq, $operatorId);
+                })->orWhereHas('sale.parkingSession', function ($qq) use ($operatorId, $operatorSessionFilter) {
+                    $operatorSessionFilter($qq, $operatorId);
+                });
+            });
+        }
+
+        $payments = $paymentsBase
+            ->with([
+                'parkingSession.sector',
+                'parkingSession.operator',
+                'parkingSession.operatorOut',
+                'sale.parkingSession.sector',
+                'sale.parkingSession.operator',
+                'sale.parkingSession.operatorOut',
+                'sale.parkingSession',
+            ])
+            ->get();
+
+        $paymentsForReport = $payments->whereIn('method', $supportedMethods);
+        $parkingCashAmount = (float) $paymentsForReport->where('method', Payment::METHOD_CASH)->sum('amount');
+        $parkingCardAmount = (float) $paymentsForReport->where('method', Payment::METHOD_CARD)->sum('amount');
+        $parkingOtherAmount = (float) $payments->whereNotIn('method', $supportedMethods)->sum('amount');
+        $parkingTotalAmount = (float) $parkingCashAmount + (float) $parkingCardAmount;
+
+        $totalSessionsParking = (int) $paymentsForReport->whereNotNull('session_id')->pluck('session_id')->unique()->count();
+
+        $bySector = [];
+        foreach ($paymentsForReport as $payment) {
+            $sectorName = null;
+            if ($payment->session_id && $payment->parkingSession && $payment->parkingSession->sector) {
+                $sectorName = $payment->parkingSession->sector->name;
+            } elseif ($payment->sale_id && $payment->sale && $payment->sale->parkingSession && $payment->sale->parkingSession->sector) {
+                $sectorName = $payment->sale->parkingSession->sector->name;
+            }
+
+            if (!$sectorName) {
+                continue;
+            }
+
+            if (!isset($bySector[$sectorName])) {
+                $bySector[$sectorName] = ['count' => 0, 'total' => 0.0];
+            }
+            $bySector[$sectorName]['count']++;
+            $bySector[$sectorName]['total'] += (float) $payment->amount;
+        }
+
+        // Car wash por shift_id (y opcionalmente filtrado por sector / operador como antes)
+        $washTotalAmount = 0.0;
+        $washCount = 0;
+        $washPendingCount = 0;
+        $washCashTotal = 0.0;
+        $washCardTotal = 0.0;
+
+        if ($includeWashes && !empty($shiftIds)) {
+            $carWashesQuery = CarWash::query()->whereIn('shift_id', $shiftIds);
+
+            if ($request->filled('sector_id')) {
+                $sectorId = (int) $request->sector_id;
+                $carWashesQuery->whereHas('session', function ($q) use ($sectorId) {
+                    $q->where('sector_id', $sectorId);
+                });
+            }
+
+            if ($request->filled('operator_id')) {
+                $operatorId = (int) $request->operator_id;
+                $carWashesQuery->where(function ($q) use ($operatorId) {
+                    $q->where('cashier_operator_id', $operatorId)
+                        ->orWhere('operator_id', $operatorId);
+                });
+            }
+
+            $carWashes = $carWashesQuery->get(['id', 'status', 'amount', 'payment_type', 'approval_code']);
+
+            $washTotalAmount = (float) $carWashes->where('status', 'PAID')->sum('amount');
+            $washCount = (int) $carWashes->where('status', 'PAID')->count();
+            $washPendingCount = (int) $carWashes->where('status', 'PENDING')->count();
+
+            $washCashTotal = (float) $carWashes->where('status', 'PAID')
+                ->filter(function ($carWash) {
+                    return $carWash->payment_type === 'cash' ||
+                        ($carWash->payment_type === null && $carWash->approval_code === null);
+                })
+                ->sum('amount');
+
+            $washCardTotal = (float) $carWashes->where('status', 'PAID')
+                ->filter(function ($carWash) {
+                    return $carWash->payment_type === 'card' ||
+                        ($carWash->payment_type === null && $carWash->approval_code !== null);
+                })
+                ->sum('amount');
+        }
+
+        $cashAmount = (float) $parkingCashAmount + (float) $washCashTotal;
+        $cardAmount = (float) $parkingCardAmount + (float) $washCardTotal;
+        $totalAmount = (float) $cashAmount + (float) $cardAmount;
+
+        $byMethod = [];
+        if ($cashAmount > 0) {
+            $byMethod[Payment::METHOD_CASH] = [
+                'total' => (float) $cashAmount,
+                'parking_total' => (float) $parkingCashAmount,
+                'car_wash_total' => (float) $washCashTotal,
+            ];
+        }
+        if ($cardAmount > 0) {
+            $byMethod[Payment::METHOD_CARD] = [
+                'total' => (float) $cardAmount,
+                'parking_total' => (float) $parkingCardAmount,
+                'car_wash_total' => (float) $washCardTotal,
+            ];
+        }
+
+        $sessionDetails = [];
+        if ($includeSessionsDetail) {
+            $sessionIds = $paymentsForReport->whereNotNull('session_id')->pluck('session_id')->unique()->values();
+
+            $sessions = ParkingSession::with(['sector', 'operator', 'operatorOut'])
+                ->whereIn('id', $sessionIds)
+                ->get()
+                ->keyBy('id');
+
+            $paymentsBySession = $paymentsForReport->whereNotNull('session_id')->groupBy('session_id');
+            foreach ($paymentsBySession as $sessionId => $sessionPayments) {
+                $session = $sessions->get($sessionId);
+                if (!$session) {
+                    continue;
+                }
+
+                $sessionTotal = (float) $sessionPayments->sum('amount');
+                if ($sessionTotal <= 0) {
+                    continue;
+                }
+
+                $durationMinutes = $session->started_at && $session->ended_at
+                    ? Carbon::parse($session->started_at)->diffInMinutes(Carbon::parse($session->ended_at))
+                    : 0;
+                $hours = floor((int) $durationMinutes / 60);
+                $minutes = (int) $durationMinutes % 60;
+                $durationFormatted = $hours > 0 ? "{$hours}h {$minutes}m" : "{$minutes}m";
+
+                $sessionDetails[] = [
+                    'operator' => $session->operator ? $session->operator->name : 'N/A',
+                    'plate' => $session->plate,
+                    'started_at' => $session->started_at,
+                    'ended_at' => $session->ended_at,
+                    'duration' => $durationFormatted,
+                    'amount' => $sessionTotal,
+                ];
+            }
+
+            if ($sessionsLimit !== null) {
+                $sessionDetails = array_slice($sessionDetails, 0, $sessionsLimit);
+            }
+        }
+
+        $byOperator = [];
+        foreach ($paymentsForReport as $payment) {
+            $operatorName = null;
+            $session = null;
+
+            if ($payment->session_id && $payment->parkingSession) {
+                $session = $payment->parkingSession;
+            } elseif ($payment->sale_id && $payment->sale && $payment->sale->parkingSession) {
+                $session = $payment->sale->parkingSession;
+            }
+
+            if ($session) {
+                $operatorName = $session->operatorOut?->name ?? $session->operator?->name ?? null;
+            }
+
+            if (!$operatorName) {
+                continue;
+            }
+
+            if (!isset($byOperator[$operatorName])) {
+                $byOperator[$operatorName] = ['count' => 0, 'total' => 0.0];
+            }
+            $byOperator[$operatorName]['count']++;
+            $byOperator[$operatorName]['total'] += (float) $payment->amount;
+        }
+
+        $result = [
+            'meta' => $meta + $this->buildShiftsMeta($shiftIds) + [
+                'total_sessions_parking' => (int) $totalSessionsParking,
+            ],
+            'period' => ['from' => $request->date_from, 'to' => $request->date_to],
+            'mode' => $mode,
+            'total_sales' => (int) $totalSessionsParking,
+            'total_amount' => (float) $totalAmount,
+            'cash_amount' => (float) $cashAmount,
+            'card_amount' => (float) $cardAmount,
+            'other_amount' => (float) $parkingOtherAmount,
+            'parking' => [
+                'cash_amount' => (float) $parkingCashAmount,
+                'card_amount' => (float) $parkingCardAmount,
+                'total_amount' => (float) $parkingTotalAmount,
+                'other_amount' => (float) $parkingOtherAmount,
+            ],
+            'car_wash' => [
+                'total_amount' => (float) $washTotalAmount,
+                'count' => (int) $washCount,
+                'pending_count' => (int) $washPendingCount,
+                'cash_amount' => (float) $washCashTotal,
+                'card_amount' => (float) $washCardTotal,
+            ],
+            'by_method' => $byMethod,
+            'by_sector' => $bySector,
+            'by_operator' => $byOperator,
+            'sessions_detail' => $sessionDetails,
+        ];
+
+        if ($mode === 'full') {
+            // Base 24 horas (0..23)
+            $hourlyMoney = collect(range(0, 23))->mapWithKeys(function ($h) {
+                return [(int) $h => ['count' => 0, 'total' => 0.0]];
+            })->toArray();
+
+            $sessionIds = $paymentsForReport->whereNotNull('session_id')->pluck('session_id')->unique()->values();
+            if ($sessionIds->isNotEmpty()) {
+                $sessionsForHourly = ParkingSession::query()
+                    ->whereIn('id', $sessionIds)
+                    ->get(['id', 'started_at']);
+
+                $paymentsBySession = $paymentsForReport->whereNotNull('session_id')->groupBy('session_id');
+                foreach ($sessionsForHourly as $s) {
+                    if (!$s->started_at) {
+                        continue;
+                    }
+                    $hour = (int) Carbon::parse($s->started_at)->format('G');
+                    $total = (float) ($paymentsBySession[$s->id]?->sum('amount') ?? 0.0);
+                    $count = (int) ($paymentsBySession[$s->id]?->count() ?? 0);
+                    $hourlyMoney[$hour]['count'] += $count;
+                    $hourlyMoney[$hour]['total'] += $total;
+                }
+            }
+
+            $maxTotal = 0.0;
+            $peakHourMoney = 0;
+            foreach ($hourlyMoney as $hour => $info) {
+                $t = (float) ($info['total'] ?? 0);
+                if ($t > $maxTotal) {
+                    $maxTotal = $t;
+                    $peakHourMoney = (int) $hour;
+                }
+            }
+
+            $result['hourly_money'] = $hourlyMoney;
+            $result['hourly_max_total'] = max(1, $maxTotal);
+            $result['peak_hour_money'] = $peakHourMoney;
+            $result['payment_methods'] = [
+                'cash' => (float) $cashAmount,
+                'card' => (float) $cardAmount,
+            ];
+            $result['average_ticket'] = $result['total_sales'] > 0 ? ((float) $totalAmount / (float) $result['total_sales']) : 0.0;
+        }
+
+        Log::info('Sales report (SHIFT)', [
+            'scope' => $scope,
+            'date_from' => $request->date_from,
+            'date_to' => $request->date_to,
+            'shift_count' => count($shiftIds),
+            'shift_ids_preview' => array_slice($shiftIds, 0, 20),
+            'total_amount' => (float) $result['total_amount'],
+            'cash_amount' => (float) $result['cash_amount'],
+            'card_amount' => (float) $result['card_amount'],
+            'other_amount' => (float) $result['other_amount'],
+        ]);
+
+        return $result;
     }
 
     private function isCarWashEnabled(): bool
@@ -226,216 +915,11 @@ class ReportController extends Controller
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
-
-        // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
-        [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
-
-        $supportedMethods = [Payment::METHOD_CASH, Payment::METHOD_CARD];
-
-        // Ingresos de estacionamiento: SOLO pagos completados CASH/CARD por paid_at,
-        // y sólo sesiones completadas. Esto evita ruido (WEBPAY/TRANSFER) no funcional.
-        $parkingPaymentsBase = Payment::completed()
-            ->whereIn('method', $supportedMethods)
-            ->whereBetween('paid_at', [$dateFrom, $dateTo])
-            ->whereHas('parkingSession', function ($q) use ($request) {
-                $q->where('status', 'COMPLETED');
-
-                if ($request->filled('sector_id')) {
-                    $q->where('sector_id', $request->sector_id);
-                }
-
-                if ($request->filled('operator_id')) {
-                    // Sesiones cerradas por el operador (operator_out_id), con fallback a operator_in_id
-                    $operatorId = $request->operator_id;
-                    $q->where(function ($qq) use ($operatorId) {
-                        $qq->where('operator_out_id', $operatorId)
-                            ->orWhere(function ($subQ) use ($operatorId) {
-                                $subQ->whereNull('operator_out_id')
-                                    ->where('operator_in_id', $operatorId);
-                            });
-                    });
-                }
-            });
-
-        $parkingCashAmount = (clone $parkingPaymentsBase)
-            ->where('method', Payment::METHOD_CASH)
-            ->sum('amount');
-
-        $parkingCardAmount = (clone $parkingPaymentsBase)
-            ->where('method', Payment::METHOD_CARD)
-            ->sum('amount');
-
-        $parkingTotalAmount = (float) $parkingCashAmount + (float) $parkingCardAmount;
-
-        // Safety net: monto en métodos no soportados (NO se suma a totales)
-        $parkingOtherAmount = Payment::completed()
-            ->whereNotIn('method', $supportedMethods)
-            ->whereBetween('paid_at', [$dateFrom, $dateTo])
-            ->whereHas('parkingSession', function ($q) use ($request) {
-                $q->where('status', 'COMPLETED');
-
-                if ($request->filled('sector_id')) {
-                    $q->where('sector_id', $request->sector_id);
-                }
-
-                if ($request->filled('operator_id')) {
-                    $operatorId = $request->operator_id;
-                    $q->where(function ($qq) use ($operatorId) {
-                        $qq->where('operator_out_id', $operatorId)
-                            ->orWhere(function ($subQ) use ($operatorId) {
-                                $subQ->whereNull('operator_out_id')
-                                    ->where('operator_in_id', $operatorId);
-                            });
-                    });
-                }
-            })
-            ->sum('amount');
-
-        // Sesiones incluidas: sólo aquellas con pagos CASH/CARD en el rango
-        $parkingSessionIds = (clone $parkingPaymentsBase)
-            ->whereNotNull('session_id')
-            ->distinct()
-            ->pluck('session_id');
-
-        $sessions = ParkingSession::with([
-            'sector',
-            'operator',
-            'operatorOut',
-            'payments' => function ($q) use ($supportedMethods, $dateFrom, $dateTo) {
-                $q->where('status', Payment::STATUS_COMPLETED)
-                    ->whereIn('method', $supportedMethods)
-                    ->whereBetween('paid_at', [$dateFrom, $dateTo]);
-            }
-        ])
-            ->whereIn('id', $parkingSessionIds)
-            ->orderBy('started_at', 'desc')
-            ->get();
-
-        // Autolavado: payment_type 'cash'|'card'
-        $carWashesBase = CarWash::query()
-            ->where('status', 'PAID')
-            ->whereBetween('paid_at', [$dateFrom, $dateTo]);
-
-        if ($request->filled('sector_id')) {
-            $carWashesBase->whereHas('session', function ($q) use ($request) {
-                $q->where('sector_id', $request->sector_id);
-            });
-        }
-
-        if ($request->filled('operator_id')) {
-            $operatorId = $request->operator_id;
-            $carWashesBase->where(function ($q) use ($operatorId) {
-                $q->where('cashier_operator_id', $operatorId)
-                    ->orWhere('operator_id', $operatorId);
-            });
-        }
-
-        $washCashTotal = (clone $carWashesBase)
-            ->where('payment_type', 'cash')
-            ->sum('amount');
-
-        $washCardTotal = (clone $carWashesBase)
-            ->where('payment_type', 'card')
-            ->sum('amount');
-
-        $washTotalAmount = (float) $washCashTotal + (float) $washCardTotal;
-
-        // Totales generales (CASH + CARD únicamente)
-        $totalCashAmount = (float) $parkingCashAmount + (float) $washCashTotal;
-        $totalCardAmount = (float) $parkingCardAmount + (float) $washCardTotal;
-        $totalAmount = (float) $totalCashAmount + (float) $totalCardAmount;
-
-        $summary = [
-            'period' => [
-                'from' => $request->date_from,
-                'to' => $request->date_to,
-            ],
-            'total_sales' => $sessions->count(),
-            'total_amount' => $totalAmount,
-            'cash_amount' => $totalCashAmount,
-            'card_amount' => $totalCardAmount,
-            'other_amount' => (float) $parkingOtherAmount,
-            'parking' => [
-                'cash_amount' => (float) $parkingCashAmount,
-                'card_amount' => (float) $parkingCardAmount,
-                'total_amount' => (float) $parkingTotalAmount,
-                'other_amount' => (float) $parkingOtherAmount,
-            ],
-            'car_wash' => [
-                'cash_amount' => (float) $washCashTotal,
-                'card_amount' => (float) $washCardTotal,
-                'total_amount' => (float) $washTotalAmount,
-            ],
-            'by_method' => [
-                Payment::METHOD_CASH => [
-                    'total' => (float) $totalCashAmount,
-                    'parking_total' => (float) $parkingCashAmount,
-                    'car_wash_total' => (float) $washCashTotal,
-                ],
-                Payment::METHOD_CARD => [
-                    'total' => (float) $totalCardAmount,
-                    'parking_total' => (float) $parkingCardAmount,
-                    'car_wash_total' => (float) $washCardTotal,
-                ],
-            ],
-            'by_sector' => $sessions->groupBy('sector.name')->map(function($group) {
-                $groupTotal = 0.0;
-                foreach ($group as $session) {
-                    $groupTotal += (float) $session->payments->sum('amount');
-                }
-                return [
-                    'count' => $group->count(),
-                    'total' => $groupTotal,
-                ];
-            }),
-            'by_operator' => $sessions->groupBy('operator.name')->map(function($group) {
-                $groupTotal = 0.0;
-                foreach ($group as $session) {
-                    $groupTotal += (float) $session->payments->sum('amount');
-                }
-                return [
-                    'count' => $group->count(),
-                    'total' => $groupTotal,
-                ];
-            }),
-            'daily_breakdown' => $sessions->groupBy(function($session) {
-                return $session->started_at->format('Y-m-d');
-            })->map(function($group) {
-                $groupTotal = 0.0;
-                foreach ($group as $session) {
-                    $groupTotal += (float) $session->payments->sum('amount');
-                }
-                return [
-                    'count' => $group->count(),
-                    'total' => $groupTotal,
-                ];
-            }),
-            'sessions' => $sessions->map(function($session) {
-                $sessionTotal = (float) $session->payments->sum('amount');
-                return [
-                    'id' => $session->id,
-                    'plate' => $session->plate,
-                    'sector' => $session->sector->name ?? null,
-                    'operator' => $session->operator->name ?? null,
-                    'started_at' => $session->started_at,
-                    'ended_at' => $session->ended_at,
-                    'duration_minutes' => $session->getDurationInMinutes(),
-                    'duration_formatted' => $session->getFormattedDuration(),
-                    'amount' => $sessionTotal,
-                    'payments' => $session->payments->map(function($payment) {
-                        return [
-                            'method' => $payment->method,
-                            'amount' => $payment->amount,
-                            'status' => $payment->status,
-                        ];
-                    }),
-                ];
-            }),
-        ];
+        $summary = $this->buildSalesReportData($request);
 
         return response()->json([
             'success' => true,
-            'data' => $summary
+            'data' => $summary,
         ]);
     }
 
@@ -614,74 +1098,245 @@ class ReportController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
-        [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
-
         $operator = Operator::findOrFail($request->operator_id);
+        $operatorId = (int) $request->operator_id;
+        $scope = $this->getReportScope($request);
 
-        // Sesiones donde el operador hizo checkout (operator_out_id) o creó la sesión (operator_in_id)
-        // Priorizar operator_out_id para cierres de turno correctos
-        $sessions = ParkingSession::where(function($query) use ($request) {
-                        $query->where('operator_out_id', $request->operator_id)
-                              ->orWhere(function($subQuery) use ($request) {
-                                  $subQuery->whereNull('operator_out_id')
-                                           ->where('operator_in_id', $request->operator_id);
-                              });
-                    })
-                                 ->whereBetween('started_at', [$dateFrom, $dateTo])
-                                 ->with(['sector', 'street', 'operator', 'operatorOut'])
-                                 ->get();
+        $includeSessionsDetail = $request->boolean('include_sessions_detail', false);
+        $carWashEnabled = $this->isCarWashEnabled();
 
-        // Obtener sesiones con pagos para calcular ventas (usar operator_out_id para cierres correctos)
-        $sessionsForSales = ParkingSession::where(function($query) use ($request) {
-                        $query->where('operator_out_id', $request->operator_id)
-                              ->orWhere(function($subQuery) use ($request) {
-                                  $subQuery->whereNull('operator_out_id')
-                                           ->where('operator_in_id', $request->operator_id);
-                              });
-                    })
-                                 ->whereBetween('started_at', [$dateFrom, $dateTo])
-                                 ->where('status', 'COMPLETED')
-                                 ->with(['sector', 'payments', 'operator', 'operatorOut'])
-                                 ->get();
-        
         $supportedMethods = [Payment::METHOD_CASH, Payment::METHOD_CARD];
 
-        // Calcular totales de ventas (solo CASH/CARD completados)
-        $totalAmount = 0.0;
-        $cashAmount = 0.0;
-        $cardAmount = 0.0;
-        
-        foreach ($sessionsForSales as $session) {
-            foreach ($session->payments as $payment) {
-                if ($payment->status !== Payment::STATUS_COMPLETED) {
+        $operatorSessionFilter = function ($q) use ($operatorId) {
+            $q->where(function ($qq) use ($operatorId) {
+                $qq->where('operator_out_id', $operatorId)
+                    ->orWhere(function ($subQ) use ($operatorId) {
+                        $subQ->whereNull('operator_out_id')
+                            ->where('operator_in_id', $operatorId);
+                    });
+            });
+        };
+
+        $shiftIds = [];
+        $parkingCashAmount = 0.0;
+        $parkingCardAmount = 0.0;
+        $parkingTotalAmount = 0.0;
+        $parkingOtherAmount = 0.0;
+        $totalSales = 0;
+        $bySector = [];
+        $sessionDetails = [];
+
+        if ($scope === 'SHIFT') {
+            $shiftIds = $this->getShiftIdsInDateRange($request->date_from, $request->date_to);
+            $closedSalesIds = $this->getClosedSalesIdsForShiftIds($shiftIds);
+
+            $paymentsBase = Payment::query()
+                ->whereIn('shift_id', $shiftIds)
+                ->where('status', Payment::STATUS_COMPLETED)
+                ->where(function ($query) use ($closedSalesIds) {
+                    $query->whereNotNull('session_id')
+                        ->orWhere(function ($subQuery) use ($closedSalesIds) {
+                            $subQuery->whereNotNull('sale_id');
+                            if (!empty($closedSalesIds)) {
+                                $subQuery->whereIn('sale_id', $closedSalesIds);
+                            } else {
+                                $subQuery->whereRaw('1 = 0');
+                            }
+                        });
+                })
+                ->where(function ($q) use ($operatorSessionFilter) {
+                    $q->whereHas('parkingSession', $operatorSessionFilter)
+                        ->orWhereHas('sale.parkingSession', $operatorSessionFilter);
+                })
+                ->with([
+                    'parkingSession.sector',
+                    'parkingSession.operator',
+                    'parkingSession.operatorOut',
+                    'sale.parkingSession.sector',
+                    'sale.parkingSession.operator',
+                    'sale.parkingSession.operatorOut',
+                    'sale.parkingSession',
+                ])
+                ->get();
+
+            $paymentsForReport = $paymentsBase->whereIn('method', $supportedMethods);
+
+            $parkingCashAmount = (float) $paymentsForReport->where('method', Payment::METHOD_CASH)->sum('amount');
+            $parkingCardAmount = (float) $paymentsForReport->where('method', Payment::METHOD_CARD)->sum('amount');
+            $parkingOtherAmount = (float) $paymentsBase->whereNotIn('method', $supportedMethods)->sum('amount');
+            $parkingTotalAmount = (float) $parkingCashAmount + (float) $parkingCardAmount;
+
+            $sessionIds = $paymentsForReport->whereNotNull('session_id')->pluck('session_id')->unique()->values();
+            $totalSales = (int) $sessionIds->count();
+
+            foreach ($paymentsForReport as $payment) {
+                $sectorName = null;
+                if ($payment->session_id && $payment->parkingSession && $payment->parkingSession->sector) {
+                    $sectorName = $payment->parkingSession->sector->name;
+                } elseif ($payment->sale_id && $payment->sale && $payment->sale->parkingSession && $payment->sale->parkingSession->sector) {
+                    $sectorName = $payment->sale->parkingSession->sector->name;
+                }
+                if (!$sectorName) {
                     continue;
                 }
-
-                if (!in_array($payment->method, $supportedMethods, true)) {
-                    continue;
+                if (!isset($bySector[$sectorName])) {
+                    $bySector[$sectorName] = ['count' => 0, 'total' => 0.0];
                 }
+                $bySector[$sectorName]['count']++;
+                $bySector[$sectorName]['total'] += (float) $payment->amount;
+            }
 
-                $totalAmount += (float) $payment->amount;
-                
-                if ($payment->method === Payment::METHOD_CASH) {
-                    $cashAmount += (float) $payment->amount;
-                } elseif ($payment->method === Payment::METHOD_CARD) {
-                    $cardAmount += (float) $payment->amount;
+            if ($includeSessionsDetail && $sessionIds->isNotEmpty()) {
+                $sessions = ParkingSession::with(['operator', 'operatorOut'])
+                    ->whereIn('id', $sessionIds)
+                    ->get()
+                    ->keyBy('id');
+
+                $paymentsBySession = $paymentsForReport->whereNotNull('session_id')->groupBy('session_id');
+                foreach ($paymentsBySession as $sessionId => $sessionPayments) {
+                    $session = $sessions->get($sessionId);
+                    if (!$session) {
+                        continue;
+                    }
+
+                    $sessionCash = (float) $sessionPayments->where('method', Payment::METHOD_CASH)->sum('amount');
+                    $sessionCard = (float) $sessionPayments->where('method', Payment::METHOD_CARD)->sum('amount');
+                    $sessionTotal = (float) $sessionCash + (float) $sessionCard;
+                    if ($sessionTotal <= 0) {
+                        continue;
+                    }
+
+                    $durationMinutes = $session->started_at && $session->ended_at
+                        ? Carbon::parse($session->started_at)->diffInMinutes(Carbon::parse($session->ended_at))
+                        : 0;
+                    $hours = floor((int) $durationMinutes / 60);
+                    $minutes = (int) $durationMinutes % 60;
+                    $durationFormatted = $hours > 0 ? "{$hours}h {$minutes}m" : "{$minutes}m";
+
+                    $sessionDetails[] = [
+                        'operator' => $session->operatorOut?->name ?? $session->operator?->name ?? 'N/A',
+                        'started_at' => $session->started_at,
+                        'ended_at' => $session->ended_at,
+                        'duration' => $durationFormatted,
+                        'amount' => $sessionTotal,
+                        'cash' => $sessionCash,
+                        'card' => $sessionCard,
+                    ];
+                }
+            }
+        } else {
+            // Modo DATE (antiguo)
+            [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+
+            $sessionsForSales = ParkingSession::where(function ($query) use ($operatorId) {
+                $query->where('operator_out_id', $operatorId)
+                    ->orWhere(function ($subQuery) use ($operatorId) {
+                        $subQuery->whereNull('operator_out_id')
+                            ->where('operator_in_id', $operatorId);
+                    });
+            })
+                ->whereBetween('started_at', [$dateFrom, $dateTo])
+                ->where('status', 'COMPLETED')
+                ->with(['sector', 'payments', 'operator', 'operatorOut'])
+                ->get();
+
+            $totalSales = (int) $sessionsForSales->count();
+            foreach ($sessionsForSales as $session) {
+                foreach ($session->payments as $payment) {
+                    if ($payment->status !== Payment::STATUS_COMPLETED) {
+                        continue;
+                    }
+                    if (!in_array($payment->method, $supportedMethods, true)) {
+                        continue;
+                    }
+                    if ($payment->method === Payment::METHOD_CASH) {
+                        $parkingCashAmount += (float) $payment->amount;
+                    } elseif ($payment->method === Payment::METHOD_CARD) {
+                        $parkingCardAmount += (float) $payment->amount;
+                    }
+                }
+            }
+            $parkingTotalAmount = (float) $parkingCashAmount + (float) $parkingCardAmount;
+
+            $bySector = $sessionsForSales->groupBy('sector.name')->map(function ($group) {
+                $groupTotal = 0.0;
+                foreach ($group as $session) {
+                    foreach ($session->payments as $payment) {
+                        if ($payment->status === Payment::STATUS_COMPLETED) {
+                            $groupTotal += (float) $payment->amount;
+                        }
+                    }
+                }
+                return [
+                    'count' => $group->count(),
+                    'total' => $groupTotal,
+                ];
+            })->toArray();
+
+            if ($includeSessionsDetail) {
+                foreach ($sessionsForSales as $session) {
+                    $sessionTotal = 0.0;
+                    $sessionCash = 0.0;
+                    $sessionCard = 0.0;
+                    foreach ($session->payments as $payment) {
+                        if ($payment->status !== Payment::STATUS_COMPLETED) {
+                            continue;
+                        }
+                        if (!in_array($payment->method, $supportedMethods, true)) {
+                            continue;
+                        }
+                        $sessionTotal += (float) $payment->amount;
+                        if ($payment->method === Payment::METHOD_CASH) {
+                            $sessionCash += (float) $payment->amount;
+                        } elseif ($payment->method === Payment::METHOD_CARD) {
+                            $sessionCard += (float) $payment->amount;
+                        }
+                    }
+                    if ($sessionTotal <= 0) {
+                        continue;
+                    }
+                    $durationMinutes = $session->started_at && $session->ended_at
+                        ? Carbon::parse($session->started_at)->diffInMinutes(Carbon::parse($session->ended_at))
+                        : 0;
+                    $hours = floor((int) $durationMinutes / 60);
+                    $minutes = (int) $durationMinutes % 60;
+                    $durationFormatted = $hours > 0 ? "{$hours}h {$minutes}m" : "{$minutes}m";
+
+                    $sessionDetails[] = [
+                        'operator' => $session->operatorOut?->name ?? $session->operator?->name ?? 'N/A',
+                        'started_at' => $session->started_at,
+                        'ended_at' => $session->ended_at,
+                        'duration' => $durationFormatted,
+                        'amount' => $sessionTotal,
+                        'cash' => $sessionCash,
+                        'card' => $sessionCard,
+                    ];
                 }
             }
         }
 
-        // Obtener deudas liquidadas del operador
-        $settledDebtsQuery = Debt::with(['parkingSession.sector', 'parkingSession.operator', 'payments'])
-                                 ->whereHas('parkingSession', function($q) use ($request) {
-                                     $q->where('operator_in_id', $request->operator_id);
-                                 })
-                                 ->where('status', 'SETTLED');
-
-        $settledDebtsQuery->whereBetween('updated_at', [$dateFrom, $dateTo]);
-
-        $settledDebts = $settledDebtsQuery->orderBy('updated_at', 'desc')->get();
+        // Deudas liquidadas (consistentes con caja): deudas con pagos completados en los turnos incluidos
+        $settledDebts = collect();
+        if ($scope === 'SHIFT' && !empty($shiftIds)) {
+            $settledDebts = Debt::with(['parkingSession.sector', 'parkingSession.operator', 'payments'])
+                ->where('status', 'SETTLED')
+                ->whereHas('payments', function ($q) use ($shiftIds) {
+                    $q->whereIn('shift_id', $shiftIds)->where('status', Payment::STATUS_COMPLETED);
+                })
+                ->whereHas('parkingSession', $operatorSessionFilter)
+                ->orderBy('updated_at', 'desc')
+                ->get();
+        } else {
+            [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+            $settledDebts = Debt::with(['parkingSession.sector', 'parkingSession.operator', 'payments'])
+                ->where('status', 'SETTLED')
+                ->whereHas('parkingSession', function ($q) use ($operatorId) {
+                    $q->where('operator_in_id', $operatorId);
+                })
+                ->whereBetween('updated_at', [$dateFrom, $dateTo])
+                ->orderBy('updated_at', 'desc')
+                ->get();
+        }
 
         $debtsDetail = [];
         foreach ($settledDebts as $debt) {
@@ -696,94 +1351,109 @@ class ReportController extends Controller
             ];
         }
 
-        // Detalle de sesiones de venta
-        $sessionDetails = [];
-        foreach ($sessionsForSales as $session) {
-            $sessionTotal = 0.0;
-            $sessionCash = 0.0;
-            $sessionCard = 0.0;
-            
-            foreach ($session->payments as $payment) {
-                if ($payment->status !== Payment::STATUS_COMPLETED) {
-                    continue;
-                }
+        // Car wash (si está habilitado)
+        $washTotalAmount = 0.0;
+        $washCash = 0.0;
+        $washCard = 0.0;
+        if ($carWashEnabled) {
+            if ($scope === 'SHIFT') {
+                $carWashes = !empty($shiftIds)
+                    ? CarWash::query()
+                        ->whereIn('shift_id', $shiftIds)
+                        ->where(function ($q) use ($operatorId) {
+                            $q->where('cashier_operator_id', $operatorId)->orWhere('operator_id', $operatorId);
+                        })
+                        ->get(['id', 'status', 'amount', 'payment_type', 'approval_code'])
+                    : collect();
 
-                if (!in_array($payment->method, $supportedMethods, true)) {
-                    continue;
-                }
+                $washTotalAmount = (float) $carWashes->where('status', 'PAID')->sum('amount');
+                $washCash = (float) $carWashes->where('status', 'PAID')
+                    ->filter(fn($cw) => $cw->payment_type === 'cash' || ($cw->payment_type === null && $cw->approval_code === null))
+                    ->sum('amount');
+                $washCard = (float) $carWashes->where('status', 'PAID')
+                    ->filter(fn($cw) => $cw->payment_type === 'card' || ($cw->payment_type === null && $cw->approval_code !== null))
+                    ->sum('amount');
+            } else {
+                [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+                $carWashes = CarWash::query()
+                    ->where('status', 'PAID')
+                    ->whereBetween('paid_at', [$dateFrom, $dateTo])
+                    ->where(function ($q) use ($operatorId) {
+                        $q->where('cashier_operator_id', $operatorId)->orWhere('operator_id', $operatorId);
+                    })
+                    ->get(['id', 'status', 'amount', 'payment_type', 'approval_code']);
 
-                $sessionTotal += (float) $payment->amount;
-                
-                if ($payment->method === Payment::METHOD_CASH) {
-                    $sessionCash += (float) $payment->amount;
-                } elseif ($payment->method === Payment::METHOD_CARD) {
-                    $sessionCard += (float) $payment->amount;
-                }
-            }
-            
-            if ($sessionTotal > 0) {
-                $durationMinutes = $session->started_at && $session->ended_at 
-                    ? \Carbon\Carbon::parse($session->started_at)->diffInMinutes(\Carbon\Carbon::parse($session->ended_at))
-                    : 0;
-                
-                $hours = floor((int)$durationMinutes / 60);
-                $minutes = (int)$durationMinutes % 60;
-                $durationFormatted = $hours > 0 ? "{$hours}h {$minutes}m" : "{$minutes}m";
-                
-                $sessionDetails[] = [
-                    'operator' => $session->operator ? $session->operator->name : 'N/A',
-                    'started_at' => $session->started_at,
-                    'ended_at' => $session->ended_at,
-                    'duration' => $durationFormatted,
-                    'amount' => $sessionTotal,
-                    'cash' => $sessionCash,
-                    'card' => $sessionCard,
-                ];
+                $washTotalAmount = (float) $carWashes->sum('amount');
+                $washCash = (float) $carWashes
+                    ->filter(fn($cw) => $cw->payment_type === 'cash' || ($cw->payment_type === null && $cw->approval_code === null))
+                    ->sum('amount');
+                $washCard = (float) $carWashes
+                    ->filter(fn($cw) => $cw->payment_type === 'card' || ($cw->payment_type === null && $cw->approval_code !== null))
+                    ->sum('amount');
             }
         }
 
+        $cashAmount = (float) $parkingCashAmount + (float) $washCash;
+        $cardAmount = (float) $parkingCardAmount + (float) $washCard;
+        $totalAmount = (float) $cashAmount + (float) $cardAmount;
+
         $summary = [
+            'meta' => [
+                'scope' => $scope,
+                'include_sessions_detail' => $includeSessionsDetail,
+                'car_wash_enabled' => $carWashEnabled,
+                ...$this->buildShiftsMeta($shiftIds),
+            ],
             'operator' => $operator,
             'period' => [
                 'from' => $request->date_from,
                 'to' => $request->date_to,
             ],
-            'total_sales' => $sessionsForSales->count(),
-            'total_amount' => $totalAmount,
-            'cash_amount' => $cashAmount,
-            'card_amount' => $cardAmount,
-            'sessions_detail' => $sessionDetails,
-            'by_sector' => $sessionsForSales->groupBy('sector.name')->map(function($group) {
-                $groupTotal = 0;
-                foreach ($group as $session) {
-                    foreach ($session->payments as $payment) {
-                        if ($payment->status === 'COMPLETED') {
-                            $groupTotal += (float) $payment->amount;
-                        }
-                    }
-                }
-                return [
-                    'count' => $group->count(),
-                    'total' => $groupTotal,
-                ];
-            }),
+            'total_sales' => (int) $totalSales,
+            'total_amount' => (float) $totalAmount,
+            'cash_amount' => (float) $cashAmount,
+            'card_amount' => (float) $cardAmount,
+            'other_amount' => (float) $parkingOtherAmount,
+            'parking' => [
+                'cash_amount' => (float) $parkingCashAmount,
+                'card_amount' => (float) $parkingCardAmount,
+                'total_amount' => (float) $parkingTotalAmount,
+                'other_amount' => (float) $parkingOtherAmount,
+            ],
+            'car_wash' => [
+                'cash_amount' => (float) $washCash,
+                'card_amount' => (float) $washCard,
+                'total_amount' => (float) $washTotalAmount,
+            ],
+            'sessions_detail' => $includeSessionsDetail ? $sessionDetails : [],
+            'by_sector' => $bySector,
             // Deudas liquidadas
             'total_debts' => $settledDebts->count(),
             'debts_total_amount' => $settledDebts->sum('principal_amount'),
             'debts_detail' => $debtsDetail,
-            'debts_by_status' => $settledDebts->groupBy('status')->map(function($group) {
+            'debts_by_status' => $settledDebts->groupBy('status')->map(function ($group) {
                 return [
                     'count' => $group->count(),
                     'total' => $group->sum('principal_amount'),
                 ];
             }),
-            'debts_by_sector' => $settledDebts->groupBy('parkingSession.sector.name')->map(function($group) {
+            'debts_by_sector' => $settledDebts->groupBy('parkingSession.sector.name')->map(function ($group) {
                 return [
                     'count' => $group->count(),
                     'total' => $group->sum('principal_amount'),
                 ];
             }),
         ];
+
+        Log::info('Operator report', [
+            'scope' => $scope,
+            'operator_id' => $operatorId,
+            'date_from' => $request->date_from,
+            'date_to' => $request->date_to,
+            'shift_count' => count($shiftIds),
+            'shift_ids_preview' => array_slice($shiftIds, 0, 20),
+            'total_amount' => (float) $summary['total_amount'],
+        ]);
 
         return response()->json([
             'success' => true,
@@ -1337,307 +2007,7 @@ class ReportController extends Controller
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
-
-        // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
-        [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
-
-        $mode = $request->get('mode', 'summary');
-        if (!in_array($mode, ['summary', 'full'], true)) {
-            $mode = 'summary';
-        }
-
-        $supportedMethods = [Payment::METHOD_CASH, Payment::METHOD_CARD];
-        $carWashEnabled = $this->isCarWashEnabled();
-        $includeWashes = $request->boolean('include_washes', true);
-        if (!$carWashEnabled) {
-            $includeWashes = false;
-        }
-
-        $parkingPaymentsBase = Payment::completed()
-            ->whereIn('method', $supportedMethods)
-            ->whereBetween('paid_at', [$dateFrom, $dateTo])
-            ->whereHas('parkingSession', function ($q) use ($request) {
-                $q->where('status', 'COMPLETED');
-
-                if ($request->filled('sector_id')) {
-                    $q->where('sector_id', $request->sector_id);
-                }
-
-                if ($request->filled('operator_id')) {
-                    $operatorId = $request->operator_id;
-                    $q->where(function ($qq) use ($operatorId) {
-                        $qq->where('operator_out_id', $operatorId)
-                            ->orWhere(function ($subQ) use ($operatorId) {
-                                $subQ->whereNull('operator_out_id')
-                                    ->where('operator_in_id', $operatorId);
-                            });
-                    });
-                }
-            });
-
-        $parkingCashAmount = (clone $parkingPaymentsBase)
-            ->where('method', Payment::METHOD_CASH)
-            ->sum('amount');
-
-        $parkingCardAmount = (clone $parkingPaymentsBase)
-            ->where('method', Payment::METHOD_CARD)
-            ->sum('amount');
-
-        $parkingTotalAmount = (float) $parkingCashAmount + (float) $parkingCardAmount;
-
-        $parkingOtherAmount = Payment::completed()
-            ->whereNotIn('method', $supportedMethods)
-            ->whereBetween('paid_at', [$dateFrom, $dateTo])
-            ->whereHas('parkingSession', function ($q) use ($request) {
-                $q->where('status', 'COMPLETED');
-
-                if ($request->filled('sector_id')) {
-                    $q->where('sector_id', $request->sector_id);
-                }
-
-                if ($request->filled('operator_id')) {
-                    $operatorId = $request->operator_id;
-                    $q->where(function ($qq) use ($operatorId) {
-                        $qq->where('operator_out_id', $operatorId)
-                            ->orWhere(function ($subQ) use ($operatorId) {
-                                $subQ->whereNull('operator_out_id')
-                                    ->where('operator_in_id', $operatorId);
-                            });
-                    });
-                }
-            })
-            ->sum('amount');
-
-        $parkingSessionIds = (clone $parkingPaymentsBase)
-            ->whereNotNull('session_id')
-            ->distinct()
-            ->pluck('session_id');
-
-        $sessions = ParkingSession::with([
-            'sector',
-            'operator',
-            'operatorOut',
-            'payments' => function ($q) use ($supportedMethods, $dateFrom, $dateTo) {
-                $q->where('status', Payment::STATUS_COMPLETED)
-                    ->whereIn('method', $supportedMethods)
-                    ->whereBetween('paid_at', [$dateFrom, $dateTo]);
-            }
-        ])
-            ->whereIn('id', $parkingSessionIds)
-            ->orderBy('started_at', 'desc')
-            ->get();
-
-        $washCashTotal = 0;
-        $washCardTotal = 0;
-        if ($includeWashes) {
-            // Lavado de autos: payment_type 'cash'|'card'
-            $carWashesBase = CarWash::query()
-                ->where('status', 'PAID')
-                ->whereBetween('paid_at', [$dateFrom, $dateTo]);
-
-            if ($request->filled('sector_id')) {
-                $carWashesBase->whereHas('session', function ($q) use ($request) {
-                    $q->where('sector_id', $request->sector_id);
-                });
-            }
-
-            if ($request->filled('operator_id')) {
-                $operatorId = $request->operator_id;
-                $carWashesBase->where(function ($q) use ($operatorId) {
-                    $q->where('cashier_operator_id', $operatorId)
-                        ->orWhere('operator_id', $operatorId);
-                });
-            }
-
-            $washCashTotal = (clone $carWashesBase)
-                ->where('payment_type', 'cash')
-                ->sum('amount');
-
-            $washCardTotal = (clone $carWashesBase)
-                ->where('payment_type', 'card')
-                ->sum('amount');
-        }
-
-        $washTotalAmount = (float) $washCashTotal + (float) $washCardTotal;
-
-        $cashAmount = (float) $parkingCashAmount + (float) $washCashTotal;
-        $cardAmount = (float) $parkingCardAmount + (float) $washCardTotal;
-        $totalAmount = (float) $cashAmount + (float) $cardAmount;
-
-        // "Generado por": en API REST no hay sesión; intentar resolver por token (Sanctum)
-        $generatedByName = null;
-        if ($request->user()) {
-            $generatedByName = $request->user()->name ?? null;
-        } else {
-            $bearer = $request->bearerToken();
-            if ($bearer) {
-                try {
-                    $pat = \Laravel\Sanctum\PersonalAccessToken::findToken($bearer);
-                    $tokenable = $pat?->tokenable;
-                    if ($tokenable && isset($tokenable->name)) {
-                        $generatedByName = $tokenable->name;
-                    }
-                } catch (\Throwable $e) {
-                    // Silencioso: si no se puede resolver, cae en "Sistema"
-                }
-            }
-        }
-        
-        $includeSessions = $request->boolean('include_sessions');
-        $sessionsLimit = $request->filled('sessions_limit') ? (int) $request->input('sessions_limit') : null;
-        if ($sessionsLimit !== null) {
-            $sessionsLimit = max(50, min(5000, $sessionsLimit));
-        }
-
-        $sessionDetails = [];
-        if ($includeSessions) {
-            foreach ($sessions as $session) {
-                $sessionTotal = (float) $session->payments->sum('amount');
-                
-                if ($sessionTotal > 0) {
-                    $durationMinutes = $session->started_at && $session->ended_at 
-                        ? \Carbon\Carbon::parse($session->started_at)->diffInMinutes(\Carbon\Carbon::parse($session->ended_at))
-                        : 0;
-                    
-                    $hours = floor((int)$durationMinutes / 60);
-                    $minutes = (int)$durationMinutes % 60;
-                    $durationFormatted = $hours > 0 ? "{$hours}h {$minutes}m" : "{$minutes}m";
-                    
-                    $sessionDetails[] = [
-                        'operator' => $session->operator ? $session->operator->name : 'N/A',
-                        'plate' => $session->plate,
-                        'started_at' => $session->started_at,
-                        'ended_at' => $session->ended_at,
-                        'duration' => $durationFormatted,
-                        'amount' => $sessionTotal,
-                    ];
-                }
-            }
-
-            if ($sessionsLimit !== null) {
-                $sessionDetails = array_slice($sessionDetails, 0, $sessionsLimit);
-            }
-        }
-
-        $summary = [
-            'meta' => [
-                'include_sessions' => $includeSessions,
-                'sessions_limit_used' => $sessionsLimit,
-                'generated_by' => $generatedByName,
-                'car_wash_enabled' => $carWashEnabled,
-                'include_washes' => $includeWashes,
-            ],
-            'period' => [
-                'from' => $request->date_from,
-                'to' => $request->date_to,
-            ],
-            'mode' => $mode,
-            'total_sales' => $sessions->count(),
-            'total_amount' => $totalAmount,
-            'cash_amount' => $cashAmount,
-            'card_amount' => $cardAmount,
-            'other_amount' => (float) $parkingOtherAmount,
-            'parking_cash' => (float) $parkingCashAmount,
-            'parking_card' => (float) $parkingCardAmount,
-            'parking_total' => (float) $parkingTotalAmount,
-            'wash_cash' => (float) $washCashTotal,
-            'wash_card' => (float) $washCardTotal,
-            'wash_total' => (float) $washTotalAmount,
-            'parking' => [
-                'cash_amount' => (float) $parkingCashAmount,
-                'card_amount' => (float) $parkingCardAmount,
-                'total_amount' => (float) $parkingTotalAmount,
-                'other_amount' => (float) $parkingOtherAmount,
-            ],
-            'car_wash' => [
-                'cash_amount' => (float) $washCashTotal,
-                'card_amount' => (float) $washCardTotal,
-                'total_amount' => (float) $washTotalAmount,
-            ],
-            'by_method' => [
-                Payment::METHOD_CASH => [
-                    'total' => (float) $cashAmount,
-                    'parking_total' => (float) $parkingCashAmount,
-                    'car_wash_total' => (float) $washCashTotal,
-                ],
-                Payment::METHOD_CARD => [
-                    'total' => (float) $cardAmount,
-                    'parking_total' => (float) $parkingCardAmount,
-                    'car_wash_total' => (float) $washCardTotal,
-                ],
-            ],
-            'sessions_detail' => $sessionDetails,
-            'by_sector' => $sessions->groupBy('sector.name')->map(function($group) {
-                $groupTotal = 0.0;
-                foreach ($group as $session) {
-                    $groupTotal += (float) $session->payments->sum('amount');
-                }
-                return [
-                    'count' => $group->count(),
-                    'total' => $groupTotal,
-                ];
-            }),
-            'by_operator' => $sessions->groupBy('operator.name')->map(function($group) {
-                $groupTotal = 0.0;
-                foreach ($group as $session) {
-                    $groupTotal += (float) $session->payments->sum('amount');
-                }
-                return [
-                    'count' => $group->count(),
-                    'total' => $groupTotal,
-                ];
-            }),
-        ];
-
-        if ($mode === 'full') {
-            // Base 24 horas (0..23) para gráfico/analítica
-            $hourlyMoney = collect(range(0, 23))->mapWithKeys(function ($h) {
-                return [(int) $h => ['count' => 0, 'total' => 0]];
-            })->toArray();
-
-            $grouped = $sessions->groupBy(function ($s) {
-                return (int) \Carbon\Carbon::parse($s->started_at)->format('G'); // 0..23
-            });
-
-            foreach ($grouped as $hour => $group) {
-                $count = $group->count();
-                $total = 0.0;
-                foreach ($group as $session) {
-                    foreach ($session->payments as $payment) {
-                        if ($payment->status === Payment::STATUS_COMPLETED) {
-                            $total += (float) $payment->amount;
-                        }
-                    }
-                }
-                $hourlyMoney[(int) $hour] = ['count' => $count, 'total' => $total];
-            }
-
-            // Hora pico por MONTO (CLP), no por cantidad
-            $maxTotal = 0.0;
-            $peakHourMoney = 0;
-            foreach ($hourlyMoney as $hour => $info) {
-                $t = (float) ($info['total'] ?? 0);
-                if ($t > $maxTotal) {
-                    $maxTotal = $t;
-                    $peakHourMoney = (int) $hour;
-                }
-            }
-
-            $paymentMethods = [
-                'cash' => (float) $cashAmount,
-                'card' => (float) $cardAmount,
-            ];
-
-            $averageTicket = $sessions->count() > 0 ? ((float) $totalAmount / (float) $sessions->count()) : 0;
-
-            $summary['hourly_money'] = $hourlyMoney;
-            $summary['hourly_max_total'] = max(1, $maxTotal);
-            $summary['peak_hour_money'] = $peakHourMoney;
-
-            // Mantener compatibilidad si algo consume peak_hour/hourly antiguos
-            $summary['payment_methods'] = $paymentMethods;
-            $summary['average_ticket'] = $averageTicket;
-        }
+        $summary = $this->buildSalesReportData($request, true);
 
         $pdf = Pdf::loadView('reports.sales', ['data' => $summary]);
         return $pdf->download('reporte-ventas-' . now()->format('Y-m-d') . '.pdf');
@@ -1669,24 +2039,45 @@ class ReportController extends Controller
 
         $includeDebtsDetail = $request->boolean('include_debts_detail');
 
-        // Normalizar fechas: date_from a 00:00:00 y date_to a 23:59:59
-        [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+        $scope = $this->getReportScope($request);
+        $shiftIds = [];
 
-        $query = Debt::with(['parkingSession.sector', 'parkingSession.operator', 'payments']);
+        if ($scope === 'SHIFT') {
+            $shiftIds = $this->getShiftIdsInDateRange($request->date_from, $request->date_to);
+
+            $debtIds = [];
+            if (!empty($shiftIds)) {
+                $debtIds = Payment::query()
+                    ->whereIn('shift_id', $shiftIds)
+                    ->where('status', Payment::STATUS_COMPLETED)
+                    ->whereNotNull('debt_id')
+                    ->distinct()
+                    ->pluck('debt_id')
+                    ->toArray();
+            }
+
+            $query = Debt::with(['parkingSession.sector', 'parkingSession.operator', 'payments'])
+                ->when(!empty($debtIds), fn($q) => $q->whereIn('id', $debtIds), fn($q) => $q->whereRaw('1 = 0'));
+        } else {
+            // Modo antiguo por fecha
+            [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
+            $query = Debt::with(['parkingSession.sector', 'parkingSession.operator', 'payments'])
+                ->whereBetween('created_at', [$dateFrom, $dateTo]);
+        }
 
         if ($request->filled('sector_id')) {
-            $query->whereHas('parkingSession', function($q) use ($request) {
-                $q->where('sector_id', $request->sector_id);
+            $sectorId = (int) $request->sector_id;
+            $query->whereHas('parkingSession', function ($q) use ($sectorId) {
+                $q->where('sector_id', $sectorId);
             });
         }
 
         if ($request->filled('operator_id')) {
-            $query->whereHas('parkingSession', function($q) use ($request) {
-                $q->where('operator_in_id', $request->operator_id);
+            $operatorId = (int) $request->operator_id;
+            $query->whereHas('parkingSession', function ($q) use ($operatorId) {
+                $q->where('operator_in_id', $operatorId);
             });
         }
-
-        $query->whereBetween('created_at', [$dateFrom, $dateTo]);
 
         $debts = $query->orderBy('created_at', 'desc')->get();
 
@@ -1707,6 +2098,8 @@ class ReportController extends Controller
         $summary = [
             'meta' => [
                 'include_debts_detail' => $includeDebtsDetail,
+                'scope' => $scope,
+                ...$this->buildShiftsMeta($shiftIds),
             ],
             'period' => [
                 'from' => $request->date_from,
@@ -1728,6 +2121,16 @@ class ReportController extends Controller
                 ];
             }),
         ];
+
+        Log::info('Debts report (PDF)', [
+            'scope' => $scope,
+            'date_from' => $request->date_from,
+            'date_to' => $request->date_to,
+            'shift_count' => count($shiftIds),
+            'shift_ids_preview' => array_slice($shiftIds, 0, 20),
+            'total_amount' => (float) $summary['total_amount'],
+            'total_debts' => (int) $summary['total_debts'],
+        ]);
 
         $pdf = Pdf::loadView('reports.debts', ['data' => $summary]);
         return $pdf->download('reporte-deudas-' . now()->format('Y-m-d') . '.pdf');
@@ -1754,55 +2157,6 @@ class ReportController extends Controller
 
         if (!$includeSessionsDetail) {
             $data['sessions_detail'] = [];
-        }
-
-        // Lavado de autos (si está habilitado para el tenant)
-        $carWashEnabled = $this->isCarWashEnabled();
-        $data['meta']['car_wash_enabled'] = $carWashEnabled;
-
-        if ($carWashEnabled) {
-            [$dateFrom, $dateTo] = $this->normalizeDateRange($request->date_from, $request->date_to);
-            $operatorId = (int) $request->operator_id;
-
-            $carWashesBase = CarWash::query()
-                ->where('status', 'PAID')
-                ->whereBetween('paid_at', [$dateFrom, $dateTo])
-                ->where(function ($q) use ($operatorId) {
-                    $q->where('cashier_operator_id', $operatorId)
-                        ->orWhere('operator_id', $operatorId);
-                });
-
-            $washCash = (clone $carWashesBase)->where('payment_type', 'cash')->sum('amount');
-            $washCard = (clone $carWashesBase)->where('payment_type', 'card')->sum('amount');
-            $washTotal = (float) $washCash + (float) $washCard;
-
-            $data['car_wash'] = [
-                'cash_amount' => (float) $washCash,
-                'card_amount' => (float) $washCard,
-                'total_amount' => (float) $washTotal,
-            ];
-
-            // Mantener trazabilidad de parking y sumar lavado al total del PDF
-            $data['parking'] = $data['parking'] ?? [
-                'cash_amount' => (float) ($data['cash_amount'] ?? 0),
-                'card_amount' => (float) ($data['card_amount'] ?? 0),
-                'total_amount' => (float) ($data['total_amount'] ?? 0),
-            ];
-
-            $data['cash_amount'] = (float) ($data['parking']['cash_amount'] ?? 0) + (float) $washCash;
-            $data['card_amount'] = (float) ($data['parking']['card_amount'] ?? 0) + (float) $washCard;
-            $data['total_amount'] = (float) ($data['cash_amount'] ?? 0) + (float) ($data['card_amount'] ?? 0);
-        } else {
-            $data['car_wash'] = [
-                'cash_amount' => 0.0,
-                'card_amount' => 0.0,
-                'total_amount' => 0.0,
-            ];
-            $data['parking'] = $data['parking'] ?? [
-                'cash_amount' => (float) ($data['cash_amount'] ?? 0),
-                'card_amount' => (float) ($data['card_amount'] ?? 0),
-                'total_amount' => (float) ($data['total_amount'] ?? 0),
-            ];
         }
 
         $pdf = Pdf::loadView('reports.operator', ['data' => $data]);

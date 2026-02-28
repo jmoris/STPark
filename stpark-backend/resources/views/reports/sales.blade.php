@@ -54,14 +54,38 @@
                 <span class="info-label">Fecha Hasta:</span>
                 <span class="info-value">{{ \Carbon\Carbon::parse($data['period']['to'])->format('d/m/Y H:i') }}</span>
             </div>
+            <div class="info-row">
+                <span class="info-label">Alcance:</span>
+                <span class="info-value">
+                    @php $scope = strtoupper((string)($data['meta']['scope'] ?? 'SHIFT')); @endphp
+                    {{ $scope === 'DATE' ? 'Por fechas (modo antiguo)' : 'Por turnos (SHIFT)' }}
+                </span>
+            </div>
+            @if(($data['meta']['scope'] ?? 'SHIFT') === 'SHIFT')
+                <div class="info-row">
+                    <span class="info-label">Turnos incluidos:</span>
+                    <span class="info-value">
+                        {{ (int)($data['meta']['shifts_included_count'] ?? 0) }}
+                        <span class="small muted">
+                            (turnos abiertos entre las fechas seleccionadas)
+                        </span>
+                    </span>
+                </div>
+            @endif
             <div class="info-row last">
                 <span class="info-label">Generado:</span>
                 <span class="info-value">{{ $generatedAt }}</span>
             </div>
-            <div class="info-row last">
+            <div class="info-row">
                 <span class="info-label">Estacionamiento:</span>
                 <span class="info-value">{{ $tenantName ?? (tenant('id') ?? 'N/A') }}</span>
             </div>
+            @if(!empty($data['meta']['generated_by']))
+                <div class="info-row">
+                    <span class="info-label">Generado por:</span>
+                    <span class="info-value">{{ $data['meta']['generated_by'] }}</span>
+                </div>
+            @endif
         </div>
     </div>
 
