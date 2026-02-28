@@ -45,6 +45,51 @@ class ReportController extends Controller
         }
     }
 
+    private function getKpiData(string $date): array
+    {
+        [$from, $to] = $this->normalizeDateRange($date, $date);
+
+        $sessions = ParkingSession::with('payments')
+            ->where('status', 'COMPLETED')
+            ->whereBetween('started_at', [$from, $to])
+            ->get();
+
+        $totalAmount = 0.0;
+        foreach ($sessions as $session) {
+            foreach ($session->payments as $payment) {
+                if ($payment->status === 'COMPLETED') {
+                    $totalAmount += (float) $payment->amount;
+                }
+            }
+        }
+
+        $count = $sessions->count();
+        $avg = $count > 0 ? $totalAmount / $count : 0.0;
+
+        $debts = (float) Debt::whereBetween('created_at', [$from, $to])->sum('principal_amount');
+
+        // Car wash
+        $cwTotal = 0.0;
+        $cwCount = 0;
+        $cwAvg = 0.0;
+        if ($this->isCarWashEnabled()) {
+            $carWashes = CarWash::whereBetween('performed_at', [$from, $to])->get();
+            $cwTotal = (float) $carWashes->sum('amount');
+            $cwCount = (int) $carWashes->count();
+            $cwAvg = $cwCount > 0 ? $cwTotal / $cwCount : 0.0;
+        }
+
+        return [
+            'revenue' => (float) $totalAmount,
+            'sessions' => (int) $count,
+            'avg_ticket' => (float) $avg,
+            'debts' => (float) $debts,
+            'car_wash_revenue' => (float) $cwTotal,
+            'car_wash_count' => (int) $cwCount,
+            'car_wash_avg_ticket' => (float) $cwAvg,
+        ];
+    }
+
     /**
      * Obtiene el horario de trabajo basado en los perfiles de precios del tenant
      * Retorna un array con 'start_hour' y 'end_hour' en formato HH:mm
@@ -1123,6 +1168,21 @@ class ReportController extends Controller
         // =========================
         // KPI compare: día seleccionado vs día anterior
         // =========================
+        $previousDate = Carbon::parse($date)->subDay()->format('Y-m-d');
+        $current = $this->getKpiData($date);
+        $previous = $this->getKpiData($previousDate);
+
+        $kpiCompare = [
+            'revenue' => ['today' => $current['revenue'], 'yesterday' => $previous['revenue']],
+            'sessions' => ['today' => $current['sessions'], 'yesterday' => $previous['sessions']],
+            'avg_ticket' => ['today' => $current['avg_ticket'], 'yesterday' => $previous['avg_ticket']],
+            'debts' => ['today' => $current['debts'], 'yesterday' => $previous['debts']],
+
+            'car_wash_revenue' => ['today' => $current['car_wash_revenue'], 'yesterday' => $previous['car_wash_revenue']],
+            'car_wash_count' => ['today' => $current['car_wash_count'], 'yesterday' => $previous['car_wash_count']],
+            'car_wash_avg_ticket' => ['today' => $current['car_wash_avg_ticket'], 'yesterday' => $previous['car_wash_avg_ticket']],
+        ];
+
         $computeKpiCompareForDate = function (Carbon $day) use ($carWashEnabled, $startHour, $endHour, $crossesMidnight): array {
             // Período laboral para contar "sesiones activas del período"
             $periodStart = $day->copy();
@@ -1234,6 +1294,7 @@ class ReportController extends Controller
                 'car_wash_count' => (int) ($carWashEnabled ? $carWashesCount : 0),
             ],
             'previous' => $computeKpiCompareForDate($previousDateCarbon),
+            ...$kpiCompare,
         ];
 
         if (!$carWashEnabled) {
