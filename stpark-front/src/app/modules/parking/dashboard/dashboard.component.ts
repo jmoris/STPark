@@ -60,10 +60,17 @@ export class CustomDateAdapter extends NativeDateAdapter {
   }
 }
 
-type KpiDelta =
-  | { kind: 'pct'; pct: number }       // % de variación
-  | { kind: 'new' }                    // previous=0 y current>0
-  | { kind: 'na' };                    // no aplica / sin datos
+type KpiDeltaPct = Partial<{
+  revenue: number;
+  sessions: number;
+  occupancy: number;
+  debts: number;
+  activeSessions: number;
+  avgTicket: number;
+  carWashRevenue: number;
+  carWashCount: number;
+  carWashAvgTicket: number;
+}>;
 
 @Component({
   selector: 'app-dashboard',
@@ -133,8 +140,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     carWashAverageTicket: 0,
   };
 
-  // Contexto KPI (vs día anterior). Se mockea de forma estable por fecha.
-  kpiDelta: Record<string, KpiDelta> = {};
+  // Deltas KPI (% vs día anterior) SOLO desde backend (kpi_compare)
+  kpiDeltaPct: KpiDeltaPct = {};
 
   // Sesiones por hora: contexto de hora pico
   peakSessions: { hourLabel: string; count: number } | null = null;
@@ -220,6 +227,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           this.dashboardData = response.data;
+          this.kpiDeltaPct = this.mapKpiCompare((this.dashboardData as any)?.kpi_compare);
           this.updateStats();
           this.updateCharts();
           this.loading = false;
@@ -263,9 +271,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     // Calcular porcentaje de ocupación
     this.calculateOccupancy();
-
-    // Actualizar contexto KPI (vs día anterior) desde backend
-    this.updateKpiDeltas();
   }
 
   private safeDivide(numerator: number, denominator: number): number {
@@ -291,76 +296,74 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return Math.round(value * 10) / 10;
   }
 
-  /**
-   * Calcula variación porcentual (o "Nuevo") de forma segura.
-   * Reglas:
-   * - previous === 0 y current === 0 => 0%
-   * - previous === 0 y current > 0 => "Nuevo" (evita infinito)
-   * - previous > 0 => ((current - previous) / previous) * 100
-   */
-  private calcDelta(current: number, previous: number): KpiDelta {
-    const cur = Number(current || 0);
-    const prev = Number(previous || 0);
+  private mapKpiCompare(compare: any): KpiDeltaPct {
+    if (!compare) return {};
 
-    if (!Number.isFinite(cur) || !Number.isFinite(prev)) return { kind: 'na' };
-    if (prev === 0 && cur === 0) return { kind: 'pct', pct: 0 };
-    if (prev === 0 && cur > 0) return { kind: 'new' };
-    if (prev > 0) return { kind: 'pct', pct: this.round1(((cur - prev) / prev) * 100) };
-    return { kind: 'na' };
-  }
+    const safePct = (todayRaw: any, yesterdayRaw: any): number => {
+      const today = Number(todayRaw || 0);
+      const yesterday = Number(yesterdayRaw || 0);
+      if (!Number.isFinite(today) || !Number.isFinite(yesterday)) return 0;
 
-  private updateKpiDeltas(): void {
-    if (!this.dashboardData) {
-      this.kpiDelta = {};
-      return;
-    }
+      if (!yesterday && !today) return 0;
+      if (!yesterday && today > 0) return 100;
+      if (yesterday > 0 && !today) return -100;
+      return ((today - yesterday) / yesterday) * 100;
+    };
 
-    const kpiCompare = (this.dashboardData as any)?.kpi_compare;
-    const current = kpiCompare?.current;
-    const previous = kpiCompare?.previous;
+    // Soporta ambos formatos:
+    // A) compare.current / compare.previous (backend actual)
+    // B) compare.revenue.today / compare.revenue.yesterday (si backend cambia)
+    const current = compare?.current;
+    const previous = compare?.previous;
 
-    if (!current || !previous) {
-      this.kpiDelta = {};
-      return;
-    }
+    const revenueToday = current ? current.total_amount_parking : compare?.revenue?.today;
+    const revenueYesterday = previous ? previous.total_amount_parking : compare?.revenue?.yesterday;
 
-    const curRevenue = Number(current.total_amount_parking || 0);
-    const prevRevenue = Number(previous.total_amount_parking || 0);
+    const sessionsToday = current ? current.total_sessions_parking : compare?.sessions?.today;
+    const sessionsYesterday = previous ? previous.total_sessions_parking : compare?.sessions?.yesterday;
 
-    const curSessions = Number(current.total_sessions_parking || 0);
-    const prevSessions = Number(previous.total_sessions_parking || 0);
+    const debtsToday = current ? current.pending_debts_total_amount : compare?.debts?.today;
+    const debtsYesterday = previous ? previous.pending_debts_total_amount : compare?.debts?.yesterday;
 
-    const curDebts = Number(current.pending_debts_total_amount || 0);
-    const prevDebts = Number(previous.pending_debts_total_amount || 0);
+    const activeToday = current ? current.active_sessions_count : compare?.active_sessions?.today;
+    const activeYesterday = previous ? previous.active_sessions_count : compare?.active_sessions?.yesterday;
 
-    const curActive = Number(current.active_sessions_count || 0);
-    const prevActive = Number(previous.active_sessions_count || 0);
+    const avgTicketToday = current ? this.safeDivide(Number(revenueToday || 0), Number(sessionsToday || 0)) : compare?.avg_ticket?.today;
+    const avgTicketYesterday = previous ? this.safeDivide(Number(revenueYesterday || 0), Number(sessionsYesterday || 0)) : compare?.avg_ticket?.yesterday;
 
-    const curAvgTicket = this.safeDivide(curRevenue, curSessions);
-    const prevAvgTicket = this.safeDivide(prevRevenue, prevSessions);
+    const occToday = this.maxCapacity > 0 ? this.round1((Number(activeToday || 0) / this.maxCapacity) * 100) : (compare?.occupancy?.today ?? 0);
+    const occYesterday = this.maxCapacity > 0 ? this.round1((Number(activeYesterday || 0) / this.maxCapacity) * 100) : (compare?.occupancy?.yesterday ?? 0);
 
-    const curOccPct = this.maxCapacity > 0 ? this.round1((curActive / this.maxCapacity) * 100) : 0;
-    const prevOccPct = this.maxCapacity > 0 ? this.round1((prevActive / this.maxCapacity) * 100) : 0;
+    const carWashRevenueToday = current ? current.car_wash_total_amount : compare?.car_wash_revenue?.today;
+    const carWashRevenueYesterday = previous ? previous.car_wash_total_amount : compare?.car_wash_revenue?.yesterday;
 
-    const curCarWashRevenue = Number(current.car_wash_total_amount || 0);
-    const prevCarWashRevenue = Number(previous.car_wash_total_amount || 0);
+    const carWashCountToday = current ? current.car_wash_count : compare?.car_wash_count?.today;
+    const carWashCountYesterday = previous ? previous.car_wash_count : compare?.car_wash_count?.yesterday;
 
-    const curCarWashCount = Number(current.car_wash_count || 0);
-    const prevCarWashCount = Number(previous.car_wash_count || 0);
+    const carWashAvgToday = current
+      ? this.safeDivide(Number(carWashRevenueToday || 0), Number(carWashCountToday || 0))
+      : (compare?.car_wash_avg_ticket?.today ?? 0);
+    const carWashAvgYesterday = previous
+      ? this.safeDivide(Number(carWashRevenueYesterday || 0), Number(carWashCountYesterday || 0))
+      : (compare?.car_wash_avg_ticket?.yesterday ?? 0);
 
-    const curCarWashAvg = this.safeDivide(curCarWashRevenue, curCarWashCount);
-    const prevCarWashAvg = this.safeDivide(prevCarWashRevenue, prevCarWashCount);
+    // Si no hay current/previous y tampoco campos del formato B, devolvemos vacío (no fake deltas)
+    const hasAny =
+      compare?.revenue || compare?.sessions || compare?.occupancy || compare?.debts || compare?.active_sessions || compare?.avg_ticket
+      || compare?.car_wash_revenue || compare?.car_wash_count || compare?.car_wash_avg_ticket
+      || (current && previous);
+    if (!hasAny) return {};
 
-    this.kpiDelta = {
-      revenue: this.calcDelta(curRevenue, prevRevenue),
-      sessions: this.calcDelta(curSessions, prevSessions),
-      occupancy: this.calcDelta(curOccPct, prevOccPct),
-      debts: this.calcDelta(curDebts, prevDebts),
-      activeSessions: this.calcDelta(curActive, prevActive),
-      avgTicket: this.calcDelta(curAvgTicket, prevAvgTicket),
-      carWashRevenue: this.calcDelta(curCarWashRevenue, prevCarWashRevenue),
-      carWashCount: this.calcDelta(curCarWashCount, prevCarWashCount),
-      carWashAvgTicket: this.calcDelta(curCarWashAvg, prevCarWashAvg),
+    return {
+      revenue: this.round1(safePct(revenueToday, revenueYesterday)),
+      sessions: this.round1(safePct(sessionsToday, sessionsYesterday)),
+      occupancy: this.round1(safePct(occToday, occYesterday)),
+      debts: this.round1(safePct(debtsToday, debtsYesterday)),
+      activeSessions: this.round1(safePct(activeToday, activeYesterday)),
+      avgTicket: this.round1(safePct(avgTicketToday, avgTicketYesterday)),
+      carWashRevenue: this.round1(safePct(carWashRevenueToday ?? 0, carWashRevenueYesterday ?? 0)),
+      carWashCount: this.round1(safePct(carWashCountToday ?? 0, carWashCountYesterday ?? 0)),
+      carWashAvgTicket: this.round1(safePct(carWashAvgToday ?? 0, carWashAvgYesterday ?? 0)),
     };
   }
 
@@ -368,29 +371,28 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return this.reportService.formatNumber(value || 0);
   }
 
-  formatDelta(delta: KpiDelta | null | undefined): string {
-    if (!delta) return '—';
-    if (delta.kind === 'new') return 'Nuevo';
-    if (delta.kind === 'na') return '—';
-    const sign = delta.pct > 0 ? '+' : '';
-    return `${sign}${delta.pct}%`;
+  hasDelta(value: number | undefined | null): boolean {
+    return value !== undefined && value !== null;
   }
 
-  getDeltaIcon(delta: KpiDelta | null | undefined): string {
-    if (!delta) return 'remove';
-    if (delta.kind === 'new') return 'new_releases';
-    if (delta.kind === 'na') return 'remove';
-    if (delta.pct > 0.1) return 'arrow_upward';
-    if (delta.pct < -0.1) return 'arrow_downward';
+  formatDeltaPct(value: number | undefined | null): string {
+    if (value === undefined || value === null) return '';
+    if (value === 0) return '0%';
+    return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
+  }
+
+  getDeltaIcon(value: number | undefined | null): string {
+    if (value === undefined || value === null) return 'remove';
+    if (value > 0) return 'arrow_upward';
+    if (value < 0) return 'arrow_downward';
     return 'remove';
   }
 
-  getDeltaBadgeClass(delta: KpiDelta | null | undefined): string {
-    if (!delta) return 'delta-neutral';
-    if (delta.kind === 'new') return 'delta-neutral';
-    if (delta.kind === 'na') return 'delta-neutral';
-    if (delta.pct > 0.1) return 'delta-positive';
-    if (delta.pct < -0.1) return 'delta-negative';
+  getDeltaBadgeClass(value: number | undefined | null): string {
+    if (value === undefined || value === null) return 'delta-neutral';
+    if (value === 0) return 'bg-gray-100 text-gray-700';
+    if (value > 0) return 'delta-positive';
+    if (value < 0) return 'delta-negative';
     return 'delta-neutral';
   }
 
@@ -402,8 +404,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
           if (response && response.success && response.data) {
             this.maxCapacity = response.data.max_capacity || 0;
             this.calculateOccupancy();
-            // Recalcular deltas si la ocupación depende de la capacidad
-            this.updateKpiDeltas();
+            // Recalcular deltas (ocupación depende de la capacidad)
+            this.kpiDeltaPct = this.mapKpiCompare((this.dashboardData as any)?.kpi_compare);
           }
         },
         error: (error) => {
